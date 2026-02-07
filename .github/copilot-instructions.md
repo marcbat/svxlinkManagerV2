@@ -10,6 +10,7 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
 1.  **Projet Legacy (Référence Métier)**
     *   **Emplacement** : `../svxlinkmanager` (ou `c:\repos\svxlinkmanager`)
     *   **Usage** : Consultez ce dossier pour comprendre la logique métier, les anciennes implémentations et les fonctionnalités qui doivent être portées ou améliorées dans la V2. C'est la source de vérité pour le comportement attendu.
+    *   **Documentation (Wiki)** : Consultez le Wiki du projet legacy pour des informations complémentaires : https://github.com/marcbat/svxlinkmanager/wiki
 
 2.  **Logiciel Cible (SVXLink)**
     *   **Emplacement** : `../svxlink` (ou `c:\repos\svxlink`)
