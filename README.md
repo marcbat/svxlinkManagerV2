@@ -97,10 +97,107 @@ dotnet restore
 - **Queries** : Lisent l'état (depuis les projections Marten)
 - Handlers gérés par Wolverine
 
-### Result Pattern
-- Utilisation de `Validation<Error, T>` (LanguageExt)
-- Les erreurs métier ne sont **pas des exceptions**
+### Result Pattern avec LanguageExt
+
+#### Principe
+- Les **erreurs métier ne sont pas des exceptions** - elles représentent des échecs prévisibles
+- Retourner `Validation<Error, T>` pour représenter un Succès ou un Échec
 - Composition fonctionnelle avec `Bind()`, `Map()`, `Match()`
+- Accumulation automatique des erreurs multiples
+
+#### Quand utiliser ?
+✅ **Utiliser `Validation` pour** :
+- Validations métier (règles business)
+- Erreurs prévisibles (input invalide, règle métier non respectée)
+- Flow métier avec plusieurs étapes de validation
+
+❌ **Ne pas utiliser pour** :
+- Erreurs techniques (I/O, réseau, base de données)
+- Bugs logiques (NullReferenceException, IndexOutOfRangeException)
+- Situations inattendues qui doivent interrompre l'exécution
+
+#### Exemple simple
+
+```csharp
+using LanguageExt;
+using SvxlinkManagerV2.Domain.Common;
+using static LanguageExt.Prelude;
+
+public static Validation<Error, string> ValidateCallsign(string callsign)
+{
+    return callsign
+        .ValidateNotEmpty("EMPTY_CALLSIGN", "Callsign cannot be empty")
+        .Bind(value => value.ValidateThat(
+            v => v.Length >= 3,
+            "CALLSIGN_TOO_SHORT",
+            "Callsign must be at least 3 characters"))
+        .Map(value => value.ToUpper());
+}
+```
+
+#### Exemple avec composition
+
+```csharp
+public static Validation<Error, Salon> CreateSalon(
+    string name, 
+    string host, 
+    int port)
+{
+    // Validation de chaque paramètre
+    var nameValidation = name.ValidateNotEmpty(
+        "EMPTY_NAME", 
+        "Salon name cannot be empty");
+    
+    var hostValidation = host.ValidateNotEmpty(
+        "EMPTY_HOST", 
+        "Host cannot be empty");
+    
+    var portValidation = port.ValidateThat(
+        p => p > 0 && p <= 65535,
+        "INVALID_PORT",
+        "Port must be between 1 and 65535");
+    
+    // Combinaison : si toutes réussissent, crée le Salon
+    // Si au moins une échoue, retourne TOUTES les erreurs
+    return (nameValidation, hostValidation, portValidation)
+        .Apply((n, h, p) => new Salon(n, h, p));
+}
+```
+
+#### Utilisation dans les Handlers
+
+```csharp
+public static class CreateSalonCommandHandler
+{
+    public static Validation<Error, Guid> Handle(CreateSalonCommand cmd)
+    {
+        // Validation + création
+        var validation = SalonAggregate.Create(
+            cmd.Name, 
+            cmd.Host, 
+            cmd.Port);
+        
+        return validation.Match(
+            Succ: salon => 
+            {
+                // Sauvegarder en base
+                _repository.Save(salon);
+                return salon.Id.ToSuccess();
+            },
+            Fail: errors => errors.ToFailure<Guid>()
+        );
+    }
+}
+```
+
+#### Extensions disponibles
+
+Voir `ValidationExtensions.cs` pour les helpers :
+- `ToSuccess()` : Convertit une valeur en succès
+- `ToFailure()` : Convertit une/des erreur(s) en échec
+- `ValidateNotEmpty()` : Valide qu'une chaîne/Guid n'est pas vide
+- `ValidateThat()` : Valide un prédicat personnalisé
+- `Sequence()` : Combine plusieurs validations
 
 ### Fondations du Domain
 
