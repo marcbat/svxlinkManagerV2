@@ -191,6 +191,153 @@ dotnet restore
 - **Queries** : Lisent l'état (depuis les projections Marten)
 - Handlers gérés par Wolverine
 
+#### Wolverine pour la médiation CQRS
+
+**Wolverine** est le framework de médiation utilisé pour orchestrer les Commands et Queries. Il remplace MediatR (utilisé dans le projet Legacy) avec des fonctionnalités avancées :
+
+##### Différences Legacy vs V2
+| Aspect | Legacy (MediatR) | V2 (Wolverine) |
+|--------|------------------|----------------|
+| **Discovery** | Réflexion à l'exécution | Code-gen compilation |
+| **Performance** | Bonne | Excellente (minimal overhead) |
+| **Async natif** | Oui | Oui |
+| **Event Sourcing** | Support limité | Intégration native Marten |
+| **Testing** | Interface `IMediator` | Interface `IMessageBus` |
+
+##### Convention : Command/Query + Handler dans le même fichier
+
+**IMPORTANT** : Pour améliorer la lisibilité et la maintenabilité, chaque Command ou Query est définie avec son Handler **dans le même fichier**.
+
+**Exemple - PingCommand.cs** :
+```csharp
+namespace SvxlinkManagerV2.Application.Features.Ping;
+
+/// <summary>
+/// Commande de test pour valider le fonctionnement CQRS.
+/// Convention : La Command et son Handler sont définis dans le même fichier.
+/// </summary>
+public record PingCommand(string Message);
+
+/// <summary>
+/// Handler pour PingCommand. Wolverine le découvre automatiquement.
+/// </summary>
+public static class PingCommandHandler
+{
+    public static Task<string> Handle(PingCommand command)
+    {
+        return Task.FromResult($"Pong: {command.Message}");
+    }
+}
+```
+
+**Exemple - GetPingQuery.cs** :
+```csharp
+namespace SvxlinkManagerV2.Application.Features.Ping;
+
+public record GetPingQuery();
+
+public static class GetPingQueryHandler
+{
+    public static Task<string> Handle(GetPingQuery query)
+    {
+        return Task.FromResult("Ping service is alive");
+    }
+}
+```
+
+##### Utilisation avec IMessageBus
+
+Dans les tests ou depuis les controllers/pages Blazor, utilisez `IMessageBus` pour invoquer les Commands/Queries :
+
+```csharp
+public class SalonController
+{
+    private readonly IMessageBus _messageBus;
+    
+    public SalonController(IMessageBus messageBus)
+    {
+        _messageBus = messageBus;
+    }
+    
+    public async Task<IActionResult> Ping(string message)
+    {
+        // Envoyer une commande
+        var result = await _messageBus.InvokeAsync<string>(
+            new PingCommand(message));
+        
+        return Ok(result);
+    }
+    
+    public async Task<IActionResult> GetStatus()
+    {
+        // Exécuter une query
+        var result = await _messageBus.InvokeAsync<string>(
+            new GetPingQuery());
+        
+        return Ok(result);
+    }
+}
+```
+
+##### Configuration
+
+Wolverine est configuré dans [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) :
+```csharp
+public static IHostBuilder CreateHostBuilder(string[] args) =>
+    Host.CreateDefaultBuilder(args)
+        .UseWolverine()  // Active Wolverine
+        .ConfigureWebHostDefaults(webBuilder =>
+        {
+            webBuilder.UseStartup<Startup>();
+        });
+```
+
+##### Structure des Features
+
+```
+Application/Features/
+└── Ping/
+    ├── PingCommand.cs           # Command + Handler ensemble
+    └── GetPingQuery.cs          # Query + Handler ensemble
+```
+
+##### Tests avec Wolverine
+
+Pour tester les handlers :
+```csharp
+public class PingCommandTests
+{
+    [Fact]
+    public async Task Handle_ShouldReturnPongWithMessage()
+    {
+        // Arrange
+        var command = new PingCommand("test");
+        
+        // Act
+        var result = await PingCommandHandler.Handle(command);
+        
+        // Assert
+        result.Should().Be("Pong: test");
+    }
+    
+    [Fact]
+    public async Task InvokeAsync_ShouldExecutePingCommand()
+    {
+        // Arrange
+        var messageBus = Substitute.For<IMessageBus>();
+        var command = new PingCommand("test");
+        messageBus.InvokeAsync<string>(command)
+            .Returns("Pong: test");
+        
+        // Act
+        var result = await messageBus.InvokeAsync<string>(command);
+        
+        // Assert
+        result.Should().Be("Pong: test");
+    }
+}
+```
+
 ### Result Pattern avec LanguageExt
 
 #### Principe
