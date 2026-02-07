@@ -53,6 +53,11 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
 *   **Framework** : .NET 10.
 *   **Frontend** : Blazor.
 *   **Pattern** : Clean Architecture.
+*   **Structure de Projet** :
+    *   **src/** : Contient tous les projets sources (Domain, Application, Infrastructure, Presentation).
+    *   **tests/** : Contient tous les projets de tests (structure miroir de src/).
+        *   Projets `*.Tests` : Tests unitaires (avec mocks/stubs).
+        *   Projets `*.Integration.Tests` : Tests d'intégration (avec PostgreSQL réel via Testcontainers).
 *   **Structure des Couches** :
     1.  **Presentation (Blazor)** : Interface utilisateur.
     2.  **Application** : Cas d'utilisation, orchestration.
@@ -61,14 +66,28 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
 
 *   **Stack CQRS & Persistance** :
     *   **Médiation/CQRS** : Utiliser **Wolverine** pour l'envoi et le traitement de toutes les Commandes et Queries.
+        *   **Convention de Code** : Les Commands/Queries et leurs Handlers doivent **systématiquement être dans le même fichier** pour améliorer la lisibilité et la maintenabilité.
+        *   Exemple : `PingCommand.cs` contient à la fois `PingCommand` (record) et `PingCommandHandler` (classe statique).
     *   **Persistance** : Utiliser **Marten** (sur **PostgreSQL**).
     *   **Stratégie de Données** : Implémenter strictement le pattern **Event Sourcing** pour la persistance des états.
 
 *   **Programmation Fonctionnelle & Gestion des Erreurs** :
     *   Utiliser le **Result Pattern** (préférence pour l'objet **Validation**) via la librairie **LanguageExt** dans les couches **Application** et **Infrastructure** pour la gestion des flux et des erreurs.
+    *   **LanguageExt** doit être ajouté **uniquement au projet Application**. Il sera disponible par transitivité dans Infrastructure et Presentation via les références de projet.
 
 *   **Stratégie de Test & Environnement** :
-    *   L'environnement de test et de développement (**Docker Compose**) doit obligatoirement comporter 3 conteneurs distincts :
-        1.  **Application** : Le conteneur Blazor/.NET.
-        2.  **SVXLink** : Un conteneur contenant la version 19.09.2 de SVXLink. C'est l'instance pilotée pour les tests d'intégration réels (Infrastructure).
-        3.  **PostgreSQL** : Un conteneur dédié à la persistance (Marten/Event Sourcing).
+    *   L'environnement de test et de développement (**Docker Compose**) doit obligatoirement comporter 2 conteneurs distincts :
+        1.  **Application + SVXLink** : Le conteneur Blazor/.NET avec SVXLink 19.09.2 installé localement. Cela permet à l'application de démarrer/arrêter le daemon SVXLink via des commandes locales.
+        2.  **PostgreSQL** : Un conteneur dédié à la persistance (Marten/Event Sourcing).
+    *   **Stack de Tests** : Utiliser systématiquement la stack suivante pour tous les tests :
+        *   **Xunit** : Framework de tests unitaires et d'intégration.
+        *   **FluentAssertions** : Assertions expressives et lisibles.
+        *   **NSubstitute** : Mocking et substitution pour les tests unitaires.
+        *   **LanguageExt.UnitTesting** : Extensions pour tester les types `Validation<Error, T>` et autres constructs fonctionnels.
+    *   **Tests d'Intégration Obligatoires** :
+        *   **TOUTES** les Commands et Queries doivent avoir des tests d'intégration validant le stack complet (Application → Infrastructure → PostgreSQL).
+        *   **Testcontainers.NET** : Utiliser `Testcontainers.PostgreSql` pour créer un conteneur PostgreSQL temporaire durant les tests.
+        *   **Validation Commands** : Vérifier que les événements sont bien persistés dans Marten et que les projections sont mises à jour.
+        *   **Validation Queries** : Vérifier que les projections retournent les données correctes depuis PostgreSQL.
+        *   **Cycle complet** : Tester le workflow end-to-end (Command → Événements → Projections → Query).
+        *   **Organisation** : Les tests d'intégration doivent être dans des projets `*.Integration.Tests` séparés pour chaque couche testée.
