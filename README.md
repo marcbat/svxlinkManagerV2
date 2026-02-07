@@ -72,7 +72,101 @@ svxlinkmanagerV2/
 - Docker & Docker Compose (pour développement)
 - SVXLink 19.09.2
 
-## 🚀 Build et Tests
+## � Environnement de Développement Docker
+
+L'environnement de développement utilise **Docker Compose** avec 2 conteneurs :
+
+1. **svxlinkmanager-app** : Application .NET 9 avec SVXLink 19.09.2 installé localement
+2. **postgresql** : Base de données PostgreSQL 16
+
+### Pourquoi SVXLink dans le conteneur de l'application ?
+
+L'application doit pouvoir **démarrer/arrêter SVXLink** via des commandes locales (`systemctl`, appels directs). SVXLink doit donc être installé dans le même conteneur que l'application.
+
+### Configuration initiale
+
+1. **Copier le fichier d'environnement** :
+```bash
+cp .env.example .env
+```
+
+2. **Modifier les variables si nécessaire** (optionnel) :
+```bash
+# .env
+POSTGRES_DB=svxlinkmanager
+POSTGRES_USER=svxlink
+POSTGRES_PASSWORD=VotreMotDePasseSecurise
+ASPNETCORE_ENVIRONMENT=Development
+```
+
+3. **Configuration SVXLink** :  
+   Le fichier `svxlink-config/svxlink.conf` contient une configuration de base fonctionnelle.  
+   Modifiez les paramètres selon votre installation (HOST, PORT, CALLSIGN, AUTH_KEY, GPIO, etc.).
+
+### Démarrage de l'environnement
+
+```bash
+# Build et démarrage des conteneurs
+docker-compose up --build -d
+
+# Vérifier les logs
+docker-compose logs -f svxlinkmanager-app
+
+# Arrêter les conteneurs
+docker-compose down
+
+# Arrêter et supprimer les volumes (⚠️ perte des données PostgreSQL)
+docker-compose down -v
+```
+
+### Accès aux services
+
+- **Application web** : http://localhost:8080
+- **PostgreSQL** : localhost:5432
+  - Base : `svxlinkmanager`
+  - User : `svxlink`
+  - Password : (voir `.env`)
+
+### Vérification de l'installation SVXLink
+
+```bash
+# Vérifier que SVXLink est bien installé dans le conteneur
+docker exec svxlinkmanager-app which svxlink
+
+# Afficher la version de SVXLink (doit être 19.09.2)
+docker exec svxlinkmanager-app svxlink --version
+
+# Vérifier les sons installés
+docker exec svxlinkmanager-app ls -la /usr/share/svxlink/sounds/
+```
+
+### Accès à PostgreSQL
+
+```bash
+# Se connecter à PostgreSQL
+docker exec -it svxlinkmanager-postgresql psql -U svxlink -d svxlinkmanager
+
+# Vérifier les tables Marten (après premier démarrage)
+docker exec -it svxlinkmanager-postgresql psql -U svxlink -d svxlinkmanager -c "\dt mt_*"
+```
+
+### Volumes Docker
+
+- `postgres-data` : Données PostgreSQL (persistantes)
+- `svxlink-spool` : Spool SVXLink (messages vocaux, etc.)
+- `svxlink-logs` : Logs SVXLink
+- `./svxlink-config` : Configuration SVXLink (montage local, modifiable à chaud)
+- `./logs` : Logs de l'application .NET (montage local)
+
+### Rebuild complet
+
+```bash
+# En cas de changement dans le Dockerfile ou les dépendances
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+## �🚀 Build et Tests
 
 ```bash
 # Compilation
