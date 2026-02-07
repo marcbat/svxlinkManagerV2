@@ -1,0 +1,818 @@
+using FluentAssertions;
+using LanguageExt.UnitTesting;
+using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
+
+namespace SvxlinkManagerV2.Domain.Tests.Aggregates.Salon;
+
+/// <summary>
+/// Tests unitaires pour SalonAggregate
+/// </summary>
+public class SalonAggregateTests
+{
+    #region Factory Create Tests
+
+    [Fact]
+    public void Create_WithValidParameters_ShouldSucceed()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon National France";
+        var config = CreateValidConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(id, name, isDefault: true, isTemporized: false, config);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            aggregate.Id.Should().Be(id);
+            aggregate.Name.Should().Be(name);
+            aggregate.IsDefault.Should().BeTrue();
+            aggregate.IsTemporized.Should().BeFalse();
+            aggregate.IsActive.Should().BeFalse();
+            aggregate.IsDeleted.Should().BeFalse();
+            aggregate.Configuration.Should().Be(config);
+            aggregate.DomainEvents.Should().ContainSingle()
+                .Which.Should().BeOfType<SalonCreated>();
+        });
+    }
+
+    [Fact]
+    public void Create_WithEmptyId_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.Empty;
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code.Contains("EMPTY_ID"));
+        });
+    }
+
+    [Fact]
+    public void Create_WithEmptyName_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "";
+        var config = CreateValidConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_NAME_REQUIRED");
+        });
+    }
+
+    [Fact]
+    public void Create_WithEmptyHost_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            "", // Host vide
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_HOST_REQUIRED");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidHostFormat_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            "invalid host!", // Format invalide
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_HOST_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(65536)]
+    [InlineData(100000)]
+    public void Create_WithInvalidPort_ShouldFail(int invalidPort)
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            invalidPort, // Port invalide
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_PORT_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithEmptyCallsign_ShouldFail(string invalidCallsign)
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            invalidCallsign, // Callsign vide
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_CALLSIGN_REQUIRED");
+        });
+    }
+
+    [Theory]
+    [InlineData("ABC")]           // Trop court
+    [InlineData("123456")]         // Pas de lettres
+    [InlineData("F5ABC-LLL")]      // Suffixe trop long
+    [InlineData("f5abc")]          // Minuscules
+    [InlineData("F5ABC!")]         // Caractères invalides
+    public void Create_WithInvalidCallsignFormat_ShouldFail(string invalidCallsign)
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            invalidCallsign, // Format invalide
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_CALLSIGN_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithEmptyAuthKey_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            "", // AuthKey vide
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_AUTHKEY_REQUIRED");
+        });
+    }
+
+    [Theory]
+    [InlineData("MP3")]
+    [InlineData("AAC")]
+    [InlineData("invalid")]
+    public void Create_WithInvalidAudioCodec_ShouldFail(string invalidCodec)
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            invalidCodec, // Codec invalide
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_AUDIOCODEC_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithEmptyRadioProfilId_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            Guid.Empty); // RadioProfilId vide
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_RADIOPROFIL_REQUIRED");
+        });
+    }
+
+    [Theory]
+    [InlineData(4000)]
+    [InlineData(11000)]
+    [InlineData(32000)]
+    public void Create_WithInvalidSampleRate_ShouldFail(int invalidRate)
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            invalidRate, // Taux d'échantillonnage invalide
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RadioProfilId);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_SAMPLERATE_INVALID");
+        });
+    }
+
+    #endregion
+
+    #region Update Configuration Tests
+
+    [Fact]
+    public void UpdateConfiguration_WithValidConfig_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var newConfig = CreateValidConfiguration();
+
+        // Act
+        var result = aggregate.UpdateConfiguration(newConfig);
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.Configuration.Should().Be(newConfig);
+            aggregate.DomainEvents.Should().HaveCount(2);
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonConfigurationUpdated>();
+        });
+    }
+
+    [Fact]
+    public void UpdateConfiguration_WhenDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+        var newConfig = CreateValidConfiguration();
+
+        // Act
+        var result = aggregate.UpdateConfiguration(newConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    [Fact]
+    public void UpdateConfiguration_WhenActive_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Activate();
+        var newConfig = CreateValidConfiguration();
+
+        // Act
+        var result = aggregate.UpdateConfiguration(newConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ACTIVE");
+        });
+    }
+
+    #endregion
+
+    #region Activation/Deactivation Tests
+
+    [Fact]
+    public void Activate_WhenNotActive_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.Activate();
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.IsActive.Should().BeTrue();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonActivated>();
+        });
+    }
+
+    [Fact]
+    public void Activate_WhenAlreadyActive_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Activate();
+
+        // Act
+        var result = aggregate.Activate();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ALREADY_ACTIVE");
+        });
+    }
+
+    [Fact]
+    public void Activate_WhenDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+
+        // Act
+        var result = aggregate.Activate();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    [Fact]
+    public void Deactivate_WhenActive_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Activate();
+
+        // Act
+        var result = aggregate.Deactivate();
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.IsActive.Should().BeFalse();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonDeactivated>();
+        });
+    }
+
+    [Fact]
+    public void Deactivate_WhenNotActive_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.Deactivate();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ALREADY_INACTIVE");
+        });
+    }
+
+    #endregion
+
+    #region Delete Tests
+
+    [Fact]
+    public void Delete_WhenNotDeleted_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.IsDeleted.Should().BeTrue();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonDeleted>();
+        });
+    }
+
+    [Fact]
+    public void Delete_WhenAlreadyDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ALREADY_DELETED");
+        });
+    }
+
+    [Fact]
+    public void Delete_WhenActive_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Activate();
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ACTIVE");
+        });
+    }
+
+    #endregion
+
+    #region Event Sourcing Tests
+
+    [Fact]
+    public void Apply_SalonCreated_ShouldSetProperties()
+    {
+        // Arrange
+        var aggregate = new SalonAggregate();
+        var id = Guid.NewGuid();
+        var config = CreateValidConfiguration();
+        var @event = new SalonCreated(id, "Salon Test", true, false, config);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.Id.Should().Be(id);
+        aggregate.Name.Should().Be("Salon Test");
+        aggregate.IsDefault.Should().BeTrue();
+        aggregate.IsTemporized.Should().BeFalse();
+        aggregate.IsActive.Should().BeFalse();
+        aggregate.IsDeleted.Should().BeFalse();
+        aggregate.Configuration.Should().Be(config);
+    }
+
+    [Fact]
+    public void Apply_SalonConfigurationUpdated_ShouldUpdateConfiguration()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var newConfig = CreateValidConfiguration();
+        var @event = new SalonConfigurationUpdated(aggregate.Id, newConfig);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.Configuration.Should().Be(newConfig);
+    }
+
+    [Fact]
+    public void Apply_SalonActivated_ShouldSetActive()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var @event = new SalonActivated(aggregate.Id);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Apply_SalonDeactivated_ShouldUnsetActive()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Activate();
+        var @event = new SalonDeactivated(aggregate.Id);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Apply_SalonDeleted_ShouldSetDeleted()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var @event = new SalonDeleted(aggregate.Id);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void EventSourcing_ReplayMultipleEvents_ShouldReconstructState()
+    {
+        // Arrange
+        var aggregate = new SalonAggregate();
+        var id = Guid.NewGuid();
+        var config = CreateValidConfiguration();
+
+        var createdEvent = new SalonCreated(id, "Salon Initial", true, false, config);
+        var updatedEvent = new SalonConfigurationUpdated(id, CreateValidConfiguration());
+        var activatedEvent = new SalonActivated(id);
+        var deactivatedEvent = new SalonDeactivated(id);
+
+        // Act - Rejouer les événements
+        aggregate.Apply(createdEvent);
+        aggregate.Apply(updatedEvent);
+        aggregate.Apply(activatedEvent);
+        aggregate.Apply(deactivatedEvent);
+
+        // Assert
+        aggregate.Id.Should().Be(id);
+        aggregate.Name.Should().Be("Salon Initial");
+        aggregate.IsActive.Should().BeFalse();
+        aggregate.IsDeleted.Should().BeFalse();
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static SvxLinkConfiguration CreateValidConfiguration()
+    {
+        return new SvxLinkConfiguration(
+            Guid.NewGuid(),
+            // Section GLOBAL
+            Logics: "SimplexLogic,ReflectorLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            // Section ReflectorLogic
+            Host: "ref.f5kri.fr",
+            Port: 5300,
+            Callsign: "F5ABC-L",
+            AuthKey: "test-auth-key-123",
+            AudioCodec: "OPUS",
+            JitterBufferDelay: 0,
+            // Section SimplexLogic
+            SimplexCallsign: "F5ABC",
+            Modules: "ModuleHelp,ModuleParrot",
+            ShortIdentInterval: 60,
+            LongIdentInterval: 60,
+            ReportCtcss: "71.9",
+            EventHandler: "/usr/share/svxlink/events.tcl",
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            // Références
+            SoundId: Guid.NewGuid(),
+            RadioProfilId: Guid.NewGuid());
+    }
+
+    private static SalonAggregate CreateValidAggregate()
+    {
+        var result = SalonAggregate.Create(
+            Guid.NewGuid(),
+            "Salon Test",
+            isDefault: false,
+            isTemporized: false,
+            CreateValidConfiguration());
+
+        return result.Match(
+            Succ: aggregate => aggregate,
+            Fail: errors => throw new InvalidOperationException($"Failed to create aggregate: {string.Join(", ", errors)}")
+        );
+    }
+
+    #endregion
+}
