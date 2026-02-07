@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="LanguageExt.Core" Version="4.4.9" />
+    <PackageReference Include="WolverineFx" Version="5.14.0" />
   </ItemGroup>
 
 </Project>

@@ -14,4 +14,8 @@
     <InternalsVisibleTo Include="SvxlinkManagerV2.Presentation.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="WolverineFx.Http" Version="5.14.0" />
+  </ItemGroup>
+
 </Project>
