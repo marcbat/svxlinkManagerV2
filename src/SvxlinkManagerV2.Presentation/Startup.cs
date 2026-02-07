@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Hosting;
@@ -9,6 +10,9 @@ using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Infrastructure.Persistence;
+using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Presentation.Data;
 
 namespace SvxlinkManagerV2.Presentation
@@ -26,6 +30,19 @@ namespace SvxlinkManagerV2.Presentation
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            // Configuration Marten avec Event Sourcing
+            services.AddMarten(options =>
+            {
+                var connectionString = Configuration.GetConnectionString("PostgreSQL") 
+                    ?? throw new InvalidOperationException("ConnectionString PostgreSQL manquante");
+                    
+                options.ConfigureMartenStore(connectionString);
+            })
+            .UseLightweightSessions();
+            
+            // Enregistrement du repository Event Store
+            services.AddScoped<IEventStoreRepository, MartenEventStoreRepository>();
+            
             services.AddRazorPages();
             services.AddServerSideBlazor();
             services.AddSingleton<WeatherForecastService>();

@@ -54,3 +54,25 @@ public abstract class AggregateRoot<TId> where TId : notnull
         _domainEvents.Clear();
     }
 }
+
+/// <summary>
+/// Aggregate Root avec Guid comme identifiant par défaut.
+/// Utilisé par défaut dans Event Sourcing avec Marten.
+/// </summary>
+public abstract class AggregateRoot : AggregateRoot<Guid>
+{
+    /// <summary>
+    /// Constructeur par défaut
+    /// </summary>
+    protected AggregateRoot() : base()
+    {
+    }
+
+    /// <summary>
+    /// Constructeur avec identifiant
+    /// </summary>
+    /// <param name="id">Identifiant Guid de l'aggregate</param>
+    protected AggregateRoot(Guid id) : base(id)
+    {
+    }
+}
