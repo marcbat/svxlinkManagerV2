@@ -67,5 +67,7 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
     *   Utiliser le **Result Pattern** (préférence pour l'objet **Validation**) via la librairie **LanguageExt** dans les couches **Application** et **Infrastructure** pour la gestion des flux et des erreurs.
 
 *   **Stratégie de Test & Environnement** :
-    *   L'application doit être conçue pour être exécutée et testée dans un **Conteneur Docker** contenant SVXLink pré-installé.
-    *   Cela est crucial pour valider les interactions de la couche **Infrastructure** avec le système réel (fichiers de conf, pipes, logs).
+    *   L'environnement de test et de développement (**Docker Compose**) doit obligatoirement comporter 3 conteneurs distincts :
+        1.  **Application** : Le conteneur Blazor/.NET.
+        2.  **SVXLink** : Un conteneur contenant la version 19.09.2 de SVXLink. C'est l'instance pilotée pour les tests d'intégration réels (Infrastructure).
+        3.  **PostgreSQL** : Un conteneur dédié à la persistance (Marten/Event Sourcing).
