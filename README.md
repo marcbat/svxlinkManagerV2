@@ -102,6 +102,34 @@ dotnet restore
 - Les erreurs métier ne sont **pas des exceptions**
 - Composition fonctionnelle avec `Bind()`, `Map()`, `Match()`
 
+### Fondations du Domain
+
+Le Domain Layer fournit les classes de base pour implémenter le DDD (Domain-Driven Design) :
+
+#### **AggregateRoot<TId>**
+- Point d'entrée transactionnel d'un ensemble d'entités
+- Possède son propre stream d'événements dans Marten (`{type}-{guid}`)
+- Gère une collection d'événements du domaine non commités
+- Exemple : `SalonAggregate`, `SoundAggregate`, `RadioProfilAggregate`
+
+#### **Entity<TId>**
+- Identifiée par son `Id`, fait partie d'un Aggregate
+- Ne peut exister indépendamment (pas de stream propre)
+- Implémentation complète de l'égalité (`Equals`, `GetHashCode`, opérateurs `==`/`!=`)
+- Exemple : `RxConfiguration`, `TxConfiguration`
+
+#### **Error (record)**
+- Représente une erreur métier (pas une exception)
+- Utilisé avec `Validation<Error, T>` pour le Result Pattern
+- Factory methods : `Validation()`, `NotFound()`, `Conflict()`
+- Format : `Code` (ex: "INVALID_CALLSIGN") + `Message` descriptif
+
+#### **DomainEvent (abstract record)**
+- Fait immutable qui s'est produit dans le passé
+- Source de vérité en Event Sourcing (reconstruit l'état des Aggregates)
+- Propriétés automatiques : `OccurredOn` (UTC), `EventId` (Guid unique)
+- Les Aggregates appliquent les événements via méthodes `Apply()`
+
 ## 📂 Conventions
 
 ### Dépendances entre projets
