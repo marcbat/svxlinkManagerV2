@@ -1,4 +1,5 @@
 using Marten;
+using SvxlinkManagerV2.Infrastructure.Persistence.Projections;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
@@ -12,8 +13,8 @@ public static class MartenRegistry
         // Chaîne de connexion PostgreSQL
         options.Connection(connectionString);
         
-        // TODO: Ajouter les projections ici quand elles seront créées
-        // options.Projections.Add<SalonProjection>(ProjectionLifecycle.Inline);
+        // Enregistrement des projections en mode Inline (synchrone)
+        options.Projections.Snapshot<RadioProfilProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         
         return options;
     }
