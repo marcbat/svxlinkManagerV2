@@ -41,6 +41,13 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
         *   `test` : Tests unitaires/intégration.
         *   `chore` : Maintenance, build, Tâches diverses.
 
+*   **Conventions des Issues** :
+    *   Toute nouvelle **Issue** GitHub générée ou demandée doit suivre ce format strict :
+        1.  **Titre** : Explicite.
+        2.  **Description** : Contexte et détails de la tâche.
+        3.  **Critères d'Acceptation (Acceptance Criteria)** : Liste des conditions obligatoires pour considérer la tâche comme terminée.
+    *   **Sous-tâches** : Si une Issue nécessite des étapes intermédiaires, utilisez systématiquement des **Task Lists** Markdown (`- [ ] Tâche`) pour permettre le suivi.
+
 ## Architecture Technique
 *   **Framework** : .NET 10.
 *   **Frontend** : Blazor.
@@ -58,3 +65,7 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
 
 *   **Programmation Fonctionnelle & Gestion des Erreurs** :
     *   Utiliser le **Result Pattern** (préférence pour l'objet **Validation**) via la librairie **LanguageExt** dans les couches **Application** et **Infrastructure** pour la gestion des flux et des erreurs.
+
+*   **Stratégie de Test & Environnement** :
+    *   L'application doit être conçue pour être exécutée et testée dans un **Conteneur Docker** contenant SVXLink pré-installé.
+    *   Cela est crucial pour valider les interactions de la couche **Infrastructure** avec le système réel (fichiers de conf, pipes, logs).
