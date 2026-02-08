@@ -10,7 +10,7 @@ public static class CtcssMapper
     /// Table de correspondance : Code SA818 → Fréquence CTCSS (Hz).
     /// Index 0 = "0000" (pas de tone), Index 1 = "0001" (67.0 Hz), etc.
     /// </summary>
-    private static readonly decimal?[] CodeToFrequency =
+    private static readonly decimal?[] CodeToFrequencyMap =
     {
         null,    // 0000 - Pas de tone
         67.0M,   // 0001
@@ -64,9 +64,9 @@ public static class CtcssMapper
             return "0000";
 
         // Recherche de la fréquence dans le tableau
-        for (int i = 1; i < CodeToFrequency.Length; i++)
+        for (int i = 1; i < CodeToFrequencyMap.Length; i++)
         {
-            if (CodeToFrequency[i] == frequencyHz)
+            if (CodeToFrequencyMap[i] == frequencyHz)
                 return i.ToString("D4");
         }
 
@@ -79,7 +79,7 @@ public static class CtcssMapper
     /// </summary>
     /// <param name="code">Code SA818 au format "0000"-"0038"</param>
     /// <returns>Fréquence CTCSS en Hz ou null si code = "0000" ou invalide</returns>
-    public static decimal? CodeToFrequency(string code)
+    public static decimal? CodeToFrequencyHz(string code)
     {
         if (string.IsNullOrWhiteSpace(code))
             return null;
@@ -87,10 +87,10 @@ public static class CtcssMapper
         if (!int.TryParse(code, out int index))
             return null;
 
-        if (index < 0 || index >= CodeToFrequency.Length)
+        if (index < 0 || index >= CodeToFrequencyMap.Length)
             return null;
 
-        return CodeToFrequency[index];
+        return CodeToFrequencyMap[index];
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public static class CtcssMapper
         if (frequencyHz == null)
             return true;
 
-        return Array.IndexOf(CodeToFrequency, frequencyHz) != -1;
+        return Array.IndexOf(CodeToFrequencyMap, frequencyHz) != -1;
     }
 
     /// <summary>
@@ -112,6 +112,6 @@ public static class CtcssMapper
     /// <returns>Liste des fréquences CTCSS valides</returns>
     public static IEnumerable<decimal> GetAllFrequencies()
     {
-        return CodeToFrequency.Where(f => f.HasValue).Select(f => f!.Value);
+        return CodeToFrequencyMap.Where(f => f.HasValue).Select(f => f!.Value);
     }
 }

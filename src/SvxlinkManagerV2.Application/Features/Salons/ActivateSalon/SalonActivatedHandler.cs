@@ -7,6 +7,7 @@ using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
+using DomainError = SvxlinkManagerV2.Domain.Common.Error;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 
@@ -32,14 +33,14 @@ public static class SalonActivatedHandler
     /// <param name="logger">Logger pour traçage</param>
     /// <param name="cancellationToken">Token d'annulation</param>
     /// <returns>Validation indiquant le succès ou l'erreur</returns>
-    public static async Task<Validation<Error, Unit>> Handle(
+    public static async Task<Validation<LanguageExt.Common.Error, Unit>> Handle(
         SalonActivated @event,
         ISalonRepository salonRepository,
         ISA818Repository sa818Repository,
         ISA818Service sa818Service,
         ISvxLinkConfigurationService configurationService,
         ISvxLinkDaemonService daemonService,
-        ILogger<SalonActivatedHandler> logger,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         logger.LogInformation(
@@ -78,7 +79,7 @@ public static class SalonActivatedHandler
             {
                 logger.LogError("Configuration SA818 introuvable");
                 return Validation<Error, Unit>.Fail(
-                    Error.New("SA818_CONFIG_NOT_FOUND", "Configuration SA818 introuvable"));
+                    Seq1(new Error("SA818_CONFIG_NOT_FOUND", "Configuration SA818 introuvable")));
             }
 
             logger.LogDebug(
@@ -152,7 +153,7 @@ public static class SalonActivatedHandler
                 @event.Id);
 
             return Validation<Error, Unit>.Fail(
-                Error.New("SALON_ACTIVATED_HANDLER_ERROR", ex));
+                Seq1(new Error("SALON_ACTIVATED_HANDLER_ERROR", ex.Message)));
         }
     }
 
