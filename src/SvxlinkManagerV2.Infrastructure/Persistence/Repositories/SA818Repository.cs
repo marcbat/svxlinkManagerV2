@@ -61,12 +61,21 @@ public class SA818Repository : ISA818Repository
     {
         try
         {
+            // Vérifier d'abord si des événements existent dans le stream
+            var events = await _session.Events.FetchStreamAsync(
+                SA818Aggregate.FixedId, 
+                token: cancellationToken);
+            
+            if (events == null || events.Count == 0)
+                return Error.NotFound("SA818", SA818Aggregate.FixedId)
+                    .ToFailure<SA818Aggregate>();
+
             // Recharger l'aggregate depuis le stream d'événements (ID fixe)
             var aggregate = await _session.Events.AggregateStreamAsync<SA818Aggregate>(
                 SA818Aggregate.FixedId, 
                 token: cancellationToken);
 
-            if (aggregate == null || aggregate.Id == Guid.Empty)
+            if (aggregate == null)
                 return Error.NotFound("SA818", SA818Aggregate.FixedId)
                     .ToFailure<SA818Aggregate>();
 

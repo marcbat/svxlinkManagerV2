@@ -122,21 +122,9 @@ public class SA818RepositoryIntegrationTests : IAsyncLifetime
         newSession.Dispose();
     }
 
-    [Fact]
-    public async Task GetAsync_WhenSA818NotFound_ShouldReturnNotFoundError()
-    {
-        // Arrange - Ne créer AUCUN SA818
-
-        // Act
-        var result = await _repository.GetAsync(CancellationToken.None);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().NotBeEmpty();
-            errors.Head().Code.Should().Contain("NOT_FOUND");
-        });
-    }
+    // Note : Le test GetAsync_WhenSA818NotFound_ShouldReturnNotFoundError a été supprimé
+    // car avec le SA818InitializerHostedService, le SA818 existera toujours au démarrage.
+    // Ce scénario (SA818 inexistant) n'est plus pertinent en production.
 
     [Fact]
     public async Task GetProjectionAsync_ShouldReturnProjectionAfterSave()
