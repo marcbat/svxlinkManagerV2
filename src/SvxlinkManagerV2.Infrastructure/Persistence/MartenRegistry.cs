@@ -16,6 +16,7 @@ public static class MartenRegistry
         // Enregistrement des projections en mode Inline (synchrone)
         options.Projections.Snapshot<SoundProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SalonProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
+        options.Projections.Snapshot<SA818Projection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         
         return options;
     }
