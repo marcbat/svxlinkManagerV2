@@ -64,9 +64,24 @@ public class SalonProjection
     public bool IsDeleted { get; set; }
 
     /// <summary>
-    /// Identifiant du RadioProfil associé
+    /// Fréquence de réception en MHz
     /// </summary>
-    public Guid RadioProfilId { get; set; }
+    public decimal RxFrequency { get; set; }
+
+    /// <summary>
+    /// Fréquence de transmission en MHz
+    /// </summary>
+    public decimal TxFrequency { get; set; }
+
+    /// <summary>
+    /// Tonalité CTCSS de réception en Hz (nullable)
+    /// </summary>
+    public decimal? RxCtcss { get; set; }
+
+    /// <summary>
+    /// Tonalité CTCSS de transmission en Hz (nullable)
+    /// </summary>
+    public decimal? TxCtcss { get; set; }
 
     /// <summary>
     /// Identifiant du Sound associé (optionnel)
@@ -85,7 +100,10 @@ public class SalonProjection
         Host = @event.Configuration.Host;
         Port = @event.Configuration.Port;
         Callsign = @event.Configuration.Callsign;
-        RadioProfilId = @event.Configuration.RadioProfilId;
+        RxFrequency = @event.Configuration.RxFrequency;
+        TxFrequency = @event.Configuration.TxFrequency;
+        RxCtcss = @event.Configuration.RxCtcss;
+        TxCtcss = @event.Configuration.TxCtcss;
         SoundId = @event.Configuration.SoundId;
         IsActive = false;
         IsDeleted = false;
@@ -101,7 +119,10 @@ public class SalonProjection
         Host = @event.Configuration.Host;
         Port = @event.Configuration.Port;
         Callsign = @event.Configuration.Callsign;
-        RadioProfilId = @event.Configuration.RadioProfilId;
+        RxFrequency = @event.Configuration.RxFrequency;
+        TxFrequency = @event.Configuration.TxFrequency;
+        RxCtcss = @event.Configuration.RxCtcss;
+        TxCtcss = @event.Configuration.TxCtcss;
         SoundId = @event.Configuration.SoundId;
         UpdatedAt = @event.OccurredOn;
     }

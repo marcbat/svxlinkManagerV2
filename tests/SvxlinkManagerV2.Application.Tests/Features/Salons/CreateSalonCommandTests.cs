@@ -75,8 +75,11 @@ public class CreateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,
-            Guid.NewGuid());
+            null,      // SoundId
+            145.550m,  // RxFrequency
+            145.550m,  // TxFrequency
+            136.5m,    // RxCtcss
+            136.5m);   // TxCtcss
 
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
@@ -144,7 +147,10 @@ public class CreateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            Guid.NewGuid(),
-            Guid.NewGuid());
+            Guid.NewGuid(),  // SoundId
+            145.550m,        // RxFrequency
+            145.550m,        // TxFrequency
+            136.5m,          // RxCtcss
+            136.5m);         // TxCtcss
     }
 }

@@ -317,12 +317,36 @@ public class SalonAggregate : AggregateRoot
                 $"Le codec audio doit être parmi: {string.Join(", ", ValidAudioCodecs)}"));
         }
 
-        // Validation RadioProfilId (obligatoire, Guid non vide)
-        if (config.RadioProfilId == Guid.Empty)
+        // Validation RxFrequency (obligatoire, plage 30-3000 MHz)
+        if (config.RxFrequency < 30 || config.RxFrequency > 3000)
         {
             errors.Add(Error.Validation(
-                "SALON_RADIOPROFIL_REQUIRED",
-                "Le profil radio est obligatoire"));
+                "SALON_RXFREQUENCY_INVALID",
+                "La fréquence de réception doit être entre 30 et 3000 MHz"));
+        }
+
+        // Validation TxFrequency (obligatoire, plage 30-3000 MHz)
+        if (config.TxFrequency < 30 || config.TxFrequency > 3000)
+        {
+            errors.Add(Error.Validation(
+                "SALON_TXFREQUENCY_INVALID",
+                "La fréquence de transmission doit être entre 30 et 3000 MHz"));
+        }
+
+        // Validation RxCtcss (si défini, plage 67.0-250.3 Hz)
+        if (config.RxCtcss.HasValue && (config.RxCtcss.Value < 67.0m || config.RxCtcss.Value > 250.3m))
+        {
+            errors.Add(Error.Validation(
+                "SALON_RXCTCSS_INVALID",
+                "La tonalité CTCSS de réception doit être entre 67.0 et 250.3 Hz"));
+        }
+
+        // Validation TxCtcss (si défini, plage 67.0-250.3 Hz)
+        if (config.TxCtcss.HasValue && (config.TxCtcss.Value < 67.0m || config.TxCtcss.Value > 250.3m))
+        {
+            errors.Add(Error.Validation(
+                "SALON_TXCTCSS_INVALID",
+                "La tonalité CTCSS de transmission doit être entre 67.0 et 250.3 Hz"));
         }
 
         // Validation SimplexCallsign (obligatoire et format radioamateur)

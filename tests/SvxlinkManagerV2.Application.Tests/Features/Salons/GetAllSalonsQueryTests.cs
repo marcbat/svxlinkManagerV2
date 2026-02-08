@@ -82,7 +82,10 @@ public class GetAllSalonsQueryTests
             "fr_FR",
             0,
             null,
-            Guid.NewGuid());
+            145.550m, // RxFrequency
+            145.550m, // TxFrequency
+            136.5m,   // RxCtcss
+            136.5m);  // TxCtcss
 
         var result = SalonAggregate.Create(id, name, false, false, config);
         return result.Match(

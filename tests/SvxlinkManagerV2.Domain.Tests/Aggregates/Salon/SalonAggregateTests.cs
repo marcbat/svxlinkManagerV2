@@ -103,7 +103,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -143,7 +146,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -187,7 +193,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -229,7 +238,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -274,7 +286,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -314,7 +329,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -357,7 +375,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -370,7 +391,7 @@ public class SalonAggregateTests
     }
 
     [Fact]
-    public void Create_WithEmptyRadioProfilId_ShouldFail()
+    public void Create_WithInvalidRxFrequency_ShouldFail()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -397,7 +418,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            Guid.Empty); // RadioProfilId vide
+            0m, // RxFrequency invalide (hors plage 30-3000 MHz)
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -405,7 +429,136 @@ public class SalonAggregateTests
         // Assert
         result.ShouldBeFail(errors =>
         {
-            errors.Should().Contain(e => e.Code == "SALON_RADIOPROFIL_REQUIRED");
+            errors.Should().Contain(e => e.Code == "SALON_RXFREQUENCY_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidTxFrequency_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RxFrequency,
+            4000m, // TxFrequency invalide (hors plage 30-3000 MHz)
+            config.RxCtcss,
+            config.TxCtcss);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TXFREQUENCY_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidRxCtcss_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RxFrequency,
+            config.TxFrequency,
+            300m, // RxCtcss invalide (hors plage 67.0-250.3 Hz)
+            config.TxCtcss);
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_RXCTCSS_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidTxCtcss_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon Test";
+        var config = CreateValidConfiguration();
+        var invalidConfig = new SvxLinkConfiguration(
+            config.Id,
+            config.Logics,
+            config.CfgDir,
+            config.CardSampleRate,
+            config.CardChannels,
+            config.Host,
+            config.Port,
+            config.Callsign,
+            config.AuthKey,
+            config.AudioCodec,
+            config.JitterBufferDelay,
+            config.SimplexCallsign,
+            config.Modules,
+            config.ShortIdentInterval,
+            config.LongIdentInterval,
+            config.ReportCtcss,
+            config.EventHandler,
+            config.DefaultLang,
+            config.RgrSoundDelay,
+            config.SoundId,
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            50m); // TxCtcss invalide (hors plage 67.0-250.3 Hz)
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TXCTCSS_INVALID");
         });
     }
 
@@ -440,7 +593,10 @@ public class SalonAggregateTests
             config.DefaultLang,
             config.RgrSoundDelay,
             config.SoundId,
-            config.RadioProfilId);
+            config.RxFrequency,
+            config.TxFrequency,
+            config.RxCtcss,
+            config.TxCtcss);
 
         // Act
         var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
@@ -796,7 +952,11 @@ public class SalonAggregateTests
             RgrSoundDelay: 0,
             // Références
             SoundId: Guid.NewGuid(),
-            RadioProfilId: Guid.NewGuid());
+            // Configuration Radio (valeurs par défaut pour tests)
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 136.5m,
+            TxCtcss: 136.5m);
     }
 
     private static SalonAggregate CreateValidAggregate()

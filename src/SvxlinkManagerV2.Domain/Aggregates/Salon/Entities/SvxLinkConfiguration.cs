@@ -30,5 +30,21 @@ public record SvxLinkConfiguration(
     int RgrSoundDelay,
     // Références vers autres Aggregates
     Guid? SoundId,
-    Guid RadioProfilId
+    // Configuration Radio (directement dans Salon, plus de RadioProfil)
+    /// <summary>
+    /// Fréquence de réception en MHz (format: 145.550). Plage valide: 30-3000 MHz.
+    /// </summary>
+    decimal RxFrequency,
+    /// <summary>
+    /// Fréquence de transmission en MHz (format: 145.550). Plage valide: 30-3000 MHz.
+    /// </summary>
+    decimal TxFrequency,
+    /// <summary>
+    /// Tonalité CTCSS de réception en Hz (format: 136.5). Plage valide: 67.0-250.3 Hz. Null = aucun CTCSS.
+    /// </summary>
+    decimal? RxCtcss,
+    /// <summary>
+    /// Tonalité CTCSS de transmission en Hz (format: 136.5). Plage valide: 67.0-250.3 Hz. Null = aucun CTCSS.
+    /// </summary>
+    decimal? TxCtcss
 );

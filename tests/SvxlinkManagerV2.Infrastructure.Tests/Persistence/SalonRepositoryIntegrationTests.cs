@@ -199,7 +199,10 @@ public class SalonRepositoryIntegrationTests : IClassFixture<PostgresContainerFi
             newConfig.DefaultLang,
             newConfig.RgrSoundDelay,
             newConfig.SoundId,
-            newConfig.RadioProfilId);
+            newConfig.RxFrequency,
+            newConfig.TxFrequency,
+            newConfig.RxCtcss,
+            newConfig.TxCtcss);
 
         salon.UpdateConfiguration(updatedConfig);
         await _repository.SaveAsync(salon, CancellationToken.None);
@@ -393,8 +396,11 @@ public class SalonRepositoryIntegrationTests : IClassFixture<PostgresContainerFi
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            Guid.NewGuid(),
-            Guid.NewGuid());
+            Guid.NewGuid(),  // SoundId
+            145.550m,        // RxFrequency
+            145.550m,        // TxFrequency
+            136.5m,          // RxCtcss
+            136.5m);         // TxCtcss
     }
 
     #endregion
