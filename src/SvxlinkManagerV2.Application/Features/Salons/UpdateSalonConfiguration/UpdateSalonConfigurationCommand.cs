@@ -9,9 +9,17 @@ namespace SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration;
 /// Commande pour mettre à jour la configuration d'un Salon
 /// </summary>
 /// <param name="Id">Identifiant unique du salon</param>
+/// <param name="RxFrequency">Fréquence de réception en MHz (ex: 145.550)</param>
+/// <param name="TxFrequency">Fréquence de transmission en MHz (ex: 145.550)</param>
+/// <param name="RxCtcss">Tonalité CTCSS de réception en Hz (ex: 136.5). Null = aucun CTCSS</param>
+/// <param name="TxCtcss">Tonalité CTCSS de transmission en Hz (ex: 136.5). Null = aucun CTCSS</param>
 /// <param name="Configuration">Nouvelle configuration SVXLink complète</param>
 public record UpdateSalonConfigurationCommand(
     Guid Id,
+    decimal RxFrequency,
+    decimal TxFrequency,
+    decimal? RxCtcss,
+    decimal? TxCtcss,
     SvxLinkConfiguration Configuration);
 
 /// <summary>
@@ -39,8 +47,17 @@ public static class UpdateSalonConfigurationCommandHandler
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
+        // Construction de la configuration complète avec les fréquences radio
+        var configurationWithRadio = command.Configuration with
+        {
+            RxFrequency = command.RxFrequency,
+            TxFrequency = command.TxFrequency,
+            RxCtcss = command.RxCtcss,
+            TxCtcss = command.TxCtcss
+        };
+
         // Mise à jour de la configuration
-        var updateResult = aggregate.UpdateConfiguration(command.Configuration);
+        var updateResult = aggregate.UpdateConfiguration(configurationWithRadio);
 
         if (updateResult.IsFail)
             return updateResult;
