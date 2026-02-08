@@ -43,12 +43,30 @@ public static class UpdateSA818ConfigurationCommandHandler
         // Tenter de charger le SA818 existant
         var aggregateResult = await repository.GetAsync(cancellationToken);
 
-        // Si le SA818 n'existe pas encore, le créer avec les paramètres de la commande
-        var aggregate = aggregateResult.Match(
-            Succ: existing => existing,
-            Fail: errors =>
+        // Si le SA818 n'existe pas, le créer avec les paramètres de la commande
+        // Si le SA818 existe, le mettre à jour
+        return await aggregateResult.Match(
+            Succ: async existing =>
             {
-                // Créer un nouveau SA818 si non trouvé
+                // SA818 existe déjà, mettre à jour sa configuration
+                var updateResult = existing.UpdateConfiguration(
+                    command.Volume,
+                    command.Squelch,
+                    command.Bandwidth,
+                    command.PreEmph,
+                    command.HighPass,
+                    command.LowPass);
+
+                // Si la mise à jour échoue, retourner les erreurs
+                if (updateResult.IsFail)
+                    return updateResult;
+
+                // Sauvegarder l'aggregate (événements ajoutés)
+                return await repository.SaveAsync(existing, cancellationToken);
+            },
+            Fail: async errors =>
+            {
+                // SA818 n'existe pas, le créer
                 var createResult = SA818Aggregate.Create(
                     command.Volume,
                     command.Squelch,
@@ -57,31 +75,18 @@ public static class UpdateSA818ConfigurationCommandHandler
                     command.HighPass,
                     command.LowPass);
 
-                return createResult.Match(
-                    Succ: newAggregate => newAggregate,
-                    Fail: createErrors => throw new InvalidOperationException(
-                        $"Impossible de créer le SA818: {string.Join(", ", createErrors.Select(e => e.Message))}")
+                // Si la création échoue (validations), retourner les erreurs
+                if (createResult.IsFail)
+                    return createResult.Map(_ => unit);
+
+                // Sauvegarder le nouvel aggregate
+                var newAggregate = createResult.Match(
+                    Succ: a => a,
+                    Fail: _ => throw new InvalidOperationException("Should not happen")
                 );
+
+                return await repository.SaveAsync(newAggregate, cancellationToken);
             }
         );
-
-        // Si le SA818 existe déjà (et que l'ID n'est pas vide), mettre à jour sa configuration
-        if (aggregate.Id != Guid.Empty)
-        {
-            var updateResult = aggregate.UpdateConfiguration(
-                command.Volume,
-                command.Squelch,
-                command.Bandwidth,
-                command.PreEmph,
-                command.HighPass,
-                command.LowPass);
-
-            // Si la mise à jour échoue, retourner les erreurs
-            if (updateResult.IsFail)
-                return updateResult;
-        }
-
-        // Sauvegarder l'aggregate (événements ajoutés)
-        return await repository.SaveAsync(aggregate, cancellationToken);
     }
 }

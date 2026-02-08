@@ -218,8 +218,8 @@ public class SA818IntegrationTests : IClassFixture<PostgresContainerFixture>, IA
         {
             errors.Should().NotBeEmpty();
             var error = errors.Head();
-            error.Code.Should().Contain("VALIDATION");
-            error.Message.Should().Contain("Volume");
+            error.Code.Should().Be("SA818_VOLUME_INVALID");
+            error.Message.Should().Contain("volume");
         });
 
         // Vérifier qu'aucun événement n'a été persisté
@@ -250,8 +250,8 @@ public class SA818IntegrationTests : IClassFixture<PostgresContainerFixture>, IA
         {
             errors.Should().NotBeEmpty();
             var error = errors.Head();
-            error.Code.Should().Contain("VALIDATION");
-            error.Message.Should().Contain("Squelch");
+            error.Code.Should().Be("SA818_SQUELCH_INVALID");
+            error.Message.Should().Contain("squelch");
         });
     }
 
