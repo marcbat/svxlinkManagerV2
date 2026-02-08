@@ -8,8 +8,17 @@ using SvxlinkManagerV2.Infrastructure.Persistence;
 namespace SvxlinkManagerV2.Infrastructure.Tests;
 
 /// <summary>
+/// Collection xUnit pour partager la fixture PostgreSQL entre TOUS les tests d'intégration.
+/// Cela garantit qu'un seul container PostgreSQL est créé pour toute la suite de tests.
+/// </summary>
+[CollectionDefinition("PostgresIntegration")]
+public class PostgresIntegrationCollection : ICollectionFixture<PostgresContainerFixture>
+{
+}
+
+/// <summary>
 /// Fixture pour créer et gérer un conteneur PostgreSQL avec Testcontainers.
-/// Partagée entre tous les tests d'une collection pour économiser les ressources.
+/// Partagée entre tous les tests via la collection "PostgresIntegration".
 /// </summary>
 public class PostgresContainerFixture : IAsyncLifetime
 {

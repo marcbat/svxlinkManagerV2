@@ -3,60 +3,18 @@ using Marten;
 using SvxlinkManagerV2.Domain.Aggregates.Test;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
-using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace SvxlinkManagerV2.Infrastructure.Tests.Persistence;
 
 /// <summary>
-/// Fixture partagée pour tous les tests d'intégration Marten.
-/// Crée un seul conteneur PostgreSQL réutilisé par tous les tests.
-/// </summary>
-public class PostgresContainerFixture : IAsyncLifetime
-{
-    public PostgreSqlContainer PostgresContainer { get; private set; } = null!;
-    public IDocumentStore DocumentStore { get; private set; } = null!;
-
-    /// <summary>
-    /// Initialise le conteneur PostgreSQL une seule fois pour tous les tests
-    /// </summary>
-    public async Task InitializeAsync()
-    {
-        // Créer et démarrer un conteneur PostgreSQL unique
-        PostgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("svxlinkmanager_test")
-            .WithUsername("testuser")
-            .WithPassword("testpassword")
-            .Build();
-
-        await PostgresContainer.StartAsync();
-
-        // Configurer Marten avec le conteneur
-        DocumentStore = Marten.DocumentStore.For(options =>
-        {
-            options.ConfigureMartenStore(PostgresContainer.GetConnectionString());
-        });
-    }
-
-    /// <summary>
-    /// Nettoie les ressources après tous les tests
-    /// </summary>
-    public async Task DisposeAsync()
-    {
-        DocumentStore?.Dispose();
-        await PostgresContainer.DisposeAsync();
-    }
-}
-
-/// <summary>
 /// Tests d'intégration pour valider l'Event Sourcing avec Marten et PostgreSQL.
-/// Partage un conteneur PostgreSQL unique entre tous les tests (via IClassFixture).
+/// Partage le container PostgreSQL avec tous les autres tests via la collection "PostgresIntegration".
 /// Chaque test crée sa propre session et utilise des IDs uniques pour l'isolation.
 /// </summary>
 [Trait("Category", "Integration")]
-public class MartenEventStoreTests : IClassFixture<PostgresContainerFixture>, IDisposable
+[Collection("PostgresIntegration")]
+public class MartenEventStoreTests : IDisposable
 {
     private readonly PostgresContainerFixture _fixture;
     private readonly IDocumentSession _session;

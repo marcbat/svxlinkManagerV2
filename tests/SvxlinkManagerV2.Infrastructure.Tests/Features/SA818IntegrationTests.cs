@@ -13,9 +13,11 @@ namespace SvxlinkManagerV2.Infrastructure.Tests.Features;
 /// <summary>
 /// Tests d'intégration pour les Commands et Queries SA818.
 /// Valide le workflow complet : Command → Événement → Projection → Query.
+/// Partage le container PostgreSQL avec tous les autres tests via la collection "PostgresIntegration".
 /// </summary>
 [Trait("Category", "Integration")]
-public class SA818IntegrationTests : IClassFixture<PostgresContainerFixture>, IAsyncLifetime
+[Collection("PostgresIntegration")]
+public class SA818IntegrationTests : IAsyncLifetime
 {
     private readonly PostgresContainerFixture _fixture;
     private IDocumentSession _session = null!;

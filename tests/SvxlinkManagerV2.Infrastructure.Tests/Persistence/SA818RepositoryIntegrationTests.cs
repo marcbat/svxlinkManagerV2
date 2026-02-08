@@ -10,10 +10,11 @@ namespace SvxlinkManagerV2.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// Tests d'intégration pour SA818Repository avec Event Sourcing et PostgreSQL.
-/// Utilise Testcontainers pour créer un conteneur PostgreSQL temporaire.
+/// Partage le container PostgreSQL avec tous les autres tests via la collection "PostgresIntegration".
 /// </summary>
 [Trait("Category", "Integration")]
-public class SA818RepositoryIntegrationTests : IClassFixture<PostgresContainerFixture>, IAsyncLifetime
+[Collection("PostgresIntegration")]
+public class SA818RepositoryIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresContainerFixture _fixture;
     private IDocumentSession _session = null!;
