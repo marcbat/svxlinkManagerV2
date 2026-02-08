@@ -1,0 +1,278 @@
+using IniParser;
+using IniParser.Model;
+using LanguageExt;
+using LanguageExt.Common;
+using Microsoft.Extensions.Logging;
+using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using static LanguageExt.Prelude;
+
+namespace SvxlinkManagerV2.Infrastructure.SvxLink;
+
+/// <summary>
+/// Service de génération du fichier de configuration SVXLink (svxlink.conf).
+/// Compatible avec SVXLink 19.09.2.
+/// </summary>
+public class SvxLinkConfigurationService : ISvxLinkConfigurationService
+{
+    private readonly ILogger<SvxLinkConfigurationService> _logger;
+    private readonly FileIniDataParser _iniParser;
+    private readonly string? _templatePath;
+    private const string TemplateFileName = "svxlink.conf";
+
+    public SvxLinkConfigurationService(
+        ILogger<SvxLinkConfigurationService> logger,
+        string? templatePath = null)
+    {
+        _logger = logger;
+        _iniParser = new FileIniDataParser();
+        _templatePath = templatePath;
+    }
+
+    /// <inheritdoc />
+    public async Task<Validation<Error, Unit>> GenerateAsync(
+        SalonAggregate salon,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Génération de la configuration SVXLink pour le Salon {SalonName} (ID: {SalonId})", 
+                salon.Name, salon.Id);
+
+            // 1. Localiser et charger le template
+            var templatePath = GetTemplatePath();
+            if (!File.Exists(templatePath))
+            {
+                var error = Error.New($"Le fichier template '{templatePath}' est introuvable");
+                _logger.LogError("Template non trouvé: {TemplatePath}", templatePath);
+                return Validation<Error, Unit>.Fail(Seq1(error));
+            }
+
+            // 2. Charger le template INI
+            var iniData = await Task.Run(() => _iniParser.ReadFile(templatePath), cancellationToken);
+
+            // 3. Mettre à jour les sections avec les données du Salon
+            UpdateGlobalSection(iniData, salon);
+            UpdateReflectorLogicSection(iniData, salon);
+            UpdateSimplexLogicSection(iniData, salon);
+            UpdateReceiverSection(iniData, salon);
+            UpdateTransmitterSection(iniData, salon);
+
+            // 4. Écrire le fichier de manière atomique (temp + rename)
+            var writeResult = await WriteConfigurationAtomicallyAsync(iniData, outputPath, cancellationToken);
+
+            return writeResult.Match(
+                Succ: _ =>
+                {
+                    _logger.LogInformation("Configuration SVXLink générée avec succès: {OutputPath}", outputPath);
+                    return Success<Error, Unit>(unit);
+                },
+                Fail: errors =>
+                {
+                    _logger.LogError("Échec de l'écriture de la configuration: {Errors}", errors);
+                    return Validation<Error, Unit>.Fail(errors);
+                });
+        }
+        catch (Exception ex)
+        {
+            var error = Error.New($"Erreur lors de la génération de la configuration: {ex.Message}", ex);
+            _logger.LogError(ex, "Exception lors de la génération de la configuration SVXLink");
+            return Validation<Error, Unit>.Fail(Seq1(error));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Validation<Error, bool>> ValidateAsync(
+        string configPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Validation du fichier de configuration: {ConfigPath}", configPath);
+
+            if (!File.Exists(configPath))
+            {
+                var error = Error.New($"Le fichier de configuration '{configPath}' est introuvable");
+                return Validation<Error, bool>.Fail(Seq1(error));
+            }
+
+            // Tenter de parser le fichier INI
+            await Task.Run(() => _iniParser.ReadFile(configPath), cancellationToken);
+
+            _logger.LogInformation("Fichier de configuration valide: {ConfigPath}", configPath);
+            return Success<Error, bool>(true);
+        }
+        catch (Exception ex)
+        {
+            var error = Error.New($"Le fichier de configuration est invalide: {ex.Message}", ex);
+            _logger.LogError(ex, "Erreur de validation du fichier de configuration: {ConfigPath}", configPath);
+            return Validation<Error, bool>.Fail(Seq1(error));
+        }
+    }
+
+    /// <summary>
+    /// Met à jour la section [GLOBAL] avec les valeurs du Salon.
+    /// </summary>
+    private void UpdateGlobalSection(IniData iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+        
+        iniData["GLOBAL"]["LOGICS"] = config.Logics;
+        iniData["GLOBAL"]["CFG_DIR"] = config.CfgDir;
+        iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = config.CardSampleRate.ToString();
+        iniData["GLOBAL"]["CARD_CHANNELS"] = config.CardChannels.ToString();
+
+        _logger.LogDebug("Section [GLOBAL] mise à jour");
+    }
+
+    /// <summary>
+    /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
+    /// </summary>
+    private void UpdateReflectorLogicSection(IniData iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["ReflectorLogic"]["TYPE"] = "Reflector";
+        iniData["ReflectorLogic"]["HOST"] = config.Host;
+        iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
+        iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
+        iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey;
+        iniData["ReflectorLogic"]["AUDIO_CODEC"] = config.AudioCodec;
+        iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
+        iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+
+        _logger.LogDebug("Section [ReflectorLogic] mise à jour (Host: {Host}, Callsign: {Callsign})", 
+            config.Host, config.Callsign);
+    }
+
+    /// <summary>
+    /// Met à jour la section [SimplexLogic] avec les paramètres locaux.
+    /// </summary>
+    private void UpdateSimplexLogicSection(IniData iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["SimplexLogic"]["TYPE"] = "Simplex";
+        iniData["SimplexLogic"]["RX"] = "Rx1";
+        iniData["SimplexLogic"]["TX"] = "Tx1";
+        iniData["SimplexLogic"]["MODULES"] = config.Modules;
+        iniData["SimplexLogic"]["CALLSIGN"] = config.SimplexCallsign;
+        iniData["SimplexLogic"]["SHORT_IDENT_INTERVAL"] = config.ShortIdentInterval.ToString();
+        iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = config.LongIdentInterval.ToString();
+        iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
+        iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = config.EventHandler;
+        iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+        iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
+
+        // REPORT_CTCSS est optionnel
+        if (!string.IsNullOrEmpty(config.ReportCtcss))
+        {
+            iniData["SimplexLogic"]["REPORT_CTCSS"] = config.ReportCtcss;
+        }
+
+        _logger.LogDebug("Section [SimplexLogic] mise à jour (Callsign: {Callsign})", config.SimplexCallsign);
+    }
+
+    /// <summary>
+    /// Met à jour la section [Rx1] avec les fréquences et CTCSS de réception.
+    /// </summary>
+    private void UpdateReceiverSection(IniData iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        // Garder les paramètres hardware existants du template (AUDIO_DEV, SQL_DET, GPIO, etc.)
+        // Ne modifier que les fréquences/CTCSS qui viennent du Salon
+
+        // Note: SVXLink ne gère PAS directement les fréquences dans svxlink.conf pour les receivers locaux.
+        // Les fréquences sont configurées via le SA818 (hardware) avant le démarrage.
+        // On log les valeurs pour traçabilité mais on ne les écrit pas dans svxlink.conf.
+
+        _logger.LogDebug("Section [Rx1] - Fréquence RX configurée dans le hardware: {RxFrequency} MHz, CTCSS: {RxCtcss} Hz",
+            config.RxFrequency, config.RxCtcss?.ToString() ?? "aucun");
+        
+        // Les paramètres Rx1 restent ceux du template (AUDIO_DEV, SQL_DET, GPIO, etc.)
+    }
+
+    /// <summary>
+    /// Met à jour la section [Tx1] avec les fréquences et CTCSS de transmission.
+    /// </summary>
+    private void UpdateTransmitterSection(IniData iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        // Même logique que pour Rx1: les fréquences sont dans le hardware SA818, pas dans svxlink.conf
+        _logger.LogDebug("Section [Tx1] - Fréquence TX configurée dans le hardware: {TxFrequency} MHz, CTCSS: {TxCtcss} Hz",
+            config.TxFrequency, config.TxCtcss?.ToString() ?? "aucun");
+
+        // Les paramètres Tx1 restent ceux du template (AUDIO_DEV, PTT_TYPE, GPIO, TIMEOUT, TX_DELAY, etc.)
+    }
+
+    /// <summary>
+    /// Écrit le fichier de configuration de manière atomique (temp + rename).
+    /// </summary>
+    private async Task<Validation<Error, Unit>> WriteConfigurationAtomicallyAsync(
+        IniData iniData,
+        string outputPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tempPath = $"{outputPath}.tmp";
+
+            // 1. Écrire dans un fichier temporaire
+            await Task.Run(() => _iniParser.WriteFile(tempPath, iniData), cancellationToken);
+
+            // 2. Remplacer l'ancien fichier (atomique sur UNIX, quasi-atomique sur Windows)
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
+            }
+            File.Move(tempPath, outputPath);
+
+            _logger.LogDebug("Fichier écrit de manière atomique: {OutputPath}", outputPath);
+            return Success<Error, Unit>(unit);
+        }
+        catch (Exception ex)
+        {
+            var error = Error.New($"Erreur lors de l'écriture du fichier: {ex.Message}", ex);
+            return Validation<Error, Unit>.Fail(Seq1(error));
+        }
+    }
+
+    /// <summary>
+    /// Détermine le chemin du fichier template svxlink.conf.
+    /// Utilise le chemin configuré ou cherche dans l'arborescence.
+    /// </summary>
+    private string GetTemplatePath()
+    {
+        // Si un chemin explicite est configuré, l'utiliser
+        if (!string.IsNullOrEmpty(_templatePath))
+        {
+            _logger.LogDebug("Chemin du template configuré: {TemplatePath}", _templatePath);
+            return _templatePath;
+        }
+
+        // Sinon, chercher dans l'arborescence
+        var currentDirectory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        
+        while (currentDirectory != null)
+        {
+            var templatePath = Path.Combine(currentDirectory.FullName, "svxlink-config", TemplateFileName);
+            
+            if (File.Exists(templatePath))
+            {
+                _logger.LogDebug("Template trouvé: {TemplatePath}", templatePath);
+                return templatePath;
+            }
+            
+            currentDirectory = currentDirectory.Parent;
+        }
+
+        // Si non trouvé, retourner un chemin par défaut qui provoquera une erreur explicite
+        var defaultPath = Path.Combine("svxlink-config", TemplateFileName);
+        _logger.LogWarning("Template non trouvé, chemin par défaut: {TemplatePath}", defaultPath);
+        return defaultPath;
+    }
+}
