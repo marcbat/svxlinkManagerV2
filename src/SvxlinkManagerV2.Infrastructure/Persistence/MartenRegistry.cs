@@ -14,7 +14,6 @@ public static class MartenRegistry
         options.Connection(connectionString);
         
         // Enregistrement des projections en mode Inline (synchrone)
-        options.Projections.Snapshot<RadioProfilProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SoundProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SalonProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         
