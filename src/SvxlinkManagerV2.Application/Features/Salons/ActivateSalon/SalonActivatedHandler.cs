@@ -7,6 +7,7 @@ using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
+using static LanguageExt.Common.Error;
 using DomainError = SvxlinkManagerV2.Domain.Common.Error;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
@@ -60,7 +61,7 @@ public static class SalonActivatedHandler
                     @event.Id);
                 return salonResult.Match(
                     Succ: _ => throw new InvalidOperationException(),
-                    Fail: errors => Validation<Error, Unit>.Fail(errors));
+                    Fail: errors => Validation<LanguageExt.Common.Error, Unit>.Fail(errors.Map(e => New(e.Code, e.Message))));
             }
 
             var salon = salonResult.Match(
@@ -78,8 +79,8 @@ public static class SalonActivatedHandler
             if (sa818Config == null)
             {
                 logger.LogError("Configuration SA818 introuvable");
-                return Validation<Error, Unit>.Fail(
-                    Seq1(new Error("SA818_CONFIG_NOT_FOUND", "Configuration SA818 introuvable")));
+                return Validation<LanguageExt.Common.Error, Unit>.Fail(
+                    Seq1(New("SA818_CONFIG_NOT_FOUND", "Configuration SA818 introuvable")));
             }
 
             logger.LogDebug(
@@ -152,8 +153,8 @@ public static class SalonActivatedHandler
                 "Erreur inattendue lors du traitement de SalonActivated pour Salon {SalonId}",
                 @event.Id);
 
-            return Validation<Error, Unit>.Fail(
-                Seq1(new Error("SALON_ACTIVATED_HANDLER_ERROR", ex.Message)));
+            return Validation<LanguageExt.Common.Error, Unit>.Fail(
+                Seq1(New("SALON_ACTIVATED_HANDLER_ERROR", ex)));
         }
     }
 
