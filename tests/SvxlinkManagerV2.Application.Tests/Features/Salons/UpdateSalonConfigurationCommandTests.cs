@@ -60,7 +60,7 @@ public class UpdateSalonConfigurationCommandTests
     {
         // Arrange
         var salonId = Guid.NewGuid();
-        var notFoundError = Error.NotFound("SALON_NOT_FOUND", "Salon introuvable");
+        var notFoundError = Error.NotFound("SALON", salonId);
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(notFoundError.ToFailure<SalonAggregate>());
