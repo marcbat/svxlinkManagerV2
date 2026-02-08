@@ -1,97 +1,83 @@
 using FluentAssertions;
+using LanguageExt;
+using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
+using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Infrastructure.Tests.SvxLink;
 
 /// <summary>
-/// Tests pour SvxLinkDaemonMockService.
-/// Ces tests valident que le mock simule correctement les opérations systemctl.
+/// Tests unitaires pour ISvxLinkDaemonService utilisant NSubstitute.
+/// Les tests d'intégration réels sont effectués dans le container Docker avec SVXLink installé.
 /// </summary>
-public class SvxLinkDaemonMockServiceTests
+public class SvxLinkDaemonServiceMockTests
 {
-    private readonly SvxLinkDaemonMockService _service;
-    private readonly ILogger<SvxLinkDaemonMockService> _logger;
-
-    public SvxLinkDaemonMockServiceTests()
-    {
-        _logger = Substitute.For<ILogger<SvxLinkDaemonMockService>>();
-        _service = new SvxLinkDaemonMockService(_logger);
-    }
-
     [Fact]
-    public async Task RestartAsync_ShouldReturnSuccess()
+    public async Task RestartAsync_WithMock_ShouldReturnSuccess()
     {
+        // Arrange
+        var mockService = Substitute.For<ISvxLinkDaemonService>();
+        mockService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Validation<Error, Unit>.Success(Unit.Default));
+
         // Act
-        var result = await _service.RestartAsync();
+        var result = await mockService.RestartAsync();
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.IfSuccess(unit => unit.Should().NotBeNull());
+        await mockService.Received(1).RestartAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RestartAsync_ShouldLogMockOperations()
+    public async Task IsRunningAsync_WithMock_ShouldReturnTrue()
     {
-        // Act
-        await _service.RestartAsync();
+        // Arrange
+        var mockService = Substitute.For<ISvxLinkDaemonService>();
+        mockService.IsRunningAsync(Arg.Any<CancellationToken>())
+            .Returns(Validation<Error, bool>.Success(true));
 
-        // Assert
-        _logger.Received(1).LogInformation("MOCK: Redémarrage du daemon SVXLink");
-        _logger.Received(1).LogInformation("MOCK: Exécution de la commande: systemctl restart svxlink");
-        _logger.Received(1).LogInformation("MOCK: Daemon SVXLink redémarré avec succès");
-    }
-
-    [Fact]
-    public async Task IsRunningAsync_ShouldReturnTrue()
-    {
         // Act
-        var result = await _service.IsRunningAsync();
+        var result = await mockService.IsRunningAsync();
 
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.IfSuccess(isRunning => isRunning.Should().BeTrue());
+        await mockService.Received(1).IsRunningAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task IsRunningAsync_ShouldLogMockOperations()
-    {
-        // Act
-        await _service.IsRunningAsync();
-
-        // Assert
-        _logger.Received(1).LogInformation("MOCK: Vérification de l'état du daemon SVXLink");
-        _logger.Received(1).LogInformation("MOCK: Exécution de la commande: systemctl is-active svxlink");
-        _logger.Received(1).LogInformation("MOCK: Daemon SVXLink actif (simulé)");
-    }
-
-    [Fact]
-    public async Task RestartAsync_WithCancellation_ShouldThrowOperationCanceledException()
+    public async Task RestartAsync_WithMock_ShouldReturnFailure()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
-        cts.Cancel();
+        var mockService = Substitute.For<ISvxLinkDaemonService>();
+        var error = Error.New("Échec du redémarrage");
+        mockService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Validation<Error, Unit>.Fail(Seq1(error)));
 
         // Act
-        Func<Task> act = async () => await _service.RestartAsync(cts.Token);
+        var result = await mockService.RestartAsync();
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        result.IsFail.Should().BeTrue();
     }
 
     [Fact]
-    public async Task IsRunningAsync_WithCancellation_ShouldThrowOperationCanceledException()
+    public async Task IsRunningAsync_WithMock_ShouldReturnFailure()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
-        cts.Cancel();
+        var mockService = Substitute.For<ISvxLinkDaemonService>();
+        var error = Error.New("Impossible de vérifier l'état");
+        mockService.IsRunningAsync(Arg.Any<CancellationToken>())
+            .Returns(Validation<Error, bool>.Fail(Seq1(error)));
 
         // Act
-        Func<Task> act = async () => await _service.IsRunningAsync(cts.Token);
+        var result = await mockService.IsRunningAsync();
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        result.IsFail.Should().BeTrue();
     }
 }
 

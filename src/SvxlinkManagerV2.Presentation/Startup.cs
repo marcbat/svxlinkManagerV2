@@ -61,16 +61,10 @@ namespace SvxlinkManagerV2.Presentation
                 services.AddScoped<ISA818Service, SA818Service>();
             }
             
-            // Enregistrement conditionnel du service daemon SVXLink (réel ou mock selon configuration)
-            var useSvxLinkMockDaemon = Configuration.GetValue<bool>("SvxLink:UseMockDaemon", false);
-            if (useSvxLinkMockDaemon)
-            {
-                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonMockService>();
-            }
-            else
-            {
-                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonService>();
-            }
+            // Enregistrement du service daemon SVXLink (toujours l'implémentation réelle)
+            // En DEV: exécuté dans le container Docker avec SVXLink installé
+            // En PROD: exécuté sur Orange Pi avec Armbian et SVXLink installé
+            services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonService>();
             
             // Enregistrement du service de génération de configuration SVXLink (toujours réel)
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();

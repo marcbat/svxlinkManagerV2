@@ -76,18 +76,25 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
     *   **LanguageExt** doit être ajouté **uniquement au projet Application**. Il sera disponible par transitivité dans Infrastructure et Presentation via les références de projet.
 
 *   **Stratégie de Test & Environnement** :
-    *   L'environnement de test et de développement (**Docker Compose**) doit obligatoirement comporter 2 conteneurs distincts :
-        1.  **Application + SVXLink** : Le conteneur Blazor/.NET avec SVXLink 19.09.2 installé localement. Cela permet à l'application de démarrer/arrêter le daemon SVXLink via des commandes locales.
+    *   **Environnement de Développement et Tests (Docker Compose)** : 2 conteneurs distincts :
+        1.  **Application + SVXLink** : Le conteneur Blazor/.NET avec **SVXLink 19.09.2 installé localement**. Cela permet à l'application de démarrer/arrêter le daemon SVXLink via des commandes systemctl réelles. **Aucun mock nécessaire** : les tests s'exécutent avec le vrai SVXLink dans le container.
         2.  **PostgreSQL** : Un conteneur dédié à la persistance (Marten/Event Sourcing).
+    *   **Environnement de Production** :
+        *   **Hardware cible** : **Orange Pi** (architecture ARM)
+        *   **OS cible** : **Armbian** (distribution Linux basée sur Debian pour ARM)
+        *   **Déploiement** : L'application et SVXLink 19.09.2 sont installés directement sur l'Orange Pi
+        *   **Architecture** : Optimisation nécessaire pour ARM (compilation native, dépendances ARM)
     *   **Stack de Tests** : Utiliser systématiquement la stack suivante pour tous les tests :
         *   **Xunit** : Framework de tests unitaires et d'intégration.
         *   **FluentAssertions** : Assertions expressives et lisibles.
-        *   **NSubstitute** : Mocking et substitution pour les tests unitaires.
+        *   **NSubstitute** : Mocking et substitution pour les tests unitaires (interfaces uniquement, pas de classes concrètes mock).
         *   **LanguageExt.UnitTesting** : Extensions pour tester les types `Validation<Error, T>` et autres constructs fonctionnels.
+    *   **Principe fondamental** : **Pas d'implémentations mock concrètes**. Utiliser NSubstitute pour mocker les interfaces dans les tests unitaires. Les tests d'intégration utilisent les vraies implémentations dans le container Docker avec SVXLink installé.
     *   **Tests d'Intégration Obligatoires** :
-        *   **TOUTES** les Commands et Queries doivent avoir des tests d'intégration validant le stack complet (Application → Infrastructure → PostgreSQL).
+        *   **TOUTES** les Commands et Queries doivent avoir des tests d'intégration validant le stack complet (Application → Infrastructure → PostgreSQL → SVXLink).
         *   **Testcontainers.NET** : Utiliser `Testcontainers.PostgreSql` pour créer un conteneur PostgreSQL temporaire durant les tests.
+        *   **SVXLink réel** : Les tests d'intégration avec SVXLink s'exécutent dans le container Docker avec SVXLink 19.09.2 installé (pas de mock).
         *   **Validation Commands** : Vérifier que les événements sont bien persistés dans Marten et que les projections sont mises à jour.
         *   **Validation Queries** : Vérifier que les projections retournent les données correctes depuis PostgreSQL.
-        *   **Cycle complet** : Tester le workflow end-to-end (Command → Événements → Projections → Query).
+        *   **Cycle complet** : Tester le workflow end-to-end (Command → Événements → Projections → Query → Interaction SVXLink).
         *   **Organisation** : Les tests d'intégration doivent être dans des projets `*.Integration.Tests` séparés pour chaque couche testée.
