@@ -25,7 +25,16 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         string? templatePath = null)
     {
         _logger = logger;
-        _iniParser = new FileIniDataParser();
+        
+        // Configurer le parser INI pour accepter les commentaires
+        var iniConfig = new IniParser.Parser.IniDataParser();
+        iniConfig.Configuration.AllowDuplicateKeys = true;
+        iniConfig.Configuration.AllowDuplicateSections = true;
+        iniConfig.Configuration.AllowKeysWithoutSection = false;
+        iniConfig.Configuration.CommentString = "#";
+        iniConfig.Configuration.AssigmentSpacer = "";
+        
+        _iniParser = new FileIniDataParser(iniConfig);
         _templatePath = templatePath;
     }
 
@@ -50,7 +59,24 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             }
 
             // 2. Charger le template INI
-            var iniData = await Task.Run(() => _iniParser.ReadFile(templatePath), cancellationToken);
+            // Lire le fichier et enlever TOUTES les lignes de commentaires (ini-parser 2.5.2 ne les supporte pas)
+            var templateContent = await File.ReadAllTextAsync(templatePath, cancellationToken);
+            var lines = templateContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var filteredLines = new List<string>();
+            
+            foreach (var line in lines)
+            {
+                var trimmedLine = line.TrimStart();
+                
+                // Garder toutes les lignes sauf celles qui commencent par "#" (commentaires)
+                if (!trimmedLine.StartsWith("#"))
+                {
+                    filteredLines.Add(line);
+                }
+            }
+            
+            var cleanedContent = string.Join(Environment.NewLine, filteredLines);
+            var iniData = await Task.Run(() => _iniParser.Parser.Parse(cleanedContent), cancellationToken);
 
             // 3. Mettre à jour les sections avec les données du Salon
             UpdateGlobalSection(iniData, salon);
@@ -219,24 +245,37 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     {
         try
         {
+            // S'assurer que le répertoire parent existe
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                _logger.LogDebug("Répertoire créé: {Directory}", directory);
+            }
+
             var tempPath = $"{outputPath}.tmp";
 
-            // 1. Écrire dans un fichier temporaire
-            await Task.Run(() => _iniParser.WriteFile(tempPath, iniData), cancellationToken);
+            // 1. Écrire dans un fichier temporaire en utilisant ToString() au lieu de WriteFile
+            // car WriteFile de ini-parser peut avoir des problèmes avec .NET 9.0
+            var content = iniData.ToString();
+            await File.WriteAllTextAsync(tempPath, content, cancellationToken);
+            _logger.LogDebug("Fichier temporaire écrit: {TempPath} ({Length} bytes)", tempPath, content.Length);
 
             // 2. Remplacer l'ancien fichier (atomique sur UNIX, quasi-atomique sur Windows)
             if (File.Exists(outputPath))
             {
                 File.Delete(outputPath);
+                _logger.LogDebug("Ancien fichier supprimé: {OutputPath}", outputPath);
             }
             File.Move(tempPath, outputPath);
 
-            _logger.LogDebug("Fichier écrit de manière atomique: {OutputPath}", outputPath);
+            _logger.LogInformation("Fichier écrit de manière atomique: {OutputPath}", outputPath);
             return Success<Error, Unit>(unit);
         }
         catch (Exception ex)
         {
             var error = Error.New($"Erreur lors de l'écriture du fichier: {ex.Message}", ex);
+            _logger.LogError(ex, "Erreur lors de l'écriture du fichier: {OutputPath}", outputPath);
             return Validation<Error, Unit>.Fail(Seq1(error));
         }
     }
