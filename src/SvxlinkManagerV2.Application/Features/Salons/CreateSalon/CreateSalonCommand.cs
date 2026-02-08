@@ -13,12 +13,20 @@ namespace SvxlinkManagerV2.Application.Features.Salons.CreateSalon;
 /// <param name="Name">Nom du salon</param>
 /// <param name="IsDefault">Si c'est le salon par défaut</param>
 /// <param name="IsTemporized">Si le salon est temporisé</param>
+/// <param name="RxFrequency">Fréquence de réception en MHz (ex: 145.550)</param>
+/// <param name="TxFrequency">Fréquence de transmission en MHz (ex: 145.550)</param>
+/// <param name="RxCtcss">Tonalité CTCSS de réception en Hz (ex: 136.5). Null = aucun CTCSS</param>
+/// <param name="TxCtcss">Tonalité CTCSS de transmission en Hz (ex: 136.5). Null = aucun CTCSS</param>
 /// <param name="Configuration">Configuration SVXLink complète</param>
 public record CreateSalonCommand(
     Guid Id,
     string Name,
     bool IsDefault,
     bool IsTemporized,
+    decimal RxFrequency,
+    decimal TxFrequency,
+    decimal? RxCtcss,
+    decimal? TxCtcss,
     SvxLinkConfiguration Configuration);
 
 /// <summary>
@@ -34,13 +42,22 @@ public static class CreateSalonCommandHandler
         ISalonRepository repository,
         CancellationToken cancellationToken)
     {
+        // Construction de la configuration complète avec les fréquences radio
+        var configurationWithRadio = command.Configuration with
+        {
+            RxFrequency = command.RxFrequency,
+            TxFrequency = command.TxFrequency,
+            RxCtcss = command.RxCtcss,
+            TxCtcss = command.TxCtcss
+        };
+
         // Création de l'aggregate avec validations
         var aggregateResult = SalonAggregate.Create(
             command.Id,
             command.Name,
             command.IsDefault,
             command.IsTemporized,
-            command.Configuration);
+            configurationWithRadio);
 
         // Si la création échoue, retourner les erreurs
         if (aggregateResult.IsFail)

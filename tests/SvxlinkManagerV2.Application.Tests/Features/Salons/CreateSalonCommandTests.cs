@@ -32,6 +32,10 @@ public class CreateSalonCommandTests
             "Salon National France",
             IsDefault: true,
             IsTemporized: false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 136.5m,
+            TxCtcss: 136.5m,
             CreateValidConfiguration());
 
         _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
@@ -76,16 +80,20 @@ public class CreateSalonCommandTests
             "fr_FR",
             0,
             null,      // SoundId
-            145.550m,  // RxFrequency
-            145.550m,  // TxFrequency
-            136.5m,    // RxCtcss
-            136.5m);   // TxCtcss
+            0m,        // RxFrequency - sera remplacée par la Command
+            0m,        // TxFrequency - sera remplacée par la Command
+            null,      // RxCtcss - sera remplacée par la Command
+            null);     // TxCtcss - sera remplacée par la Command
 
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
             false,
             false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 136.5m,
+            TxCtcss: 136.5m,
             invalidConfig);
 
         // Act
@@ -109,6 +117,10 @@ public class CreateSalonCommandTests
             "Salon Test",
             false,
             false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 136.5m,
+            TxCtcss: 136.5m,
             CreateValidConfiguration());
 
         var repositoryError = Error.Validation("DB_ERROR", "Erreur de base de données");
@@ -123,6 +135,143 @@ public class CreateSalonCommandTests
         {
             errors.Should().Contain(e => e.Code == "DB_ERROR");
         });
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidRxFrequency_ShouldFail()
+    {
+        // Arrange - Fréquence RX invalide (hors plage 30-3000 MHz)
+        var command = new CreateSalonCommand(
+            Guid.NewGuid(),
+            "Salon Test",
+            false,
+            false,
+            RxFrequency: 5000m, // Invalide - hors plage
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            CreateValidConfiguration());
+
+        // Act
+        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_RXFREQUENCY_INVALID");
+        });
+
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidTxFrequency_ShouldFail()
+    {
+        // Arrange - Fréquence TX invalide (hors plage 30-3000 MHz)
+        var command = new CreateSalonCommand(
+            Guid.NewGuid(),
+            "Salon Test",
+            false,
+            false,
+            RxFrequency: 145.550m,
+            TxFrequency: 10m, // Invalide - en dessous de 30 MHz
+            RxCtcss: null,
+            TxCtcss: null,
+            CreateValidConfiguration());
+
+        // Act
+        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TXFREQUENCY_INVALID");
+        });
+
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidRxCtcss_ShouldFail()
+    {
+        // Arrange - CTCSS RX invalide (hors plage 67.0-250.3 Hz)
+        var command = new CreateSalonCommand(
+            Guid.NewGuid(),
+            "Salon Test",
+            false,
+            false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 300m, // Invalide - au-dessus de 250.3 Hz
+            TxCtcss: null,
+            CreateValidConfiguration());
+
+        // Act
+        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_RXCTCSS_INVALID");
+        });
+
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidTxCtcss_ShouldFail()
+    {
+        // Arrange - CTCSS TX invalide (hors plage 67.0-250.3 Hz)
+        var command = new CreateSalonCommand(
+            Guid.NewGuid(),
+            "Salon Test",
+            false,
+            false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: 50m, // Invalide - en dessous de 67.0 Hz
+            CreateValidConfiguration());
+
+        // Act
+        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TXCTCSS_INVALID");
+        });
+
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithNullCtcss_ShouldSucceed()
+    {
+        // Arrange - CTCSS optionnels (null = pas de CTCSS)
+        var command = new CreateSalonCommand(
+            Guid.NewGuid(),
+            "Salon Sans CTCSS",
+            false,
+            false,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            CreateValidConfiguration());
+
+        _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(unit.ToSuccess());
+
+        // Act
+        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeSuccess();
+
+        await _repository.Received(1).SaveAsync(
+            Arg.Any<SalonAggregate>(),
+            Arg.Any<CancellationToken>());
     }
 
     private static SvxLinkConfiguration CreateValidConfiguration()
@@ -148,9 +297,9 @@ public class CreateSalonCommandTests
             "fr_FR",
             0,
             Guid.NewGuid(),  // SoundId
-            145.550m,        // RxFrequency
-            145.550m,        // TxFrequency
-            136.5m,          // RxCtcss
-            136.5m);         // TxCtcss
+            0m,              // RxFrequency - sera remplacée par la Command
+            0m,              // TxFrequency - sera remplacée par la Command
+            null,            // RxCtcss - sera remplacée par la Command
+            null);           // TxCtcss - sera remplacée par la Command
     }
 }
