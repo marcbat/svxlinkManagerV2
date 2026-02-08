@@ -50,6 +50,9 @@ namespace SvxlinkManagerV2.Presentation
             services.AddScoped<ISalonRepository, SalonRepository>();
             services.AddScoped<ISoundRepository, SoundRepository>();
             
+            // Enregistrement du service d'initialisation SA818 (s'exécute au démarrage)
+            services.AddHostedService<SA818InitializerHostedService>();
+            
             // Enregistrement conditionnel du service SA818 (réel ou mock selon configuration)
             var useSA818Mock = Configuration.GetValue<bool>("SA818:UseMock", false);
             if (useSA818Mock)
