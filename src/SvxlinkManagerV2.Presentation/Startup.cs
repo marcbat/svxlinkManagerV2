@@ -69,9 +69,7 @@ namespace SvxlinkManagerV2.Presentation
             }
             else
             {
-                // TODO: Implémenter SvxLinkDaemonService réel (Issue #16)
-                // Pour l'instant, utiliser le mock même en production
-                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonMockService>();
+                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonService>();
             }
             
             // Enregistrement du service de génération de configuration SVXLink (toujours réel)
