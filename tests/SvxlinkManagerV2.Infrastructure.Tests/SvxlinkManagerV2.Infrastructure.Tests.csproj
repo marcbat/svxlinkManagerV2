@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\SvxlinkManagerV2.Application\SvxlinkManagerV2.Application.csproj" />
     <ProjectReference Include="..\..\src\SvxlinkManagerV2.Infrastructure\SvxlinkManagerV2.Infrastructure.csproj" />
   </ItemGroup>
 

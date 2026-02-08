@@ -1,5 +1,6 @@
 using LanguageExt;
 using Marten;
+using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Common;
@@ -75,6 +76,40 @@ public class SA818Repository : ISA818Repository
         {
             return Error.Validation("LOAD_ERROR", $"Erreur lors du chargement du SA818 : {ex.Message}")
                 .ToFailure<SA818Aggregate>();
+        }
+    }
+
+    public async Task<SA818ConfigurationDto?> GetConfigurationAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Récupérer la projection unique du SA818 (ID fixe)
+            var projection = await _session.Query<SA818Projection>()
+                .Where(p => p.Id == SA818Aggregate.FixedId)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (projection == null)
+                return null;
+
+            // Mapper la projection vers le DTO
+            return new SA818ConfigurationDto
+            {
+                Id = projection.Id,
+                Volume = projection.Volume,
+                Squelch = projection.Squelch,
+                Bandwidth = projection.Bandwidth,
+                PreEmph = projection.PreEmph,
+                HighPass = projection.HighPass,
+                LowPass = projection.LowPass,
+                UpdatedAt = projection.UpdatedAt
+            };
+        }
+        catch
+        {
+            // En cas d'erreur, retourner null plutôt que de propager l'exception
+            // Le SA818 sera considéré comme non initialisé
+            return null;
         }
     }
 

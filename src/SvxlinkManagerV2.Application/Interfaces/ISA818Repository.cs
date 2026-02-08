@@ -1,4 +1,5 @@
 using LanguageExt;
+using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Common;
 
@@ -25,5 +26,13 @@ public interface ISA818Repository
     /// </summary>
     /// <param name="cancellationToken">Token d'annulation</param>
     Task<Validation<Error, SA818Aggregate>> GetAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Récupère la configuration SA818 sous forme de DTO pour les queries performantes.
+    /// Retourne null si le SA818 n'est pas encore initialisé.
+    /// </summary>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    Task<SA818ConfigurationDto?> GetConfigurationAsync(
         CancellationToken cancellationToken = default);
 }
