@@ -97,7 +97,15 @@ POSTGRES_DB=svxlinkmanager
 POSTGRES_USER=svxlink
 POSTGRES_PASSWORD=VotreMotDePasseSecurise
 ASPNETCORE_ENVIRONMENT=Development
+
+# Configuration Hardware et Daemon (Développement)
+SA818__UseMock=true               # Mock SA818 (hardware non disponible en Docker)
+SvxLink__UseMockDaemon=false      # Utilise le vrai daemon SVXLink du container
 ```
+
+   **Variables d'environnement importantes** :
+   - `SA818__UseMock=true` : Active le mock du hardware SA818 car il n'est pas accessible dans le conteneur Docker. En production, cette valeur sera `false`.
+   - `SvxLink__UseMockDaemon=false` : Utilise le **vrai daemon SVXLink** installé dans le conteneur. Les commandes start/stop/status interagissent avec le daemon réel. En environnement de test unitaire, cette valeur peut être `true` pour utiliser un mock.
 
 3. **Configuration SVXLink** :  
    Le fichier `svxlink-config/svxlink.conf` contient une configuration de base fonctionnelle.  

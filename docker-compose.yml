@@ -11,6 +11,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__PostgreSQL=Host=postgresql;Database=svxlinkmanager;Username=svxlink;Password=${POSTGRES_PASSWORD:-changeme}
+      - SA818__UseMock=true
+      - SvxLink__UseMockDaemon=false
     volumes:
       - ./svxlink-config:/etc/svxlink:ro
       - ./logs:/app/logs
