@@ -11,8 +11,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
+using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Presentation.Data;
 
 namespace SvxlinkManagerV2.Presentation
@@ -42,6 +44,38 @@ namespace SvxlinkManagerV2.Presentation
             
             // Enregistrement du repository Event Store
             services.AddScoped<IEventStoreRepository, MartenEventStoreRepository>();
+            
+            // Enregistrement des repositories
+            services.AddScoped<ISA818Repository, SA818Repository>();
+            services.AddScoped<ISalonRepository, SalonRepository>();
+            services.AddScoped<ISoundRepository, SoundRepository>();
+            
+            // Enregistrement conditionnel du service SA818 (réel ou mock selon configuration)
+            var useSA818Mock = Configuration.GetValue<bool>("SA818:UseMock", false);
+            if (useSA818Mock)
+            {
+                services.AddScoped<ISA818Service, SA818MockService>();
+            }
+            else
+            {
+                services.AddScoped<ISA818Service, SA818Service>();
+            }
+            
+            // Enregistrement conditionnel du service daemon SVXLink (réel ou mock selon configuration)
+            var useSvxLinkMockDaemon = Configuration.GetValue<bool>("SvxLink:UseMockDaemon", false);
+            if (useSvxLinkMockDaemon)
+            {
+                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonMockService>();
+            }
+            else
+            {
+                // TODO: Implémenter SvxLinkDaemonService réel (Issue #16)
+                // Pour l'instant, utiliser le mock même en production
+                services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonMockService>();
+            }
+            
+            // Enregistrement du service de génération de configuration SVXLink (toujours réel)
+            services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             
             services.AddRazorPages();
             services.AddServerSideBlazor();
