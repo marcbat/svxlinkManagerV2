@@ -8,15 +8,12 @@ namespace SvxlinkManagerV2.Presentation.Services;
 public static class CtcssDropdownService
 {
     /// <summary>
-    /// Obtient toutes les options CTCSS pour un dropdown (avec option "Aucun").
+    /// Obtient toutes les options CTCSS pour un dropdown (sans l'option "Aucun" qui doit être gérée séparément).
     /// </summary>
-    /// <returns>Dictionnaire où la clé est la fréquence (null pour "Aucun") et la valeur est le label</returns>
-    public static Dictionary<decimal?, string> GetCtcssOptions()
+    /// <returns>Dictionnaire où la clé est la fréquence et la valeur est le label</returns>
+    public static Dictionary<decimal, string> GetCtcssOptions()
     {
-        var options = new Dictionary<decimal?, string>
-        {
-            { null, "Aucun" }
-        };
+        var options = new Dictionary<decimal, string>();
 
         foreach (var frequency in CtcssMapper.GetAllFrequencies().OrderBy(f => f))
         {

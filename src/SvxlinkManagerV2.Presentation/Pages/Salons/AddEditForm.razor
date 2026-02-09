@@ -200,6 +200,7 @@
                                     <div class="mb-3">
                                         <label for="rxCtcss" class="form-label">CTCSS RX</label>
                                         <select id="rxCtcss" class="form-select" @bind="_model.RxCtcss" disabled="@_isReadOnly">
+                                            <option value="">-- Aucun --</option>
                                             @foreach (var option in _ctcssOptions)
                                             {
                                                 <option value="@option.Key">@option.Value</option>
@@ -212,6 +213,7 @@
                                     <div class="mb-3">
                                         <label for="txCtcss" class="form-label">CTCSS TX</label>
                                         <select id="txCtcss" class="form-select" @bind="_model.TxCtcss" disabled="@_isReadOnly">
+                                            <option value="">-- Aucun --</option>
                                             @foreach (var option in _ctcssOptions)
                                             {
                                                 <option value="@option.Key">@option.Value</option>
@@ -308,7 +310,7 @@
 
     private bool IsEditMode => Id.HasValue;
 
-    private Dictionary<decimal?, string> _ctcssOptions = new();
+    private Dictionary<decimal, string> _ctcssOptions = new();
     private List<Domain.Aggregates.Sound.SoundAggregate> _sounds = new();
 
     protected override async Task OnInitializedAsync()
