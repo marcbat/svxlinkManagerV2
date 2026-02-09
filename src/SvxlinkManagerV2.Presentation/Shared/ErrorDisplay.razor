@@ -1,25 +1,94 @@
-@* Composant d'affichage d'erreurs (version basique pour infrastructure) *@
-@* TODO: Implémenter version complète dans Issue #30 *@
+@using LanguageExt
+@using SvxlinkManagerV2.Domain.Common
+@using SvxlinkManagerV2.Presentation.Services
 
-@if (ErrorMessage != null)
+@* Composant Bootstrap 5.3 pour afficher les erreurs de type Validation<Error, T> *@
+
+@if (_errors.Any())
 {
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-        @ErrorMessage
-        <button type="button" class="btn-close" @onclick="Clear" aria-label="Fermer"></button>
+    <div class="alert alert-danger @(Dismissable ? "alert-dismissible" : "") fade show" role="alert">
+        @if (ShowIcon)
+        {
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        }
+        
+        @if (_errors.Count() == 1)
+        {
+            @_errors.First().Message
+        }
+        else
+        {
+            <ul class="mb-0">
+                @foreach (var error in _errors)
+                {
+                    <li>@error.Message</li>
+                }
+            </ul>
+        }
+        
+        @if (Dismissable)
+        {
+            <button type="button" class="btn-close" @onclick="HandleDismiss" aria-label="Fermer"></button>
+        }
     </div>
 }
 
 @code {
+    /// <summary>
+    /// Objet Validation contenant les erreurs à afficher
+    /// </summary>
     [Parameter]
-    public string? ErrorMessage { get; set; }
+    public object? ValidationResult { get; set; }
     
+    /// <summary>
+    /// Permet de fermer l'alerte avec un bouton "×"
+    /// </summary>
     [Parameter]
-    public EventCallback OnClear { get; set; }
+    public bool Dismissable { get; set; } = true;
     
-    private async Task Clear()
+    /// <summary>
+    /// Affiche l'icône d'avertissement
+    /// </summary>
+    [Parameter]
+    public bool ShowIcon { get; set; } = true;
+    
+    /// <summary>
+    /// Event déclenché quand l'utilisateur ferme l'alerte
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+    
+    private IEnumerable<Error> _errors = Enumerable.Empty<Error>();
+    
+    protected override void OnParametersSet()
     {
-        ErrorMessage = null;
-        await OnClear.InvokeAsync();
+        // Extraction des erreurs depuis le Validation via réflexion
+        if (ValidationResult != null)
+        {
+            var validationType = ValidationResult.GetType();
+            if (validationType.IsGenericType && 
+                validationType.GetGenericTypeDefinition().Name.Contains("Validation"))
+            {
+                var method = typeof(ValidationHelper)
+                    .GetMethod(nameof(ValidationHelper.GetErrors))
+                    ?.MakeGenericMethod(validationType.GetGenericArguments()[1]);
+                
+                var result = method?.Invoke(null, new[] { ValidationResult });
+                if (result is IEnumerable<Error> errors)
+                {
+                    _errors = errors;
+                }
+            }
+        }
+        else
+        {
+            _errors = Enumerable.Empty<Error>();
+        }
+    }
+    
+    private async Task HandleDismiss()
+    {
+        _errors = Enumerable.Empty<Error>();
+        await OnDismiss.InvokeAsync();
     }
 }
