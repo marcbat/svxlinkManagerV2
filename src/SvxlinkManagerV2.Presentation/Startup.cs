@@ -15,6 +15,7 @@ using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
+using SvxlinkManagerV2.Presentation.Services;
 
 namespace SvxlinkManagerV2.Presentation
 {
@@ -70,6 +71,9 @@ namespace SvxlinkManagerV2.Presentation
             
             // Enregistrement du service de génération de configuration SVXLink (toujours réel)
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
+            
+            // Enregistrement du service Toast pour les notifications UI (singleton)
+            services.AddSingleton<ToastService>();
             
             services.AddRazorPages();
             services.AddServerSideBlazor();
