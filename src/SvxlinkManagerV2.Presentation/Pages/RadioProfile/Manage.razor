@@ -1,0 +1,242 @@
+@page "/radio-profile"
+@using SvxlinkManagerV2.Application.Features.SA818
+@using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
+@using SvxlinkManagerV2.Application.Features.SA818.UpdateSA818Configuration
+@using SvxlinkManagerV2.Domain.Aggregates.SA818
+@using SvxlinkManagerV2.Presentation.Services
+@using Wolverine
+@inject IMessageBus Bus
+@inject ToastService ToastService
+
+<PageTitle>Configuration Module Radio SA818</PageTitle>
+
+<div class="container" style="max-width: 700px;">
+    <div class="card mx-auto">
+        <div class="card-body">
+            <h3 class="card-title mb-4">
+                <i class="bi bi-broadcast"></i>
+                Configuration Module Radio SA818
+            </h3>
+
+            @if (_isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <InfoBox Type="info" Icon="info-circle" CssClass="mb-4">
+                    <strong>⚠️ Note :</strong> Les fréquences et CTCSS sont configurés par salon. 
+                    Consultez la section <a href="/salons" class="alert-link">Gestion des Salons</a>.
+                </InfoBox>
+
+                <ErrorDisplay ValidationResult="@_validationResult" />
+
+                <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="volume" class="form-label">Volume</label>
+                                <select id="volume" class="form-select" @bind="_model.Volume">
+                                    @foreach (var option in _volumeLabels)
+                                    {
+                                        <option value="@option.Key">@option.Key - @option.Value</option>
+                                    }
+                                </select>
+                                <div class="form-text">Niveau de sortie audio (1: Très faible → 8: Maximum)</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="squelch" class="form-label">Squelch</label>
+                                <select id="squelch" class="form-select" @bind="_model.Squelch">
+                                    @foreach (var option in _squelchLabels)
+                                    {
+                                        <option value="@option.Key">@option.Key - @option.Value</option>
+                                    }
+                                </select>
+                                <div class="form-text">Seuil de déclenchement de la réception (0: Désactivé → 8: Maximum)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <FormRadioGroup 
+                        TValue="SA818Bandwidth" 
+                        Name="bandwidth" 
+                        Label="Largeur de bande" 
+                        Options="@_bandwidthOptions"
+                        @bind-SelectedValue="_model.Bandwidth"
+                        Inline="true"
+                        HelpText="Narrow (12.5 kHz) pour les canaux étroits, Wide (25 kHz) par défaut" />
+
+                    <hr class="my-4" />
+
+                    <h5 class="mb-3">Filtres Audio</h5>
+
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="preEmph" @bind="_model.PreEmph" />
+                        <label class="form-check-label" for="preEmph">
+                            Pré-accentuation (Pre-Emphasis)
+                        </label>
+                        <div class="form-text">Améliore la clarté vocale en accentuant les hautes fréquences</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="highPass" @bind="_model.HighPass" />
+                        <label class="form-check-label" for="highPass">
+                            Filtre passe-haut (High-Pass)
+                        </label>
+                        <div class="form-text">Supprime les basses fréquences pour réduire les bruits de fond</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" id="lowPass" @bind="_model.LowPass" />
+                        <label class="form-check-label" for="lowPass">
+                            Filtre passe-bas (Low-Pass)
+                        </label>
+                        <div class="form-text">Supprime les hautes fréquences pour lisser le son</div>
+                    </div>
+
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-success btn-lg" disabled="@_isSaving">
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Enregistrement...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle me-2"></i>
+                                <span>Enregistrer</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private SA818FormModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private object? _validationResult;
+
+    private readonly Dictionary<int, string> _volumeLabels = SA818LabelsService.GetVolumeLabels();
+    private readonly Dictionary<int, string> _squelchLabels = SA818LabelsService.GetSquelchLabels();
+    
+    private readonly Dictionary<SA818Bandwidth, string> _bandwidthOptions = new()
+    {
+        { SA818Bandwidth.Narrow12_5kHz, "Narrow (12.5 kHz)" },
+        { SA818Bandwidth.Wide25kHz, "Wide (25 kHz)" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfiguration();
+    }
+
+    private async Task LoadConfiguration()
+    {
+        _isLoading = true;
+        _validationResult = null;
+
+        try
+        {
+            var query = new GetSA818ConfigurationQuery();
+            var result = await Bus.InvokeAsync<Validation<Domain.Common.Error, SA818ConfigurationDto>>(query);
+
+            result.Match(
+                Succ: config =>
+                {
+                    _model = new SA818FormModel
+                    {
+                        Volume = config.Volume,
+                        Squelch = config.Squelch,
+                        Bandwidth = config.Bandwidth,
+                        PreEmph = config.PreEmph,
+                        HighPass = config.HighPass,
+                        LowPass = config.LowPass
+                    };
+                },
+                Fail: errors =>
+                {
+                    // Configuration non initialisée, utiliser valeurs par défaut
+                    _model = new SA818FormModel
+                    {
+                        Volume = 4,
+                        Squelch = 4,
+                        Bandwidth = SA818Bandwidth.Wide25kHz,
+                        PreEmph = true,
+                        HighPass = true,
+                        LowPass = false
+                    };
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors du chargement : {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSaving = true;
+        _validationResult = null;
+
+        try
+        {
+            var command = new UpdateSA818ConfigurationCommand(
+                _model.Volume,
+                _model.Squelch,
+                _model.Bandwidth,
+                _model.PreEmph,
+                _model.HighPass,
+                _model.LowPass
+            );
+
+            var result = await Bus.InvokeAsync<Validation<Domain.Common.Error, Unit>>(command);
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Configuration SA818 enregistrée avec succès");
+                },
+                Fail: errors =>
+                {
+                    _validationResult = result;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors de l'enregistrement : {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private class SA818FormModel
+    {
+        public int Volume { get; set; } = 4;
+        public int Squelch { get; set; } = 4;
+        public SA818Bandwidth Bandwidth { get; set; } = SA818Bandwidth.Wide25kHz;
+        public bool PreEmph { get; set; } = true;
+        public bool HighPass { get; set; } = true;
+        public bool LowPass { get; set; } = false;
+    }
+}
