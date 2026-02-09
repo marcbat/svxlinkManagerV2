@@ -75,6 +75,9 @@ namespace SvxlinkManagerV2.Presentation
             // Enregistrement du service Toast pour les notifications UI (singleton)
             services.AddSingleton<ToastService>();
             
+            // Enregistrement du service Audio pour le formatage des métadonnées audio
+            services.AddScoped<AudioService>();
+            
             services.AddRazorPages();
             services.AddServerSideBlazor();
         }
