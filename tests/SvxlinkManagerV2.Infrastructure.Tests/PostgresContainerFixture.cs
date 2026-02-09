@@ -35,8 +35,7 @@ public class PostgresContainerFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         // Créer et démarrer le conteneur PostgreSQL
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
+        _container = new PostgreSqlBuilder("postgres:16-alpine")
             .WithDatabase("svxlink_test")
             .WithUsername("postgres")
             .WithPassword("postgres")

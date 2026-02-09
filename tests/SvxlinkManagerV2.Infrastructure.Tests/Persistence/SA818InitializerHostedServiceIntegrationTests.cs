@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -21,6 +22,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     private IDocumentSession _session = null!;
     private ISA818Repository _repository = null!;
     private ILogger<SA818InitializerHostedService> _logger = null!;
+    private IServiceScopeFactory _scopeFactory = null!;
 
     public SA818InitializerHostedServiceIntegrationTests(PostgresContainerFixture fixture)
     {
@@ -40,6 +42,16 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
         
         // Créer un logger mocké
         _logger = Substitute.For<ILogger<SA818InitializerHostedService>>();
+        
+        // Créer un mock de IServiceScopeFactory qui retourne notre repository
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISA818Repository)).Returns(_repository);
+        
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        
+        _scopeFactory = Substitute.For<IServiceScopeFactory>();
+        _scopeFactory.CreateScope().Returns(scope);
     }
 
     public async Task DisposeAsync()
@@ -51,7 +63,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenSA818DoesNotExist_ShouldCreateWithDefaultValues()
     {
         // Arrange
-        var service = new SA818InitializerHostedService(_repository, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -92,7 +104,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
 
         await _session.SaveChangesAsync();
 
-        var service = new SA818InitializerHostedService(_repository, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -116,7 +128,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_ShouldLogInitializationMessages()
     {
         // Arrange
-        var service = new SA818InitializerHostedService(_repository, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -149,7 +161,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
 
         await _session.SaveChangesAsync();
 
-        var service = new SA818InitializerHostedService(_repository, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -167,7 +179,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StopAsync_ShouldCompleteWithoutErrors()
     {
         // Arrange
-        var service = new SA818InitializerHostedService(_repository, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
 
         // Act
         var act = async () => await service.StopAsync(CancellationToken.None);
