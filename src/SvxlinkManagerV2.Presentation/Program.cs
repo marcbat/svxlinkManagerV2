@@ -19,7 +19,11 @@ namespace SvxlinkManagerV2.Presentation
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .UseWolverine()
+                .UseWolverine(opts =>
+                {
+                    // Découverte automatique des handlers dans l'assembly Application
+                    opts.Discovery.IncludeAssembly(typeof(SvxlinkManagerV2.Application.Features.Ping.PingCommand).Assembly);
+                })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
