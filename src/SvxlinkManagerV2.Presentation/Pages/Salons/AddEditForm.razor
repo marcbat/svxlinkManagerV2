@@ -1,0 +1,452 @@
+@page "/salons/add"
+@page "/salons/edit/{id:guid}"
+@using SvxlinkManagerV2.Application.Features.Salons.CreateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
+@using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
+@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Presentation.Services
+@using Wolverine
+@inject IMessageBus Bus
+@inject NavigationManager Navigation
+@inject ToastService ToastService
+
+<PageTitle>@(IsEditMode ? $"Éditer {_model.Name}" : "Ajouter un salon")</PageTitle>
+
+<div class="container" style="max-width: 900px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="mb-0">
+                <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                @(IsEditMode ? $"Éditer {_model.Name}" : "Ajouter un nouveau salon")
+            </h3>
+        </div>
+        <div class="card-body p-4">
+            @if (_isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (_isReadOnly)
+                {
+                    <InfoBox Type="warning" Icon="exclamation-triangle" CssClass="mb-4">
+                        <strong>⚠️ Attention :</strong> Ce salon est actuellement actif. Vous ne pouvez pas modifier sa configuration.
+                        Veuillez d'abord le désactiver depuis la page d'accueil.
+                    </InfoBox>
+                }
+
+                <ErrorDisplay ValidationResult="@_validationResult" />
+
+                <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+
+                    <!-- Section Informations générales -->
+                    <div class="card border-start border-4 border-success mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informations générales</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="name" class="form-label">Nom du salon *</label>
+                                        <InputText id="name" class="form-control" @bind-Value="_model.Name" disabled="@_isReadOnly" />
+                                        <ValidationMessage For="@(() => _model.Name)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Options</label>
+                                        <div class="form-check">
+                                            <InputCheckbox id="isDefault" class="form-check-input" @bind-Value="_model.IsDefault" disabled="@_isReadOnly" />
+                                            <label class="form-check-label" for="isDefault">
+                                                Salon par défaut
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <InputCheckbox id="isTemporized" class="form-check-input" @bind-Value="_model.IsTemporized" disabled="true" />
+                                            <label class="form-check-label" for="isTemporized">
+                                                Salon temporisé
+                                            </label>
+                                            <small class="text-muted d-block">
+                                                <i class="bi bi-info-circle"></i> Fonctionnalité à venir
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Configuration Reflector -->
+                    <div class="card border-start border-4 border-primary mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-cloud"></i> Configuration Reflector (ReflectorLogic)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="host" class="form-label">Adresse Host *</label>
+                                        <InputText id="host" class="form-control" @bind-Value="_model.Host" placeholder="rrf.f5nlg.ovh" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Domaine ou adresse IP du serveur Reflector</div>
+                                        <ValidationMessage For="@(() => _model.Host)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="port" class="form-label">Port *</label>
+                                        <InputNumber id="port" class="form-control" @bind-Value="_model.Port" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Port TCP du serveur (par défaut : 5300)</div>
+                                        <ValidationMessage For="@(() => _model.Port)" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="callsign" class="form-label">Callsign utilisateur SVXReflector *</label>
+                                        <InputText id="callsign" class="form-control" @bind-Value="_model.Callsign" placeholder="F5ABC-L" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Indicatif + suffixe (ex: F5ABC-L)</div>
+                                        <ValidationMessage For="@(() => _model.Callsign)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="authKey" class="form-label">AuthKey (mot de passe) *</label>
+                                        <InputText id="authKey" type="password" class="form-control" @bind-Value="_model.AuthKey" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Minimum 8 caractères</div>
+                                        <ValidationMessage For="@(() => _model.AuthKey)" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Configuration SimplexLogic -->
+                    <div class="card border-start border-4 border-warning mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-broadcast"></i> Configuration SimplexLogic</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="simplexCallsign" class="form-label">SimplexCallsign (indicatif annoncé) *</label>
+                                        <InputText id="simplexCallsign" class="form-control" @bind-Value="_model.SimplexCallsign" placeholder="F5ZZZ" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Indicatif annoncé vocalement</div>
+                                        <ValidationMessage For="@(() => _model.SimplexCallsign)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="reportCtcss" class="form-label">ReportCtcss (CTCSS annoncé)</label>
+                                        <InputText id="reportCtcss" class="form-control" @bind-Value="_model.ReportCtcss" placeholder="136.5" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Optionnel : CTCSS annoncé vocalement</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="shortIdentInterval" class="form-label">ShortIdentInterval (secondes) *</label>
+                                        <InputNumber id="shortIdentInterval" class="form-control" @bind-Value="_model.ShortIdentInterval" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Intervalle identification courte (5-3600s, défaut: 300)</div>
+                                        <ValidationMessage For="@(() => _model.ShortIdentInterval)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="longIdentInterval" class="form-label">LongIdentInterval (secondes) *</label>
+                                        <InputNumber id="longIdentInterval" class="form-control" @bind-Value="_model.LongIdentInterval" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Intervalle identification longue (5-3600s, défaut: 3600)</div>
+                                        <ValidationMessage For="@(() => _model.LongIdentInterval)" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Configuration Radio -->
+                    <div class="card border-start border-4 border-info mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-router"></i> Configuration Radio</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="rxFrequency" class="form-label">Fréquence RX (MHz) *</label>
+                                        <InputNumber id="rxFrequency" class="form-control" @bind-Value="_model.RxFrequency" placeholder="145.450" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Plage valide : 30-3000 MHz</div>
+                                        <ValidationMessage For="@(() => _model.RxFrequency)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="txFrequency" class="form-label">Fréquence TX (MHz) *</label>
+                                        <InputNumber id="txFrequency" class="form-control" @bind-Value="_model.TxFrequency" placeholder="145.450" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">Plage valide : 30-3000 MHz</div>
+                                        <ValidationMessage For="@(() => _model.TxFrequency)" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="rxCtcss" class="form-label">CTCSS RX</label>
+                                        <select id="rxCtcss" class="form-select" @bind="_model.RxCtcss" disabled="@_isReadOnly">
+                                            @foreach (var option in _ctcssOptions)
+                                            {
+                                                <option value="@option.Key">@option.Value</option>
+                                            }
+                                        </select>
+                                        <div class="form-text text-muted">Tonalité CTCSS de réception (optionnel)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="txCtcss" class="form-label">CTCSS TX</label>
+                                        <select id="txCtcss" class="form-select" @bind="_model.TxCtcss" disabled="@_isReadOnly">
+                                            @foreach (var option in _ctcssOptions)
+                                            {
+                                                <option value="@option.Key">@option.Value</option>
+                                            }
+                                        </select>
+                                        <div class="form-text text-muted">Tonalité CTCSS de transmission (optionnel)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section DTMF -->
+                    <div class="card border-start border-4 border-secondary mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-asterisk"></i> DTMF</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="dtmfCode" class="form-label">Code DTMF d'activation *</label>
+                                        <InputText id="dtmfCode" class="form-control" @bind-Value="_model.DtmfCode" placeholder="100" disabled="@_isReadOnly" />
+                                        <div class="form-text text-muted">1 à 4 chiffres (ex: 100)</div>
+                                        <ValidationMessage For="@(() => _model.DtmfCode)" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Sons -->
+                    <div class="card border-start border-4 border-danger mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-volume-up"></i> Sons</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="soundId" class="form-label">Sélection Sound existant</label>
+                                        <select id="soundId" class="form-select" @bind="_model.SoundId" disabled="@_isReadOnly">
+                                            <option value="">-- Aucun --</option>
+                                            @foreach (var sound in _sounds)
+                                            {
+                                                <option value="@sound.Id">@sound.Name</option>
+                                            }
+                                        </select>
+                                        <div class="form-text text-muted">Sound annoncé lors de l'activation du salon</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-center">
+                                    <a href="/sounds" target="_blank" class="btn btn-outline-secondary">
+                                        <i class="bi bi-box-arrow-up-right"></i> Gérer les sons
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Boutons actions -->
+                    <div class="d-flex justify-content-between gap-2 mt-4">
+                        <button type="button" class="btn btn-secondary btn-lg" @onclick="Cancel">
+                            <i class="bi bi-x-circle"></i> Annuler
+                        </button>
+                        <button type="submit" class="btn btn-success btn-lg" disabled="@(_isSaving || _isReadOnly)">
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Enregistrement...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle me-2"></i>
+                                <span>Enregistrer</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private SalonFormModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private bool _isReadOnly = false;
+    private object? _validationResult;
+
+    private bool IsEditMode => Id.HasValue;
+
+    private Dictionary<decimal?, string> _ctcssOptions = new();
+    private List<Domain.Aggregates.Sound.SoundAggregate> _sounds = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
+        await LoadSounds();
+
+        if (IsEditMode)
+        {
+            await LoadSalon();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadSounds()
+    {
+        try
+        {
+            var query = new GetAllSoundsQuery();
+            _sounds = (await Bus.InvokeAsync<IReadOnlyList<Domain.Aggregates.Sound.SoundAggregate>>(query)).ToList();
+        }
+        catch (Exception)
+        {
+            _sounds = new List<Domain.Aggregates.Sound.SoundAggregate>();
+        }
+    }
+
+    private async Task LoadSalon()
+    {
+        _isLoading = true;
+        _validationResult = null;
+
+        try
+        {
+            var query = new GetSalonByIdQuery(Id!.Value);
+            var result = await Bus.InvokeAsync<object>(query);
+
+            // Gérer le résultat (Validation<Error, SalonAggregate>)
+            if (result != null)
+            {
+                var salonAggregate = result as Domain.Aggregates.Salon.SalonAggregate;
+                if (salonAggregate != null)
+                {
+                    _model = SalonFormModel.FromAggregate(salonAggregate);
+
+                    // TODO: Vérifier si le salon est actif pour mettre _isReadOnly = true
+                    // Pour l'instant, on permet l'édition
+                    _isReadOnly = false;
+                }
+                else
+                {
+                    // Gérer le cas d'erreur de validation
+                    _validationResult = result;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors du chargement : {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSaving = true;
+        _validationResult = null;
+
+        try
+        {
+            var configuration = _model.ToConfiguration();
+
+            if (IsEditMode)
+            {
+                var command = new UpdateSalonConfigurationCommand(
+                    Id: _model.Id!.Value,
+                    RxFrequency: _model.RxFrequency,
+                    TxFrequency: _model.TxFrequency,
+                    RxCtcss: _model.RxCtcss,
+                    TxCtcss: _model.TxCtcss,
+                    Configuration: configuration
+                );
+
+                var result = await Bus.InvokeAsync<object>(command);
+                _validationResult = result;
+
+                // Si succès, afficher toast et rediriger
+                if (result?.GetType().Name == "Success")
+                {
+                    ToastService.ShowSuccess("Salon modifié avec succès !");
+                    await Task.Delay(500);
+                    Navigation.NavigateTo("/salons");
+                }
+            }
+            else
+            {
+                var command = new CreateSalonCommand(
+                    Id: Guid.NewGuid(),
+                    Name: _model.Name,
+                    IsDefault: _model.IsDefault,
+                    IsTemporized: _model.IsTemporized,
+                    RxFrequency: _model.RxFrequency,
+                    TxFrequency: _model.TxFrequency,
+                    RxCtcss: _model.RxCtcss,
+                    TxCtcss: _model.TxCtcss,
+                    Configuration: configuration
+                );
+
+                var result = await Bus.InvokeAsync<object>(command);
+                _validationResult = result;
+
+                // Si succès, afficher toast et rediriger
+                if (result?.GetType().Name == "Success")
+                {
+                    ToastService.ShowSuccess("Salon créé avec succès !");
+                    await Task.Delay(500);
+                    Navigation.NavigateTo("/salons");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors de l'enregistrement : {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/salons");
+    }
+}
