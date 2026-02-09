@@ -15,7 +15,6 @@ using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
-using SvxlinkManagerV2.Presentation.Data;
 
 namespace SvxlinkManagerV2.Presentation
 {
@@ -74,7 +73,6 @@ namespace SvxlinkManagerV2.Presentation
             
             services.AddRazorPages();
             services.AddServerSideBlazor();
-            services.AddSingleton<WeatherForecastService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

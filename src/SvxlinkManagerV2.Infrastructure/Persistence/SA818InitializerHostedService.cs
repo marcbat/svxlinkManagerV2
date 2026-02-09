@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -11,14 +12,14 @@ namespace SvxlinkManagerV2.Infrastructure.Persistence;
 /// </summary>
 public class SA818InitializerHostedService : IHostedService
 {
-    private readonly ISA818Repository _sa818Repository;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SA818InitializerHostedService> _logger;
 
     public SA818InitializerHostedService(
-        ISA818Repository sa818Repository,
+        IServiceScopeFactory scopeFactory,
         ILogger<SA818InitializerHostedService> logger)
     {
-        _sa818Repository = sa818Repository;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -32,8 +33,12 @@ public class SA818InitializerHostedService : IHostedService
 
         try
         {
+            // Créer un scope pour résoudre les services scoped
+            using var scope = _scopeFactory.CreateScope();
+            var sa818Repository = scope.ServiceProvider.GetRequiredService<ISA818Repository>();
+            
             // Vérifier si le SA818 existe déjà via la projection (retourne null si absent)
-            var existingConfig = await _sa818Repository.GetConfigurationAsync(cancellationToken);
+            var existingConfig = await sa818Repository.GetConfigurationAsync(cancellationToken);
 
             if (existingConfig is not null)
             {
@@ -58,7 +63,7 @@ public class SA818InitializerHostedService : IHostedService
             await createResult.Match(
                 async aggregate =>
                 {
-                    var saveResult = await _sa818Repository.SaveAsync(aggregate, cancellationToken);
+                    var saveResult = await sa818Repository.SaveAsync(aggregate, cancellationToken);
                     
                     saveResult.Match(
                         _ =>

@@ -1,0 +1,25 @@
+@* Composant d'affichage d'erreurs (version basique pour infrastructure) *@
+@* TODO: Implémenter version complète dans Issue #30 *@
+
+@if (ErrorMessage != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        @ErrorMessage
+        <button type="button" class="btn-close" @onclick="Clear" aria-label="Fermer"></button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+    
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+    
+    private async Task Clear()
+    {
+        ErrorMessage = null;
+        await OnClear.InvokeAsync();
+    }
+}
