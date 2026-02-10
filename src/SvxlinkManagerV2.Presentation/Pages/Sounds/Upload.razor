@@ -1,9 +1,10 @@
 @page "/sounds/upload"
 @using SvxlinkManagerV2.Application.Features.Sounds.CreateSound
+@using SvxlinkManagerV2.Presentation.Services
 @using Wolverine
 @inject IMessageBus MessageBus
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject ToastService ToastService
 
 <div class="container col-lg-8 mx-auto mt-4">
     <div class="card">
@@ -277,8 +278,8 @@
             result.Match(
                 Succ: id =>
                 {
-                    // Succès - Afficher un message de succès (via JS Toast)
-                    _ = ShowSuccessToast("Son uploadé avec succès !");
+                    // Succès - Afficher un toast de succès
+                    ToastService.ShowSuccess("Son uploadé avec succès !");
                     
                     // Redirection après 1 seconde
                     Task.Delay(1000).ContinueWith(_ =>
@@ -307,18 +308,6 @@
     private void Cancel()
     {
         NavigationManager.NavigateTo("/sounds");
-    }
-
-    private async Task ShowSuccessToast(string message)
-    {
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("alert", message);
-        }
-        catch
-        {
-            // Ignore si JS n'est pas disponible
-        }
     }
 
     private string FormatFileSize(long bytes)
