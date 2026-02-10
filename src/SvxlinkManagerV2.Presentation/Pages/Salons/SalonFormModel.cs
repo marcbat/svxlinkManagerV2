@@ -27,6 +27,7 @@ public class SalonFormModel
     public int Port { get; set; } = 5300;
 
     [Required(ErrorMessage = "Le callsign est requis")]
+    [RegularExpression(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", ErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)")]
     public string Callsign { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "L'AuthKey est requis")]
@@ -35,6 +36,7 @@ public class SalonFormModel
 
     // Section Configuration SimplexLogic
     [Required(ErrorMessage = "Le SimplexCallsign est requis")]
+    [RegularExpression(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", ErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)")]
     public string SimplexCallsign { get; set; } = string.Empty;
 
     [Range(5, 3600, ErrorMessage = "L'intervalle doit être entre 5 et 3600 secondes")]
