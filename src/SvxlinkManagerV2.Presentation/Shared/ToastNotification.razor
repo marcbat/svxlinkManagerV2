@@ -100,14 +100,10 @@
 
     private string GetBodyClass(ToastType type)
     {
-        return type switch
-        {
-            ToastType.Success => "bg-dark-card text-light",
-            ToastType.Error => "bg-dark-card text-light",
-            ToastType.Info => "bg-dark-card text-light",
-            ToastType.Warning => "bg-dark-card text-dark",
-            _ => "bg-dark-card text-light"
-        };
+        // Tous les types utilisent un fond sombre, sauf Warning qui a un texte foncé pour le contraste
+        return type == ToastType.Warning 
+            ? "bg-dark-card text-dark" 
+            : "bg-dark-card text-light";
     }
 
     private string GetCloseButtonClass(ToastType type)
