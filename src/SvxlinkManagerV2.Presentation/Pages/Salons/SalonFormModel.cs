@@ -8,6 +8,10 @@ namespace SvxlinkManagerV2.Presentation.Pages.Salons;
 /// </summary>
 public class SalonFormModel
 {
+    // Pattern de validation pour les indicatifs radioamateurs
+    private const string CallsignPattern = @"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$";
+    private const string CallsignErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)";
+
     // Identifiant (pour édition)
     public Guid? Id { get; set; }
 
@@ -34,8 +38,15 @@ public class SalonFormModel
     public string AuthKey { get; set; } = string.Empty;
 
     // Section Configuration SimplexLogic
+    private string _simplexCallsign = string.Empty;
+    
     [Required(ErrorMessage = "Le SimplexCallsign est requis")]
-    public string SimplexCallsign { get; set; } = string.Empty;
+    [RegularExpression(CallsignPattern, ErrorMessage = CallsignErrorMessage)]
+    public string SimplexCallsign 
+    { 
+        get => _simplexCallsign;
+        set => _simplexCallsign = value?.ToUpperInvariant() ?? string.Empty;
+    }
 
     [Range(5, 3600, ErrorMessage = "L'intervalle doit être entre 5 et 3600 secondes")]
     public int ShortIdentInterval { get; set; } = 300;
