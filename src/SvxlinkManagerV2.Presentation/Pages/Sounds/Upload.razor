@@ -1,0 +1,402 @@
+@page "/sounds/upload"
+@using SvxlinkManagerV2.Application.Features.Sounds.CreateSound
+@using Wolverine
+@inject IMessageBus MessageBus
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<div class="container col-lg-8 mx-auto mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h4 class="mb-0">
+                <i class="bi bi-upload me-2"></i>
+                Uploader un nouveau son
+            </h4>
+        </div>
+        <div class="card-body p-4">
+            
+            @if (string.IsNullOrEmpty(_errorMessage))
+            {
+                @* Zone drag & drop *@
+                @if (_selectedFile == null)
+                {
+                    <DragDropZone OnFileSelected="HandleFileSelected" 
+                                  AcceptedTypes=".wav"
+                                  MaxSizeMB="10" />
+                }
+                else
+                {
+                    @* Fichier sélectionné *@
+                    <div class="card card-body d-flex flex-row align-items-center mb-3">
+                        <i class="bi bi-file-earmark-music text-primary me-3" style="font-size: 2rem;"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">@_selectedFile.Name</div>
+                            <div class="text-muted small">@FormatFileSize(_selectedFile.Size)</div>
+                        </div>
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-danger"
+                                @onclick="ClearSelectedFile"
+                                disabled="@_isUploading">
+                            <i class="bi bi-x-circle me-1"></i>
+                            Retirer
+                        </button>
+                    </div>
+
+                    @* Champ Nom du son *@
+                    <div class="mb-3">
+                        <label for="soundName" class="form-label">Nom du son</label>
+                        <input type="text" 
+                               class="form-control form-control-lg @(_soundNameError != null ? "is-invalid" : "")"
+                               id="soundName"
+                               @bind="_soundName"
+                               @bind:event="oninput"
+                               placeholder="Entrez le nom du son"
+                               maxlength="100"
+                               disabled="@_isUploading" />
+                        @if (_soundNameError != null)
+                        {
+                            <div class="invalid-feedback d-block">@_soundNameError</div>
+                        }
+                    </div>
+
+                    @* Prévisualisation audio *@
+                    @if (_audioDataUrl != null)
+                    {
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">
+                                <i class="bi bi-headphones me-2"></i>
+                                Prévisualisation
+                            </h6>
+                            <audio controls class="w-100">
+                                <source src="@_audioDataUrl" type="audio/wav">
+                                Votre navigateur ne supporte pas l'élément audio.
+                            </audio>
+                        </div>
+                    }
+
+                    @* Métadonnées *@
+                    @if (_metadata != null)
+                    {
+                        <div class="card bg-light mb-4">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    Informations du fichier
+                                </h6>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-clock me-2"></i>Durée</span>
+                                    <strong>@_metadata.Duration</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-soundwave me-2"></i>Fréquence d'échantillonnage</span>
+                                    <strong>@_metadata.SampleRate Hz</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-music-note-beamed me-2"></i>Canaux</span>
+                                    <strong>@_metadata.Channels (@_metadata.ChannelsText)</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-file-earmark me-2"></i>Taille</span>
+                                    <strong>@FormatFileSize(_selectedFile.Size)</strong>
+                                </li>
+                            </ul>
+                        </div>
+                    }
+
+                    @* Barre de progression *@
+                    @if (_isUploading && _uploadProgress > 0)
+                    {
+                        <div class="mb-4">
+                            <div class="text-center mb-2">
+                                <strong>@_uploadProgress%</strong>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                     role="progressbar" 
+                                     style="width: @(_uploadProgress)%"
+                                     aria-valuenow="@_uploadProgress" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+            else
+            {
+                @* Message d'erreur *@
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    @_errorMessage
+                </div>
+            }
+
+            @* Boutons d'action *@
+            <div class="d-flex justify-content-between gap-2 mt-4">
+                <button type="button" 
+                        class="btn btn-secondary btn-lg"
+                        @onclick="Cancel"
+                        disabled="@_isUploading">
+                    <i class="bi bi-x-circle me-2"></i>
+                    Annuler
+                </button>
+
+                <button type="button" 
+                        class="btn btn-success btn-lg"
+                        @onclick="UploadSound"
+                        disabled="@(!CanUpload())">
+                    @if (_isUploading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Upload en cours...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-upload me-2"></i>
+                        <span>Uploader</span>
+                    }
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private IBrowserFile? _selectedFile;
+    private string _soundName = string.Empty;
+    private string? _soundNameError;
+    private string? _errorMessage;
+    private bool _isUploading;
+    private int _uploadProgress;
+    private string? _audioDataUrl;
+    private WavMetadata? _metadata;
+    private byte[]? _fileContent;
+
+    private async Task HandleFileSelected(IBrowserFile file)
+    {
+        _selectedFile = file;
+        _errorMessage = null;
+        _soundNameError = null;
+        
+        // Auto-remplir le nom du son depuis le nom du fichier (sans extension)
+        _soundName = Path.GetFileNameWithoutExtension(file.Name);
+
+        try
+        {
+            // Lire le contenu du fichier
+            const int maxSize = 10 * 1024 * 1024; // 10 MB
+            using var stream = file.OpenReadStream(maxSize);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            _fileContent = memoryStream.ToArray();
+
+            // Parser les métadonnées WAV
+            _metadata = ParseWavHeader(_fileContent);
+
+            // Créer URL pour prévisualisation audio
+            _audioDataUrl = $"data:audio/wav;base64,{Convert.ToBase64String(_fileContent)}";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Erreur lors de la lecture du fichier : {ex.Message}";
+            _selectedFile = null;
+            _fileContent = null;
+            _metadata = null;
+            _audioDataUrl = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private void ClearSelectedFile()
+    {
+        _selectedFile = null;
+        _soundName = string.Empty;
+        _soundNameError = null;
+        _errorMessage = null;
+        _fileContent = null;
+        _metadata = null;
+        _audioDataUrl = null;
+        StateHasChanged();
+    }
+
+    private bool CanUpload()
+    {
+        if (_isUploading) return false;
+        if (_selectedFile == null) return false;
+        if (string.IsNullOrWhiteSpace(_soundName)) return false;
+        if (_fileContent == null) return false;
+        return true;
+    }
+
+    private async Task UploadSound()
+    {
+        // Validation du nom
+        if (string.IsNullOrWhiteSpace(_soundName))
+        {
+            _soundNameError = "Le nom du son est requis";
+            return;
+        }
+
+        if (_soundName.Length > 100)
+        {
+            _soundNameError = "Le nom du son ne peut pas dépasser 100 caractères";
+            return;
+        }
+
+        _isUploading = true;
+        _uploadProgress = 0;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // Simuler la progression d'upload
+            for (int i = 0; i <= 100; i += 10)
+            {
+                _uploadProgress = i;
+                StateHasChanged();
+                await Task.Delay(50);
+            }
+
+            // Créer la commande
+            var command = new CreateSoundCommand(
+                Id: Guid.NewGuid(),
+                Name: _soundName,
+                FileContent: _fileContent!
+            );
+
+            // Envoyer la commande via Wolverine
+            var result = await MessageBus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, Guid>>(command);
+
+            // Gérer le résultat
+            result.Match(
+                Succ: id =>
+                {
+                    // Succès - Afficher un message de succès (via JS Toast)
+                    _ = ShowSuccessToast("Son uploadé avec succès !");
+                    
+                    // Redirection après 1 seconde
+                    Task.Delay(1000).ContinueWith(_ =>
+                    {
+                        NavigationManager.NavigateTo("/sounds");
+                    });
+                    return true;
+                },
+                Fail: errors =>
+                {
+                    _errorMessage = string.Join(", ", errors.Select(e => e.Message));
+                    _isUploading = false;
+                    StateHasChanged();
+                    return false;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Erreur lors de l'upload : {ex.Message}";
+            _isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/sounds");
+    }
+
+    private async Task ShowSuccessToast(string message)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("alert", message);
+        }
+        catch
+        {
+            // Ignore si JS n'est pas disponible
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private WavMetadata ParseWavHeader(byte[] data)
+    {
+        if (data.Length < 44)
+            throw new InvalidOperationException("Fichier WAV invalide (trop petit)");
+
+        // Vérifier signature "RIFF"
+        if (data[0] != 'R' || data[1] != 'I' || data[2] != 'F' || data[3] != 'F')
+            throw new InvalidOperationException("Fichier WAV invalide (signature RIFF manquante)");
+
+        // Vérifier format "WAVE"
+        if (data[8] != 'W' || data[9] != 'A' || data[10] != 'V' || data[11] != 'E')
+            throw new InvalidOperationException("Fichier WAV invalide (format WAVE manquant)");
+
+        // Lire les métadonnées (little-endian)
+        int channels = BitConverter.ToInt16(data, 22);
+        int sampleRate = BitConverter.ToInt32(data, 24);
+        int byteRate = BitConverter.ToInt32(data, 28);
+        int bitsPerSample = BitConverter.ToInt16(data, 34);
+
+        // Chercher le data chunk
+        int dataSize = 0;
+        int pos = 12;
+        while (pos < data.Length - 8)
+        {
+            string chunkId = System.Text.Encoding.ASCII.GetString(data, pos, 4);
+            int chunkSize = BitConverter.ToInt32(data, pos + 4);
+            
+            if (chunkId == "data")
+            {
+                dataSize = chunkSize;
+                break;
+            }
+            
+            pos += 8 + chunkSize;
+        }
+
+        // Calculer la durée
+        double durationSeconds = 0;
+        if (sampleRate > 0 && channels > 0 && bitsPerSample > 0 && dataSize > 0)
+        {
+            durationSeconds = (double)dataSize / (sampleRate * channels * (bitsPerSample / 8));
+        }
+
+        return new WavMetadata
+        {
+            Channels = channels,
+            ChannelsText = channels == 1 ? "Mono" : channels == 2 ? "Stereo" : $"{channels} canaux",
+            SampleRate = sampleRate,
+            Duration = FormatDuration(durationSeconds)
+        };
+    }
+
+    private string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return $"{ts.Minutes:D2}:{ts.Seconds:D2}";
+    }
+
+    private class WavMetadata
+    {
+        public int Channels { get; set; }
+        public string ChannelsText { get; set; } = string.Empty;
+        public int SampleRate { get; set; }
+        public string Duration { get; set; } = string.Empty;
+    }
+}

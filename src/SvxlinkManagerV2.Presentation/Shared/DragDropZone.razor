@@ -1,0 +1,125 @@
+@* 
+    Composant de Zone Drag & Drop réutilisable pour l'upload de fichiers
+*@
+
+<div class="drag-drop-zone border border-2 border-primary border-dashed rounded p-5 text-center mb-4 @(_isDragging ? "bg-light" : "")"
+     @ondragenter="HandleDragEnter"
+     @ondragover="HandleDragOver"
+     @ondragleave="HandleDragLeave"
+     @ondrop="HandleDrop">
+    
+    <i class="bi bi-cloud-upload" style="font-size: 3rem; color: var(--bs-primary);"></i>
+    
+    <div class="mt-3">
+        <p class="mb-2">
+            <strong>Glissez-déposez votre fichier ici</strong>
+        </p>
+        <p class="text-muted small">
+            ou
+        </p>
+        <label for="fileInput" class="btn btn-outline-primary">
+            Parcourir les fichiers
+        </label>
+        <InputFile id="fileInput" 
+                   OnChange="HandleFileSelected" 
+                   accept="@AcceptedTypes"
+                   style="display: none;" />
+    </div>
+    
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger mt-3 mb-0" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@ErrorMessage
+        </div>
+    }
+    
+    <p class="text-muted small mt-3 mb-0">
+        @if (MaxSizeMB > 0)
+        {
+            <span>Taille maximale : @MaxSizeMB MB</span>
+        }
+        @if (!string.IsNullOrEmpty(AcceptedTypes))
+        {
+            <span class="ms-2">• Formats acceptés : @GetFormatsText()</span>
+        }
+    </p>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<IBrowserFile> OnFileSelected { get; set; }
+
+    [Parameter]
+    public string AcceptedTypes { get; set; } = ".wav";
+
+    [Parameter]
+    public int MaxSizeMB { get; set; } = 10;
+
+    private bool _isDragging = false;
+    private string? ErrorMessage { get; set; }
+
+    private void HandleDragEnter(DragEventArgs e)
+    {
+        _isDragging = true;
+        ErrorMessage = null;
+    }
+
+    private void HandleDragOver(DragEventArgs e)
+    {
+        e.DataTransfer.DropEffect = "copy";
+    }
+
+    private void HandleDragLeave(DragEventArgs e)
+    {
+        _isDragging = false;
+    }
+
+    private void HandleDrop(DragEventArgs e)
+    {
+        _isDragging = false;
+        ErrorMessage = null;
+
+        // Note: Le drag & drop de fichiers avec e.DataTransfer.Files n'est pas directement supporté en Blazor Server
+        // Cette fonctionnalité nécessiterait du JavaScript interop pour être pleinement fonctionnelle
+        // Pour l'instant, seul le clic sur "Parcourir" fonctionnera
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        ErrorMessage = null;
+        var file = e.File;
+        await ValidateAndSelectFile(file);
+    }
+
+    private async Task ValidateAndSelectFile(IBrowserFile file)
+    {
+        // Validation de la taille
+        var maxSizeBytes = MaxSizeMB * 1024 * 1024;
+        if (file.Size > maxSizeBytes)
+        {
+            ErrorMessage = $"Le fichier est trop volumineux. Taille maximale : {MaxSizeMB} MB";
+            return;
+        }
+
+        // Validation du type si spécifié
+        if (!string.IsNullOrEmpty(AcceptedTypes))
+        {
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+            var acceptedExtensions = AcceptedTypes.Split(',').Select(t => t.Trim().ToLowerInvariant());
+            
+            if (!acceptedExtensions.Contains(extension))
+            {
+                ErrorMessage = $"Format de fichier non accepté. Formats acceptés : {AcceptedTypes}";
+                return;
+            }
+        }
+
+        // Fichier valide, déclencher l'événement
+        await OnFileSelected.InvokeAsync(file);
+    }
+
+    private string GetFormatsText()
+    {
+        return AcceptedTypes.Replace(",", ", ");
+    }
+}

@@ -273,6 +273,17 @@ hr {
     margin-right: 2rem;
 }
 
+/* Classe utilitaire pour border dashed (DragDropZone) */
+.border-dashed {
+    border-style: dashed !important;
+}
+
+/* Drag and drop zone hover state */
+.drag-drop-zone {
+    transition: background-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
 /* Styles pour la sidebar responsive (Mobile - à implémenter plus tard) */
 @media (max-width: 768px) {
     /* TODO: Implémenter sidebar responsive avec offcanvas Bootstrap */
