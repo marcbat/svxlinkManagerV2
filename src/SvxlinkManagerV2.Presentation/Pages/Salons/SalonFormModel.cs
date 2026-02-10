@@ -63,13 +63,13 @@ public class SalonFormModel
     public string RxCtcssString
     {
         get => RxCtcss?.ToString() ?? string.Empty;
-        set => RxCtcss = string.IsNullOrWhiteSpace(value) ? null : decimal.Parse(value);
+        set => RxCtcss = string.IsNullOrWhiteSpace(value) ? null : (decimal.TryParse(value, out var result) ? result : null);
     }
 
     public string TxCtcssString
     {
         get => TxCtcss?.ToString() ?? string.Empty;
-        set => TxCtcss = string.IsNullOrWhiteSpace(value) ? null : decimal.Parse(value);
+        set => TxCtcss = string.IsNullOrWhiteSpace(value) ? null : (decimal.TryParse(value, out var result) ? result : null);
     }
 
     // Section DTMF
@@ -84,7 +84,7 @@ public class SalonFormModel
     public string SoundIdString
     {
         get => SoundId?.ToString() ?? string.Empty;
-        set => SoundId = string.IsNullOrWhiteSpace(value) ? null : Guid.Parse(value);
+        set => SoundId = string.IsNullOrWhiteSpace(value) ? null : (Guid.TryParse(value, out var result) ? result : null);
     }
 
     // Valeurs figées en backend (non exposées dans le formulaire)
