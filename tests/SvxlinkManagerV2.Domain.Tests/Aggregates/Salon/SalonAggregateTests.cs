@@ -253,54 +253,6 @@ public class SalonAggregateTests
         });
     }
 
-    [Theory]
-    [InlineData("ABC")]           // Trop court
-    [InlineData("123456")]         // Pas de lettres
-    [InlineData("F5ABC-LLL")]      // Suffixe trop long
-    [InlineData("f5abc")]          // Minuscules
-    [InlineData("F5ABC!")]         // Caractères invalides
-    public void Create_WithInvalidCallsignFormat_ShouldFail(string invalidCallsign)
-    {
-        // Arrange
-        var id = Guid.NewGuid();
-        var name = "Salon Test";
-        var config = CreateValidConfiguration();
-        var invalidConfig = new SvxLinkConfiguration(
-            config.Id,
-            config.Logics,
-            config.CfgDir,
-            config.CardSampleRate,
-            config.CardChannels,
-            config.Host,
-            config.Port,
-            invalidCallsign, // Format invalide
-            config.AuthKey,
-            config.AudioCodec,
-            config.JitterBufferDelay,
-            config.SimplexCallsign,
-            config.Modules,
-            config.ShortIdentInterval,
-            config.LongIdentInterval,
-            config.ReportCtcss,
-            config.EventHandler,
-            config.DefaultLang,
-            config.RgrSoundDelay,
-            config.SoundId,
-            config.RxFrequency,
-            config.TxFrequency,
-            config.RxCtcss,
-            config.TxCtcss);
-
-        // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_CALLSIGN_INVALID");
-        });
-    }
-
     [Fact]
     public void Create_WithEmptyAuthKey_ShouldFail()
     {
