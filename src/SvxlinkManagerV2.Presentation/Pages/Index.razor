@@ -1,73 +1,255 @@
 ﻿@page "/"
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
+@using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using Wolverine
+@inject IMessageBus MessageBus
 
 <PageTitle>Accueil - SvxLink Manager V2</PageTitle>
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center p-5">
-                <h1 class="display-4 mb-4">
+<div class="container">
+    <div class="card p-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
                     <i class="bi bi-broadcast-pin text-primary"></i>
-                </h1>
-                <h2 class="mb-3">Bienvenue sur SvxLink Manager V2</h2>
-                <p class="lead text-muted">
-                    Gestionnaire de configuration pour nœuds radioamateurs SVXLink
-                </p>
-                <hr class="my-4">
-                <p class="text-muted">
-                    Sélectionnez une section dans le menu de navigation pour commencer.
-                </p>
+                    Tableau de bord
+                </h2>
+                @if (_activeSalon != null)
+                {
+                    <StatusBadge Status="@GetCurrentStatus()" />
+                }
+                else if (_isLoadingSalons)
+                {
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                }
+                else
+                {
+                    <StatusBadge Status="Inactif" />
+                }
             </div>
-        </div>
-    </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-3">
-        <div class="card border-primary">
-            <div class="card-body text-center">
-                <i class="bi bi-globe display-6 text-primary"></i>
-                <h5 class="card-title mt-3">Salons</h5>
-                <p class="card-text small text-muted">Gérez vos connexions aux salons reflecteurs</p>
-                <a href="/salons" class="btn btn-outline-primary btn-sm">Accéder</a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card border-info">
-            <div class="card-body text-center">
-                <i class="bi bi-broadcast display-6 text-info"></i>
-                <h5 class="card-title mt-3">Configuration Radio</h5>
-                <p class="card-text small text-muted">Paramètres du module SA818</p>
-                <a href="/radio-profile" class="btn btn-outline-info btn-sm">Accéder</a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card border-success">
-            <div class="card-body text-center">
-                <i class="bi bi-music-note-beamed display-6 text-success"></i>
-                <h5 class="card-title mt-3">Sons</h5>
-                <p class="card-text small text-muted">Bibliothèque de fichiers audio WAV</p>
-                <a href="/sounds" class="btn btn-outline-success btn-sm">Accéder</a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card border-secondary">
-            <div class="card-body text-center">
-                <i class="bi bi-info-circle display-6 text-secondary"></i>
-                <h5 class="card-title mt-3">À propos</h5>
-                <p class="card-text small text-muted">Informations système et version</p>
-                <button class="btn btn-outline-secondary btn-sm" disabled>Bientôt disponible</button>
-            </div>
+            @if (_validationResult != null)
+            {
+                <ErrorDisplay ValidationResult="@_validationResult" />
+            }
+
+            @if (_isLoadingSalons)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="text-muted mt-3">Chargement des salons...</p>
+                </div>
+            }
+            else
+            {
+                <SalonDropdown 
+                    Salons="@_allSalons"
+                    SelectedSalonId="@_selectedSalonId"
+                    OnSelectionChanged="@HandleSalonSelection"
+                    IsDisabled="@_isProcessing"
+                    Label="Sélectionner un salon"
+                    ShowDisconnectOption="true"
+                    ShowPerroquetOption="true" />
+
+                <div class="d-grid gap-2 mt-3">
+                    <button 
+                        class="btn btn-success btn-lg" 
+                        @onclick="HandleActivateClick"
+                        disabled="@(string.IsNullOrEmpty(_selectedSalonId) || _isProcessing)">
+                        @if (_isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span>Traitement en cours...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-play-circle me-2"></i>
+                            <span>Activer</span>
+                        }
+                    </button>
+                </div>
+
+                @if (_activeSalon != null)
+                {
+                    <div class="card bg-light mt-4">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Salon actif
+                            </h5>
+                            <p class="mb-1"><strong>Nom:</strong> @_activeSalon.Name</p>
+                            <p class="mb-1"><strong>Host:</strong> @_activeSalon.Configuration.Host</p>
+                            <p class="mb-0"><strong>Port:</strong> @_activeSalon.Configuration.Port</p>
+                        </div>
+                    </div>
+                }
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-diagram-3 me-2"></i>
+                            Nœuds connectés (TalkGroups)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info mb-0" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Aucun nœud connecté pour le moment
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </div>
 
 @code {
-    // Page d'accueil avec liens rapides vers les sections principales
+    private IReadOnlyList<SalonAggregate>? _allSalons;
+    private SalonAggregate? _activeSalon;
+    private string? _selectedSalonId;
+    private bool _isLoadingSalons = true;
+    private bool _isProcessing = false;
+    private object? _validationResult;
+    private System.Threading.Timer? _pollingTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSalonsAsync();
+        await LoadActiveSalonAsync();
+        StartPolling();
+    }
+
+    private async Task LoadSalonsAsync()
+    {
+        try
+        {
+            _isLoadingSalons = true;
+            _allSalons = await MessageBus.InvokeAsync<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
+        }
+        catch (Exception)
+        {
+            _validationResult = new { Message = "Erreur lors du chargement des salons" };
+        }
+        finally
+        {
+            _isLoadingSalons = false;
+        }
+    }
+
+    private async Task LoadActiveSalonAsync()
+    {
+        try
+        {
+            _activeSalon = await MessageBus.InvokeAsync<SalonAggregate?>(new GetActiveSalonQuery());
+        }
+        catch (Exception)
+        {
+            // Pas d'erreur affichée pour éviter de polluer l'UI
+        }
+    }
+
+    private void StartPolling()
+    {
+        _pollingTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadActiveSalonAsync();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private Task HandleSalonSelection(string salonId)
+    {
+        _selectedSalonId = salonId;
+        _validationResult = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleActivateClick()
+    {
+        if (string.IsNullOrEmpty(_selectedSalonId))
+            return;
+
+        _isProcessing = true;
+        _validationResult = null;
+
+        try
+        {
+            if (_selectedSalonId == "disconnect")
+            {
+                // Déconnecter le salon actif
+                if (_activeSalon != null)
+                {
+                    var result = await MessageBus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+                    _validationResult = result;
+                    
+                    if (result.IsSuccess)
+                    {
+                        _selectedSalonId = null;
+                        await LoadActiveSalonAsync();
+                    }
+                }
+            }
+            else if (_selectedSalonId == "perroquet")
+            {
+                // Désactiver le salon actif pour le mode perroquet
+                if (_activeSalon != null)
+                {
+                    var result = await MessageBus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+                    _validationResult = result;
+                    await LoadActiveSalonAsync();
+                }
+                // TODO: Activer mode perroquet (feature désactivée pour MVP)
+            }
+            else if (Guid.TryParse(_selectedSalonId, out var salonId))
+            {
+                // Désactiver le salon actif si présent
+                if (_activeSalon != null)
+                {
+                    await MessageBus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+                }
+
+                // Activer le nouveau salon
+                var result = await MessageBus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(new ActivateSalonCommand(salonId));
+                _validationResult = result;
+                
+                if (result.IsSuccess)
+                {
+                    _selectedSalonId = null;
+                    await LoadActiveSalonAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _validationResult = new { Message = $"Erreur: {ex.Message}" };
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private string GetCurrentStatus()
+    {
+        if (_activeSalon != null)
+        {
+            return _activeSalon.IsActive ? "Actif" : "Inactif";
+        }
+        return "Inactif";
+    }
+
+    public void Dispose()
+    {
+        _pollingTimer?.Dispose();
+    }
 }
