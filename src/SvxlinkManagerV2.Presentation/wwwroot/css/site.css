@@ -1,0 +1,312 @@
+/* SvxLink Manager V2 - Styles personnalisés minimaux */
+/* Utilise Bootstrap 5.3 comme framework principal */
+/* Thème Dark */
+
+:root {
+    --dark-bg-main: #1a1d23;
+    --dark-bg-header: #0d1117;
+    --dark-bg-footer: #0d1117;
+    --dark-bg-card: #262b35;
+    --dark-text: #e6edf3;
+    --dark-text-muted: #8b949e;
+    --dark-border: #30363d;
+}
+
+html, body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    height: 100%;
+    background-color: var(--dark-bg-main);
+    color: var(--dark-text);
+}
+
+/* Couleurs de fond dark */
+.bg-dark-custom {
+    background-color: var(--dark-bg-main) !important;
+}
+
+.bg-dark-main {
+    background-color: var(--dark-bg-main) !important;
+}
+
+.bg-dark-header {
+    background-color: var(--dark-bg-header) !important;
+}
+
+.bg-dark-footer {
+    background-color: var(--dark-bg-footer) !important;
+}
+
+/* Cards dark */
+.card {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+.card-header {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border-bottom-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+.card-body {
+    color: var(--dark-text) !important;
+}
+
+.card-title {
+    color: var(--dark-text) !important;
+}
+
+.card-text {
+    color: var(--dark-text-muted) !important;
+}
+
+/* Texte */
+.text-muted {
+    color: var(--dark-text-muted) !important;
+}
+
+.text-light {
+    color: var(--dark-text) !important;
+}
+
+/* Alerts dark */
+.alert {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+.alert-info {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    border-color: rgba(13, 110, 253, 0.3) !important;
+    color: #6ea8fe !important;
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+    border-color: rgba(255, 193, 7, 0.3) !important;
+    color: #ffda6a !important;
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    border-color: rgba(220, 53, 69, 0.3) !important;
+    color: #ea868f !important;
+}
+
+.alert-success {
+    background-color: rgba(25, 135, 84, 0.1) !important;
+    border-color: rgba(25, 135, 84, 0.3) !important;
+    color: #75b798 !important;
+}
+
+/* Buttons - améliorer le contraste */
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-success,
+.btn-outline-info,
+.btn-outline-warning,
+.btn-outline-danger {
+    border-width: 1.5px;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-success:hover,
+.btn-outline-info:hover,
+.btn-outline-warning:hover,
+.btn-outline-danger:hover {
+    color: #fff !important;
+}
+
+/* Forms dark */
+.form-control,
+.form-select {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--dark-bg-card) !important;
+    border-color: #4493f8 !important;
+    color: var(--dark-text) !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.form-control::placeholder {
+    color: var(--dark-text-muted) !important;
+    opacity: 0.6;
+}
+
+.form-label {
+    color: var(--dark-text) !important;
+}
+
+/* Tables dark */
+.table {
+    color: var(--dark-text) !important;
+    border-color: var(--dark-border) !important;
+}
+
+.table thead {
+    border-color: var(--dark-border) !important;
+}
+
+.table > thead {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+.table-hover > tbody > tr:hover > * {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Override Bootstrap's table-light class for dark theme */
+.table-light, .table-light > th, .table-light > td {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+/* Borders dark */
+.border,
+.border-top,
+.border-bottom,
+.border-start,
+.border-end {
+    border-color: var(--dark-border) !important;
+}
+
+/* HR dark */
+hr {
+    border-color: var(--dark-border) !important;
+    opacity: 0.5;
+}
+
+/* Lead text */
+.lead {
+    color: var(--dark-text) !important;
+}
+
+/* Modal dark */
+.modal-content {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--dark-text) !important;
+}
+
+.modal-header {
+    border-bottom-color: var(--dark-border) !important;
+}
+
+.modal-footer {
+    border-top-color: var(--dark-border) !important;
+}
+
+.modal-title {
+    color: var(--dark-text) !important;
+}
+
+/* Dropdown dark */
+.dropdown-menu {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+}
+
+.dropdown-item {
+    color: var(--dark-text) !important;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--dark-text) !important;
+}
+
+/* Toast notifications - Dark theme fix */
+.toast {
+    background-color: var(--dark-bg-card) !important;
+    border-color: var(--dark-border) !important;
+}
+
+.toast-body {
+    background-color: var(--dark-bg-card) !important;
+    color: var(--dark-text) !important;
+}
+
+/* Badge improvements for dark theme */
+.badge {
+    font-weight: 500;
+}
+
+/* Display headings */
+.display-1, .display-2, .display-3, .display-4, .display-5, .display-6 {
+    color: var(--dark-text) !important;
+}
+
+/* Validation forms Bootstrap */
+.valid.modified:not([type=checkbox]) {
+    border-color: #198754;
+}
+
+.invalid {
+    border-color: #dc3545;
+}
+
+.validation-message {
+    color: #ea868f;
+    font-size: 0.875rem;
+}
+
+/* Blazor Error UI */
+#blazor-error-ui {
+    background: #fff3cd;
+    border-top: 2px solid #ffc107;
+    bottom: 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+    display: none;
+    left: 0;
+    padding: 0.8rem 1.5rem;
+    position: fixed;
+    width: 100%;
+    z-index: 9999;
+    color: #664d03;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 0.8rem;
+    font-size: 1.2rem;
+    color: #664d03;
+}
+
+#blazor-error-ui .reload {
+    color: #0d6efd;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-right: 2rem;
+}
+
+/* Classe utilitaire pour border dashed (DragDropZone) */
+.border-dashed {
+    border-style: dashed !important;
+}
+
+/* Drag and drop zone hover state */
+.drag-drop-zone {
+    transition: background-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+/* Styles pour la sidebar responsive (Mobile - à implémenter plus tard) */
+@media (max-width: 768px) {
+    /* TODO: Implémenter sidebar responsive avec offcanvas Bootstrap */
+}
