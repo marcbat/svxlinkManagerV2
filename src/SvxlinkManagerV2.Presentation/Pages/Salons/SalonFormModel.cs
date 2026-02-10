@@ -8,6 +8,10 @@ namespace SvxlinkManagerV2.Presentation.Pages.Salons;
 /// </summary>
 public class SalonFormModel
 {
+    // Pattern de validation pour les indicatifs radioamateurs
+    private const string CallsignPattern = @"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$";
+    private const string CallsignErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)";
+
     // Identifiant (pour édition)
     public Guid? Id { get; set; }
 
@@ -26,18 +30,30 @@ public class SalonFormModel
     [Range(1, 65535, ErrorMessage = "Le port doit être entre 1 et 65535")]
     public int Port { get; set; } = 5300;
 
+    private string _callsign = string.Empty;
+    
     [Required(ErrorMessage = "Le callsign est requis")]
-    [RegularExpression(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", ErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)")]
-    public string Callsign { get; set; } = string.Empty;
+    [RegularExpression(CallsignPattern, ErrorMessage = CallsignErrorMessage)]
+    public string Callsign 
+    { 
+        get => _callsign;
+        set => _callsign = value?.ToUpperInvariant() ?? string.Empty;
+    }
 
     [Required(ErrorMessage = "L'AuthKey est requis")]
     [MinLength(8, ErrorMessage = "L'AuthKey doit contenir au moins 8 caractères")]
     public string AuthKey { get; set; } = string.Empty;
 
     // Section Configuration SimplexLogic
+    private string _simplexCallsign = string.Empty;
+    
     [Required(ErrorMessage = "Le SimplexCallsign est requis")]
-    [RegularExpression(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", ErrorMessage = "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)")]
-    public string SimplexCallsign { get; set; } = string.Empty;
+    [RegularExpression(CallsignPattern, ErrorMessage = CallsignErrorMessage)]
+    public string SimplexCallsign 
+    { 
+        get => _simplexCallsign;
+        set => _simplexCallsign = value?.ToUpperInvariant() ?? string.Empty;
+    }
 
     [Range(5, 3600, ErrorMessage = "L'intervalle doit être entre 5 et 3600 secondes")]
     public int ShortIdentInterval { get; set; } = 300;

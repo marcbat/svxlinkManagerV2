@@ -110,7 +110,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="callsign" class="form-label">Callsign utilisateur SVXReflector *</label>
-                                        <InputText id="callsign" class="form-control" @bind-Value="_model.Callsign" placeholder="F5ABC-L" disabled="@_isReadOnly" />
+                                        <InputText id="callsign" class="form-control text-uppercase" @bind-Value="_model.Callsign" placeholder="F5ABC-L" disabled="@_isReadOnly" />
                                         <div class="form-text text-muted">Indicatif + suffixe (ex: F5ABC-L)</div>
                                         <ValidationMessage For="@(() => _model.Callsign)" />
                                     </div>
@@ -137,7 +137,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="simplexCallsign" class="form-label">SimplexCallsign (indicatif annoncé) *</label>
-                                        <InputText id="simplexCallsign" class="form-control" @bind-Value="_model.SimplexCallsign" placeholder="F5ZZZ" disabled="@_isReadOnly" />
+                                        <InputText id="simplexCallsign" class="form-control text-uppercase" @bind-Value="_model.SimplexCallsign" placeholder="F5ZZZ" disabled="@_isReadOnly" />
                                         <div class="form-text text-muted">Indicatif annoncé vocalement</div>
                                         <ValidationMessage For="@(() => _model.SimplexCallsign)" />
                                     </div>
