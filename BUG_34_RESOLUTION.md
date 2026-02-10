@@ -70,23 +70,23 @@ public Guid? SoundId { get; set; }
 public string RxCtcssString
 {
     get => RxCtcss?.ToString() ?? string.Empty;
-    set => RxCtcss = string.IsNullOrWhiteSpace(value) ? null : decimal.Parse(value);
+    set => RxCtcss = string.IsNullOrWhiteSpace(value) ? null : (decimal.TryParse(value, out var result) ? result : null);
 }
 
 public string TxCtcssString
 {
     get => TxCtcss?.ToString() ?? string.Empty;
-    set => TxCtcss = string.IsNullOrWhiteSpace(value) ? null : decimal.Parse(value);
+    set => TxCtcss = string.IsNullOrWhiteSpace(value) ? null : (decimal.TryParse(value, out var result) ? result : null);
 }
 
 public string SoundIdString
 {
     get => SoundId?.ToString() ?? string.Empty;
-    set => SoundId = string.IsNullOrWhiteSpace(value) ? null : Guid.Parse(value);
+    set => SoundId = string.IsNullOrWhiteSpace(value) ? null : (Guid.TryParse(value, out var result) ? result : null);
 }
 ```
 
-**Bénéfice** : Ces propriétés gèrent explicitement la conversion entre `string` (valeur du `<select>`) et les types nullable (`decimal?` et `Guid?`), en traitant correctement les chaînes vides comme `null`.
+**Bénéfice** : Ces propriétés gèrent explicitement la conversion entre `string` (valeur du `<select>`) et les types nullable (`decimal?` et `Guid?`), en traitant correctement les chaînes vides comme `null`. L'utilisation de `TryParse` rend le code robuste face aux valeurs invalides, évitant toute exception.
 
 ## Résultat
 
