@@ -1,0 +1,340 @@
+@page "/salons"
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Common
+@using LanguageExt
+@using Wolverine
+@inject IMessageBus MessageBus
+@inject NavigationManager Navigation
+
+<PageTitle>Gestion des Salons - SvxLink Manager V2</PageTitle>
+
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+                <i class="bi bi-broadcast me-2"></i>
+                Gestion des Salons
+            </h4>
+            <button class="btn btn-success" @onclick="NavigateToCreate">
+                <i class="bi bi-plus-circle me-2"></i>
+                Créer un nouveau salon
+            </button>
+        </div>
+        <div class="card-body">
+            @if (_errorMessage != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    @_errorMessage
+                    <button type="button" class="btn-close" @onclick="@(() => _errorMessage = null)" aria-label="Fermer"></button>
+                </div>
+            }
+
+            @if (_successMessage != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>
+                    @_successMessage
+                    <button type="button" class="btn-close" @onclick="@(() => _successMessage = null)" aria-label="Fermer"></button>
+                </div>
+            }
+
+            @* Barre de recherche *@
+            <div class="input-group mb-3">
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" 
+                       class="form-control" 
+                       placeholder="Rechercher un salon par nom..."
+                       @bind="_searchText"
+                       @bind:event="oninput" />
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="text-muted mt-3">Chargement des salons...</p>
+                </div>
+            }
+            else if (_filteredSalons == null || !_filteredSalons.Any())
+            {
+                <div class="alert alert-info" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>
+                    @if (string.IsNullOrWhiteSpace(_searchText))
+                    {
+                        <text>Aucun salon n'est configuré. Cliquez sur "Créer un nouveau salon" pour commencer.</text>
+                    }
+                    else
+                    {
+                        <text>Aucun salon ne correspond à votre recherche.</text>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 80px;"></th>
+                                <th>Nom</th>
+                                <th>Indicatif SimplexLogic</th>
+                                <th>Host Reflector</th>
+                                <th>Port</th>
+                                <th style="width: 150px;" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var salon in _filteredSalons)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="badge rounded-circle p-2 @GetBadgeColor(salon)" 
+                                              title="@GetBadgeTitle(salon)">
+                                            <i class="bi @GetBadgeIcon(salon)"></i>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">@salon.Name</span>
+                                        @if (salon.IsDefault)
+                                        {
+                                            <span class="badge bg-success ms-2">Défaut</span>
+                                        }
+                                        @if (salon.IsActive)
+                                        {
+                                            <span class="badge bg-primary ms-2">Actif</span>
+                                        }
+                                    </td>
+                                    <td>@salon.Configuration.SimplexCallsign</td>
+                                    <td>
+                                        <span class="text-truncate" style="max-width: 200px; display: inline-block;" 
+                                              title="@salon.Configuration.Host">
+                                            @salon.Configuration.Host
+                                        </span>
+                                    </td>
+                                    <td>@salon.Configuration.Port</td>
+                                    <td class="text-end">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-primary" 
+                                                    @onclick="@(() => NavigateToEdit(salon.Id))"
+                                                    title="Éditer">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-danger" 
+                                                    @onclick="@(() => ShowDeleteConfirmation(salon))"
+                                                    disabled="@(!CanDeleteSalon(salon))"
+                                                    title="@GetDeleteButtonTitle(salon)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Modal de confirmation de suppression *@
+<ConfirmModal @ref="_confirmModal"
+              Type="ConfirmModalType.Danger"
+              Title="Confirmer la suppression"
+              Icon="exclamation-triangle"
+              ConfirmButtonText="Supprimer"
+              ConfirmIcon="trash"
+              OnConfirm="DeleteSalonConfirmed">
+    <Message>
+        <p>Êtes-vous sûr de vouloir supprimer le salon <strong>@_salonToDelete?.Name</strong> ?</p>
+        <p class="text-muted mb-0">Cette action est irréversible.</p>
+    </Message>
+</ConfirmModal>
+
+@code {
+    private IReadOnlyList<SalonAggregate>? _allSalons;
+    private IEnumerable<SalonAggregate>? _filteredSalons;
+    private SalonAggregate? _activeSalon;
+    private SalonAggregate? _salonToDelete;
+    private ConfirmModal? _confirmModal;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private string _searchText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            _isLoading = true;
+            _errorMessage = null;
+
+            // Charger tous les salons et le salon actif en parallèle
+            var salonsTask = MessageBus.InvokeAsync<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
+            var activeSalonTask = MessageBus.InvokeAsync<SalonAggregate?>(new GetActiveSalonQuery());
+
+            await Task.WhenAll(salonsTask, activeSalonTask);
+
+            _allSalons = await salonsTask;
+            _activeSalon = await activeSalonTask;
+
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Erreur lors du chargement des salons : {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (_allSalons == null)
+        {
+            _filteredSalons = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_searchText))
+        {
+            _filteredSalons = _allSalons.Where(s => !s.IsDeleted).ToList();
+        }
+        else
+        {
+            var search = _searchText.ToLowerInvariant();
+            _filteredSalons = _allSalons
+                .Where(s => !s.IsDeleted && s.Name.ToLowerInvariant().Contains(search))
+                .ToList();
+        }
+    }
+
+    private string GetBadgeColor(SalonAggregate salon)
+    {
+        if (salon.IsDefault)
+            return "bg-primary";
+        
+        if (salon.IsTemporized)
+            return "bg-warning";
+
+        // Couleur déterministe basée sur le hash du nom
+        var colors = new[] { "bg-primary", "bg-success", "bg-danger", "bg-warning", "bg-info" };
+        var hash = Math.Abs(salon.Name.GetHashCode());
+        return colors[hash % colors.Length];
+    }
+
+    private string GetBadgeIcon(SalonAggregate salon)
+    {
+        if (salon.IsDefault)
+            return "bi-house-fill";
+        
+        if (salon.IsTemporized)
+            return "bi-clock-fill";
+
+        return "bi-broadcast";
+    }
+
+    private string GetBadgeTitle(SalonAggregate salon)
+    {
+        if (salon.IsDefault)
+            return "Salon par défaut";
+        
+        if (salon.IsTemporized)
+            return "Salon temporisé";
+
+        return "Salon";
+    }
+
+    private bool CanDeleteSalon(SalonAggregate salon)
+    {
+        // Interdiction suppression salon par défaut
+        if (salon.IsDefault)
+            return false;
+
+        // Interdiction suppression salon actif
+        if (salon.IsActive || (_activeSalon != null && _activeSalon.Id == salon.Id))
+            return false;
+
+        return true;
+    }
+
+    private string GetDeleteButtonTitle(SalonAggregate salon)
+    {
+        if (salon.IsDefault)
+            return "Le salon par défaut ne peut pas être supprimé";
+        
+        if (salon.IsActive || (_activeSalon != null && _activeSalon.Id == salon.Id))
+            return "Le salon actif ne peut pas être supprimé. Veuillez d'abord le désactiver.";
+
+        return "Supprimer le salon";
+    }
+
+    private void ShowDeleteConfirmation(SalonAggregate salon)
+    {
+        if (!CanDeleteSalon(salon))
+        {
+            _errorMessage = salon.IsDefault 
+                ? "Le salon par défaut ne peut pas être supprimé." 
+                : "Le salon actif ne peut pas être supprimé. Veuillez d'abord le désactiver.";
+            return;
+        }
+
+        _salonToDelete = salon;
+        _confirmModal?.Show();
+    }
+
+    private async Task DeleteSalonConfirmed()
+    {
+        if (_salonToDelete == null)
+            return;
+
+        try
+        {
+            var command = new DeleteSalonCommand(_salonToDelete.Id);
+            var result = await MessageBus.InvokeAsync<Validation<Error, Unit>>(command);
+
+            if (result.IsSuccess)
+            {
+                _successMessage = $"Le salon '{_salonToDelete.Name}' a été supprimé avec succès.";
+                _salonToDelete = null;
+                await LoadDataAsync();
+            }
+            else
+            {
+                var errors = result.Match(
+                    Succ: _ => string.Empty,
+                    Fail: errs => string.Join(", ", errs.Select(e => e.Message)));
+                _errorMessage = $"Erreur lors de la suppression : {errors}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Erreur lors de la suppression : {ex.Message}";
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/salons/add");
+    }
+
+    private void NavigateToEdit(Guid salonId)
+    {
+        Navigation.NavigateTo($"/salons/edit/{salonId}");
+    }
+}
