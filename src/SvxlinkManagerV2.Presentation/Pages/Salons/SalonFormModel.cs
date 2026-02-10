@@ -30,15 +30,8 @@ public class SalonFormModel
     [Range(1, 65535, ErrorMessage = "Le port doit être entre 1 et 65535")]
     public int Port { get; set; } = 5300;
 
-    private string _callsign = string.Empty;
-    
     [Required(ErrorMessage = "Le callsign est requis")]
-    [RegularExpression(CallsignPattern, ErrorMessage = CallsignErrorMessage)]
-    public string Callsign 
-    { 
-        get => _callsign;
-        set => _callsign = value?.ToUpperInvariant() ?? string.Empty;
-    }
+    public string Callsign { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "L'AuthKey est requis")]
     [MinLength(8, ErrorMessage = "L'AuthKey doit contenir au moins 8 caractères")]

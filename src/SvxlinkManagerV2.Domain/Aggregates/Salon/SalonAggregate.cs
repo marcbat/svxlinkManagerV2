@@ -287,18 +287,12 @@ public class SalonAggregate : AggregateRoot
                 "Le port doit être entre 1 et 65535"));
         }
 
-        // Validation Callsign (obligatoire et format radioamateur)
+        // Validation Callsign (obligatoire, format libre pour SVXReflector)
         if (string.IsNullOrWhiteSpace(config.Callsign))
         {
             errors.Add(Error.Validation(
                 "SALON_CALLSIGN_REQUIRED",
                 "L'indicatif est obligatoire"));
-        }
-        else if (!CallsignPattern.IsMatch(config.Callsign))
-        {
-            errors.Add(Error.Validation(
-                "SALON_CALLSIGN_INVALID",
-                "Le format de l'indicatif est invalide (format radioamateur attendu, ex: F5ABC, F5ABC-L)"));
         }
 
         // Validation AuthKey (obligatoire)
