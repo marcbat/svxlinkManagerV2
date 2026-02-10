@@ -166,7 +166,8 @@ html, body {
     font-weight: 600;
 }
 
-.table tbody td {
+.table tbody td,
+.table tbody th {
     border-color: var(--dark-border) !important;
 }
 
