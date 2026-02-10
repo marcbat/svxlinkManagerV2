@@ -20,7 +20,7 @@
             <small>@GetRelativeTime(toast.CreatedAt)</small>
             <button type="button" class="btn-close @GetCloseButtonClass(toast.Type)" @onclick="() => RemoveToast(toast.Id)" aria-label="Fermer"></button>
         </div>
-        <div class="toast-body @GetBodyTextClass(toast.Type)">
+        <div class="toast-body @GetBodyClass(toast.Type)">
             @toast.Message
         </div>
     </div>
@@ -98,9 +98,16 @@
         };
     }
 
-    private string GetBodyTextClass(ToastType type)
+    private string GetBodyClass(ToastType type)
     {
-        return type == ToastType.Warning ? "text-dark" : "";
+        return type switch
+        {
+            ToastType.Success => "bg-dark-card text-light",
+            ToastType.Error => "bg-dark-card text-light",
+            ToastType.Info => "bg-dark-card text-light",
+            ToastType.Warning => "bg-dark-card text-dark",
+            _ => "bg-dark-card text-light"
+        };
     }
 
     private string GetCloseButtonClass(ToastType type)
