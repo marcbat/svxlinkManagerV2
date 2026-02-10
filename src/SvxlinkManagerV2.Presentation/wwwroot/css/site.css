@@ -171,6 +171,7 @@ html, body {
 .table tbody th {
     border-color: var(--dark-border) !important;
     background-color: transparent !important;
+    color: var(--dark-text) !important;
 }
 
 .table-striped > tbody > tr:nth-of-type(odd) > * {
