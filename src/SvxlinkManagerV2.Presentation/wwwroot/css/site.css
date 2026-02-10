@@ -153,18 +153,37 @@ html, body {
 .table {
     color: var(--dark-text) !important;
     border-color: var(--dark-border) !important;
+    background-color: transparent !important;
 }
 
 .table thead {
     border-color: var(--dark-border) !important;
 }
 
+.table thead th {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--dark-text) !important;
+    border-bottom: 2px solid var(--dark-border) !important;
+    font-weight: 600;
+}
+
+.table tbody td,
+.table tbody th {
+    border-color: var(--dark-border) !important;
+    background-color: transparent !important;
+    color: var(--dark-text) !important;
+}
+
 .table-striped > tbody > tr:nth-of-type(odd) > * {
     background-color: rgba(255, 255, 255, 0.02) !important;
 }
 
+.table-striped > tbody > tr:nth-of-type(even) > * {
+    background-color: transparent !important;
+}
+
 .table-hover > tbody > tr:hover > * {
-    background-color: rgba(255, 255, 255, 0.05) !important;
+    background-color: rgba(255, 255, 255, 0.075) !important;
 }
 
 /* Borders dark */
