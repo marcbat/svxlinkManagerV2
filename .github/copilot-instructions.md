@@ -49,6 +49,14 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
         3.  **Critères d'Acceptation (Acceptance Criteria)** : Liste des conditions obligatoires pour considérer la tâche comme terminée.
     *   **Sous-tâches** : Si une Issue nécessite des étapes intermédiaires, utilisez systématiquement des **Task Lists** Markdown (`- [ ] Tâche`) pour permettre le suivi.
 
+## Communication et Langue
+*   **Langue de Communication** : **Français obligatoire** pour toutes les interactions avec l'agent Copilot GitHub.
+    *   **Pull Requests** : Tous les titres, descriptions, commentaires et reviews doivent être rédigés en français.
+    *   **Issues** : Titres, descriptions, commentaires en français (déjà spécifié ci-dessus).
+    *   **Code Reviews** : Les suggestions et commentaires de l'agent Copilot doivent être en français.
+    *   **Documentation générée** : Tout contenu généré automatiquement doit être en français.
+*   **Exception** : Le code source (noms de variables, classes, méthodes, commentaires techniques) suit les conventions .NET standard en anglais pour maintenir la cohérence avec l'écosystème.
+
 ## Architecture Technique
 *   **Framework** : .NET 10.
 *   **Frontend** : Blazor.
