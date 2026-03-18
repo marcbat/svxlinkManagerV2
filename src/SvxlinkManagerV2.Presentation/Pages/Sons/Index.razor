@@ -1,0 +1,733 @@
+@page "/sons"
+@using SvxlinkManagerV2.Application.Features.Sounds.CreateSound
+@using SvxlinkManagerV2.Application.Features.Sounds.UpdateSound
+@using SvxlinkManagerV2.Application.Features.Sounds.DeleteSound
+@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Domain.Aggregates.Sound
+@using SvxlinkManagerV2.Domain.Common
+@using Microsoft.AspNetCore.Components.Forms
+@using Wolverine
+
+@inject IMessageBus Bus
+@inject ToastService ToastService
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Bibliothèque de sons</h1>
+        <p class="page-subtitle">Gérez les fichiers audio WAV utilisés comme annonces vocales pour les salons.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="ToggleUploadPanel">
+        <span class="material-symbols-outlined">add</span>
+        Nouveau son
+    </button>
+</div>
+
+<!-- ── Panneau d'ajout ─────────────────────────────────────── -->
+@if (_showUploadPanel)
+{
+    <div class="upload-panel card">
+        <div class="upload-panel-header">
+            <div class="section-header" style="margin-bottom:0">
+                <span class="material-symbols-outlined">upload_file</span>
+                Ajouter un nouveau son
+            </div>
+            <button class="icon-btn" @onclick="ToggleUploadPanel" title="Fermer">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <div class="upload-body">
+            <div class="drop-zone @(_isDragOver ? "drop-zone--over" : "")"
+                 @ondragover:preventDefault
+                 @ondragover="() => _isDragOver = true"
+                 @ondragleave="() => _isDragOver = false">
+                <InputFile OnChange="OnFileSelected" accept=".wav" class="drop-input" id="file-input" />
+                <label for="file-input" class="drop-label">
+                    <span class="material-symbols-outlined drop-icon">audio_file</span>
+                    @if (_uploadFile is null)
+                    {
+                        <span class="drop-text">Glissez un fichier <strong>.wav</strong> ici ou cliquez pour parcourir</span>
+                    }
+                    else
+                    {
+                        <span class="drop-text drop-text--selected">
+                            <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
+                            @_uploadFileName
+                        </span>
+                    }
+                </label>
+            </div>
+
+            @if (_uploadFile is not null)
+            {
+                <div class="form-group" style="margin-top:14px;margin-bottom:0">
+                    <label class="form-label">Nom du son <span class="required">*</span></label>
+                    <input class="form-control" @bind="_uploadName" @bind:event="oninput"
+                           placeholder="ex: Salon National France" maxlength="100" />
+                    @if (string.IsNullOrWhiteSpace(_uploadName))
+                    {
+                        <span class="field-error">Le nom est obligatoire.</span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_uploadErrors.Any())
+        {
+            <div class="global-errors" style="margin:0 0 0 0">
+                @foreach (var err in _uploadErrors)
+                {
+                    <div class="global-error-item">
+                        <span class="material-symbols-outlined">error</span>@err
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="upload-actions">
+            <button class="btn btn-secondary" @onclick="ToggleUploadPanel">Annuler</button>
+            <button class="btn btn-primary"
+                    disabled="@(_uploadFile is null || string.IsNullOrWhiteSpace(_uploadName) || _isUploading)"
+                    @onclick="HandleCreateSound">
+                @if (_isUploading)
+                {
+                    <span class="material-symbols-outlined spin">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">save</span>
+                }
+                Enregistrer
+            </button>
+        </div>
+    </div>
+}
+
+<!-- ── Contenu ─────────────────────────────────────────────── -->
+@if (_isLoading)
+{
+    <div class="sounds-list">
+        @for (int i = 0; i < 3; i++)
+        {
+            <div class="card skeleton-card"><div class="skeleton" style="height:72px"></div></div>
+        }
+    </div>
+}
+else if (!_sounds.Any())
+{
+    <div class="empty-state card">
+        <span class="material-symbols-outlined">library_music</span>
+        <p>Aucun son dans la bibliothèque.</p>
+        <p class="empty-hint">Cliquez sur « Nouveau son » pour importer un fichier WAV.</p>
+    </div>
+}
+else
+{
+    <div class="sounds-stats">
+        <span>@_sounds.Count son@(_sounds.Count > 1 ? "s" : "")</span>
+    </div>
+
+    <div class="sounds-list">
+        @foreach (var sound in _sounds)
+        {
+            var s = sound;
+            <div class="sound-card card @(_confirmDeleteId == s.Id ? "sound-card--deleting" : "")">
+
+                <!-- Icône + infos -->
+                <div class="sound-icon-wrap">
+                    <span class="material-symbols-outlined sound-icon">music_note</span>
+                </div>
+
+                <div class="sound-info">
+                    @if (_renameId == s.Id)
+                    {
+                        <div class="rename-wrap">
+                            <input class="form-control form-control--inline"
+                                   @bind="_renameValue" @bind:event="oninput"
+                                   @onkeydown="e => OnRenameKeyDown(e, s.Id)"
+                                   placeholder="Nouveau nom…" maxlength="100" />
+                            <button class="icon-btn icon-btn--success" title="Valider"
+                                    disabled="@(string.IsNullOrWhiteSpace(_renameValue))"
+                                    @onclick="() => ConfirmRename(s.Id)">
+                                <span class="material-symbols-outlined">check</span>
+                            </button>
+                            <button class="icon-btn" title="Annuler" @onclick="CancelRename">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="sound-name">@s.Name</span>
+                    }
+
+                    <div class="sound-meta">
+                        <span class="meta-chip">
+                            <span class="material-symbols-outlined">schedule</span>
+                            @FormatDuration(s.Duration)
+                        </span>
+                        <span class="meta-chip">
+                            <span class="material-symbols-outlined">speed</span>
+                            @s.SampleRate Hz
+                        </span>
+                        <span class="meta-chip">
+                            <span class="material-symbols-outlined">speaker</span>
+                            @(s.Channels == 1 ? "Mono" : "Stéréo")
+                        </span>
+                        <span class="meta-chip">
+                            <span class="material-symbols-outlined">calendar_today</span>
+                            @s.CreatedAt.ToString("dd/MM/yyyy")
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Actions / confirmation suppression -->
+                @if (_confirmDeleteId == s.Id)
+                {
+                    <div class="delete-confirm">
+                        <span class="delete-confirm-text">Supprimer ce son ?</span>
+                        <button class="btn btn-danger btn-sm" @onclick="() => ConfirmDelete(s.Id)"
+                                disabled="@_isBusy">
+                            <span class="material-symbols-outlined">delete</span>
+                            Confirmer
+                        </button>
+                        <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">
+                            Annuler
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="sound-actions">
+                        <!-- Remplacer le fichier -->
+                        <label class="icon-btn" title="Remplacer le fichier WAV">
+                            <InputFile OnChange="e => OnReplaceFileSelected(e, s.Id)"
+                                       accept=".wav" class="hidden-input" />
+                            <span class="material-symbols-outlined">upload</span>
+                        </label>
+                        <!-- Renommer -->
+                        <button class="icon-btn" title="Renommer"
+                                @onclick="() => StartRename(s.Id, s.Name)">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                        <!-- Supprimer -->
+                        <button class="icon-btn icon-btn--danger" title="Supprimer"
+                                @onclick="() => _confirmDeleteId = s.Id">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+}
+
+<style>
+    /* ── Panneau upload ─────────────────────────────────────── */
+    .upload-panel {
+        margin-bottom: 24px;
+        padding: 20px;
+    }
+
+    .upload-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+    }
+
+    .upload-body { margin-bottom: 14px; }
+
+    .drop-zone {
+        position: relative;
+        border: 2px dashed var(--border-card);
+        border-radius: var(--radius-sm);
+        padding: 28px 20px;
+        text-align: center;
+        transition: border-color 0.15s, background 0.15s;
+        cursor: pointer;
+    }
+
+    .drop-zone--over, .drop-zone:hover {
+        border-color: var(--accent);
+        background: rgba(108,92,231,0.06);
+    }
+
+    .drop-input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+        z-index: 2;
+    }
+
+    .drop-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        pointer-events: none;
+    }
+
+    .drop-icon { font-size: 40px; color: var(--text-muted); }
+
+    .drop-text { font-size: 14px; color: var(--text-muted); }
+    .drop-text strong { color: var(--accent); }
+    .drop-text--selected {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--success);
+        font-weight: 500;
+    }
+
+    .upload-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 14px;
+        border-top: 1px solid var(--border-card);
+        margin-top: 14px;
+    }
+
+    /* ── Stats ──────────────────────────────────────────────── */
+    .sounds-stats {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 10px;
+    }
+
+    /* ── Liste sons ─────────────────────────────────────────── */
+    .sounds-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .sound-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        transition: border-color 0.15s;
+    }
+
+    .sound-card--deleting {
+        border-color: rgba(255,107,107,0.5);
+        background: rgba(255,107,107,0.04);
+    }
+
+    .sound-icon-wrap {
+        width: 44px;
+        height: 44px;
+        background: rgba(108,92,231,0.12);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .sound-icon { font-size: 22px; color: var(--accent); }
+
+    .sound-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .sound-name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sound-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .meta-chip .material-symbols-outlined { font-size: 13px; }
+
+    /* ── Rename inline ──────────────────────────────────────── */
+    .rename-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .form-control--inline {
+        padding: 5px 10px;
+        font-size: 14px;
+        height: 34px;
+    }
+
+    /* ── Actions icônes ─────────────────────────────────────── */
+    .sound-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: none;
+        background: none;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .icon-btn--danger:hover { background: rgba(255,107,107,0.12); color: var(--danger); }
+    .icon-btn--success:hover { background: rgba(0,184,148,0.12); color: var(--success); }
+
+    .icon-btn .material-symbols-outlined { font-size: 18px; }
+
+    .hidden-input {
+        display: none !important;
+        width: 0;
+        height: 0;
+        overflow: hidden;
+    }
+
+    /* ── Confirm suppression ────────────────────────────────── */
+    .delete-confirm {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .delete-confirm-text {
+        font-size: 13px;
+        color: var(--danger);
+        font-weight: 500;
+    }
+
+    /* ── Empty state ────────────────────────────────────────── */
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 60px 20px;
+        text-align: center;
+        color: var(--text-muted);
+    }
+
+    .empty-state .material-symbols-outlined { font-size: 52px; color: var(--border-card); }
+    .empty-state p { font-size: 16px; margin: 0; }
+    .empty-state .empty-hint { font-size: 13px; }
+
+    /* ── Squelette ──────────────────────────────────────────── */
+    .skeleton-card { padding: 0; overflow: hidden; }
+
+    /* ── Misc ───────────────────────────────────────────────── */
+    .required { color: var(--danger); margin-left: 2px; }
+
+    .field-error { display: block; font-size: 12px; color: var(--danger); margin-top: 4px; }
+
+    .global-errors {
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .global-error-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--danger);
+    }
+
+    .global-error-item .material-symbols-outlined { font-size: 16px; }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private List<SoundAggregate> _sounds = [];
+    private bool _isLoading = true;
+
+    // ── Panneau création ───────────────────────────────────────
+    private bool _showUploadPanel;
+    private IBrowserFile? _uploadFile;
+    private string _uploadFileName = "";
+    private string _uploadName     = "";
+    private bool _isUploading;
+    private bool _isDragOver;
+    private List<string> _uploadErrors = [];
+
+    // ── Rename inline ──────────────────────────────────────────
+    private Guid? _renameId;
+    private string _renameValue = "";
+
+    // ── Suppression ────────────────────────────────────────────
+    private Guid? _confirmDeleteId;
+    private bool _isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSounds();
+    }
+
+    private async Task LoadSounds()
+    {
+        _isLoading = true;
+        try
+        {
+            var result = await Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
+            _sounds = result.Where(s => !s.IsDeleted).OrderBy(s => s.Name).ToList();
+        }
+        catch
+        {
+            _sounds = [];
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // ── Panneau upload ─────────────────────────────────────────
+    private void ToggleUploadPanel()
+    {
+        _showUploadPanel = !_showUploadPanel;
+        if (!_showUploadPanel) ResetUploadForm();
+    }
+
+    private void ResetUploadForm()
+    {
+        _uploadFile     = null;
+        _uploadFileName = "";
+        _uploadName     = "";
+        _uploadErrors   = [];
+        _isDragOver     = false;
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _isDragOver     = false;
+        _uploadFile     = e.File;
+        _uploadFileName = e.File.Name;
+        // Pré-remplir le nom depuis le nom de fichier (sans extension)
+        _uploadName = System.IO.Path.GetFileNameWithoutExtension(e.File.Name);
+    }
+
+    private async Task HandleCreateSound()
+    {
+        if (_uploadFile is null || string.IsNullOrWhiteSpace(_uploadName)) return;
+
+        _uploadErrors.Clear();
+        _isUploading = true;
+
+        try
+        {
+            byte[] fileContent;
+            const long maxSize = 10 * 1024 * 1024; // 10 MB
+
+            using var stream = _uploadFile.OpenReadStream(maxSize);
+            using var ms = new System.IO.MemoryStream();
+            await stream.CopyToAsync(ms);
+            fileContent = ms.ToArray();
+
+            var command = new CreateSoundCommand(Guid.NewGuid(), _uploadName.Trim(), fileContent);
+            var result  = await Bus.InvokeAsync<Validation<Error, Guid>>(command);
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess($"Son « {_uploadName} » ajouté.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _uploadErrors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                }
+            );
+
+            if (!_uploadErrors.Any())
+            {
+                _showUploadPanel = false;
+                ResetUploadForm();
+                await LoadSounds();
+            }
+        }
+        catch (Exception ex)
+        {
+            _uploadErrors = [$"Erreur : {ex.Message}"];
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    // ── Remplacement de fichier ───────────────────────────────
+    private async Task OnReplaceFileSelected(InputFileChangeEventArgs e, Guid soundId)
+    {
+        _isBusy = true;
+        try
+        {
+            const long maxSize = 10 * 1024 * 1024;
+            using var stream = e.File.OpenReadStream(maxSize);
+            using var ms     = new System.IO.MemoryStream();
+            await stream.CopyToAsync(ms);
+            var fileContent = ms.ToArray();
+
+            var command = new UpdateSoundCommand(soundId, FileContent: fileContent);
+            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Fichier audio remplacé."); return Unit.Default; },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(err => err.Message)));
+                    return Unit.Default;
+                }
+            );
+
+            await LoadSounds();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    // ── Renommage ─────────────────────────────────────────────
+    private void StartRename(Guid id, string currentName)
+    {
+        _renameId    = id;
+        _renameValue = currentName;
+    }
+
+    private void CancelRename()
+    {
+        _renameId    = null;
+        _renameValue = "";
+    }
+
+    private async Task ConfirmRename(Guid id)
+    {
+        if (string.IsNullOrWhiteSpace(_renameValue)) return;
+
+        _isBusy = true;
+        try
+        {
+            var command = new UpdateSoundCommand(id, Name: _renameValue.Trim());
+            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Son renommé."); return Unit.Default; },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+
+            CancelRename();
+            await LoadSounds();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task OnRenameKeyDown(KeyboardEventArgs e, Guid id)
+    {
+        if (e.Key == "Enter")  await ConfirmRename(id);
+        if (e.Key == "Escape") CancelRename();
+    }
+
+    // ── Suppression ───────────────────────────────────────────
+    private void CancelDelete()
+    {
+        _confirmDeleteId = null;
+    }
+
+    private async Task ConfirmDelete(Guid id)
+    {
+        _isBusy = true;
+        try
+        {
+            var command = new DeleteSoundCommand(id);
+            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Son supprimé."); return Unit.Default; },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+
+            _confirmDeleteId = null;
+            await LoadSounds();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+    private static string FormatDuration(TimeSpan d)
+    {
+        if (d == TimeSpan.Zero) return "—";
+        return d.TotalMinutes >= 1
+            ? $"{(int)d.TotalMinutes}m {d.Seconds:D2}s"
+            : $"{d.TotalSeconds:F1}s";
+    }
+}
