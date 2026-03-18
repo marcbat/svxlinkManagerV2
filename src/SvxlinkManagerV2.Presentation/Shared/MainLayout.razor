@@ -1,3 +1,43 @@
 @inherits LayoutComponentBase
 
-@Body
+<div class="app-layout">
+    <nav class="sidebar">
+        <div class="sidebar-logo">
+            <span class="material-symbols-outlined">settings_input_antenna</span>
+            <span class="logo-text">SvxLink Manager V2</span>
+        </div>
+        <ul class="sidebar-nav">
+            <li>
+                <NavLink href="/" class="nav-item" Match="NavLinkMatch.All" ActiveClass="active">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span>Dashboard</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/salons" class="nav-item" ActiveClass="active">
+                    <span class="material-symbols-outlined">radio</span>
+                    <span>Salons</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/sa818" class="nav-item" ActiveClass="active">
+                    <span class="material-symbols-outlined">settings_input_component</span>
+                    <span>SA818</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/sons" class="nav-item" ActiveClass="active">
+                    <span class="material-symbols-outlined">volume_up</span>
+                    <span>Sons</span>
+                </NavLink>
+            </li>
+        </ul>
+        <div class="sidebar-version">v2.0</div>
+    </nav>
+
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+<ToastContainer />

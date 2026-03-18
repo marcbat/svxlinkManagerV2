@@ -1,0 +1,584 @@
+@page "/salons/nouveau"
+@using SvxlinkManagerV2.Application.Features.Salons.CreateSalon
+@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
+@using SvxlinkManagerV2.Domain.Aggregates.Sound
+@using SvxlinkManagerV2.Domain.Common
+@using Wolverine
+
+@inject IMessageBus Bus
+@inject NavigationManager Nav
+@inject ToastService ToastService
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <a href="/salons" class="back-link">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Retour aux salons
+        </a>
+        <h1 class="page-title" style="margin-top:6px">Créer un nouveau salon</h1>
+        <p class="page-subtitle">Configurez les paramètres de base pour votre nouveau canal radio.</p>
+    </div>
+</div>
+
+<EditForm Model="_model" OnValidSubmit="HandleSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="form-layout">
+
+        <!-- ── Colonne Gauche ──────────────────────────────────── -->
+        <div class="form-col">
+
+            <!-- Informations générales -->
+            <div class="card" style="margin-bottom:18px">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">info</span>
+                    Informations générales
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Nom du salon <span class="required">*</span></label>
+                    <InputText class="form-control" @bind-Value="_model.Name" placeholder="ex: Salon National France" />
+                    <ValidationMessage For="() => _model.Name" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Son d'annonce</label>
+                    <select class="form-select" @bind="_model.SoundId">
+                        <option value="">— Aucun son —</option>
+                        @foreach (var sound in _sounds)
+                        {
+                            <option value="@sound.Id">@sound.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="toggles-group">
+                    <label class="toggle-row">
+                        <div class="toggle-info">
+                            <span class="toggle-label">Salon par défaut</span>
+                            <span class="toggle-desc">Connexion automatique au démarrage</span>
+                        </div>
+                        <InputCheckbox @bind-Value="_model.IsDefault" class="toggle-input" id="chk-default" />
+                        <label class="toggle-switch" for="chk-default"></label>
+                    </label>
+                    <label class="toggle-row">
+                        <div class="toggle-info">
+                            <span class="toggle-label">Temporisé</span>
+                            <span class="toggle-desc">Déconnexion automatique après inactivité</span>
+                        </div>
+                        <InputCheckbox @bind-Value="_model.IsTemporized" class="toggle-input" id="chk-temp" />
+                        <label class="toggle-switch" for="chk-temp"></label>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Configuration Radio -->
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">settings_input_antenna</span>
+                    Configuration Radio
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Fréquence RX (MHz) <span class="required">*</span></label>
+                        <InputNumber class="form-control" @bind-Value="_model.RxFrequency"
+                                     placeholder="145.550" step="0.005" />
+                        <div class="field-hint">30 – 3000 MHz</div>
+                        <ValidationMessage For="() => _model.RxFrequency" class="field-error" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Fréquence TX (MHz) <span class="required">*</span></label>
+                        <InputNumber class="form-control" @bind-Value="_model.TxFrequency"
+                                     placeholder="145.550" step="0.005" />
+                        <div class="field-hint">30 – 3000 MHz</div>
+                        <ValidationMessage For="() => _model.TxFrequency" class="field-error" />
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">CTCSS RX</label>
+                        <select class="form-select" @bind="_model.RxCtcssStr">
+                            <option value="">Aucun</option>
+                            @foreach (var (freq, label) in _ctcssOptions)
+                            {
+                                <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CTCSS TX</label>
+                        <select class="form-select" @bind="_model.TxCtcssStr">
+                            <option value="">Aucun</option>
+                            @foreach (var (freq, label) in _ctcssOptions)
+                            {
+                                <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Colonne Droite ──────────────────────────────────── -->
+        <div class="form-col">
+
+            <!-- Configuration Réseau -->
+            <div class="card" style="margin-bottom:18px">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">lan</span>
+                    Configuration Réseau (Reflector)
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Hôte <span class="required">*</span></label>
+                    <InputText class="form-control" @bind-Value="_model.Host"
+                               placeholder="ex: rrf.music-all.fr" />
+                    <ValidationMessage For="() => _model.Host" class="field-error" />
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Port <span class="required">*</span></label>
+                        <InputNumber class="form-control" @bind-Value="_model.Port"
+                                     placeholder="5300" />
+                        <ValidationMessage For="() => _model.Port" class="field-error" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Codec Audio</label>
+                        <select class="form-select" @bind="_model.AudioCodec">
+                            <option value="OPUS">OPUS</option>
+                            <option value="GSM">GSM</option>
+                            <option value="SPEEX">SPEEX</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Callsign <span class="required">*</span></label>
+                    <InputText class="form-control" @bind-Value="_model.Callsign"
+                               placeholder="ex: F1ABC" />
+                    <ValidationMessage For="() => _model.Callsign" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Clé d'authentification <span class="required">*</span></label>
+                    <InputText class="form-control" @bind-Value="_model.AuthKey"
+                               placeholder="ex: my_secret_key" type="password" />
+                    <ValidationMessage For="() => _model.AuthKey" class="field-error" />
+                </div>
+            </div>
+
+            <!-- Section avancée SVXLink (collapsible) -->
+            <div class="card card-advanced">
+                <button type="button" class="advanced-toggle" @onclick="() => _showAdvanced = !_showAdvanced">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Configuration SVXLink avancée</span>
+                    <span class="material-symbols-outlined advanced-chevron @(_showAdvanced ? "open" : "")">
+                        keyboard_arrow_down
+                    </span>
+                </button>
+
+                @if (!_showAdvanced)
+                {
+                    <p class="advanced-hint">
+                        Cliquez pour afficher les paramètres avancés (identifiants, logs, timeouts).
+                    </p>
+                }
+                else
+                {
+                    <div class="advanced-body">
+                        <div class="form-group">
+                            <label class="form-label">Callsign Simplex</label>
+                            <InputText class="form-control" @bind-Value="_model.SimplexCallsign"
+                                       placeholder="ex: F1ABC-S" />
+                        </div>
+
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label class="form-label">Intervalle ident. court (s)</label>
+                                <InputNumber class="form-control" @bind-Value="_model.ShortIdentInterval" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Intervalle ident. long (s)</label>
+                                <InputNumber class="form-control" @bind-Value="_model.LongIdentInterval" />
+                            </div>
+                        </div>
+
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label class="form-label">Délai son de roger (ms)</label>
+                                <InputNumber class="form-control" @bind-Value="_model.RgrSoundDelay" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Langue par défaut</label>
+                                <select class="form-select" @bind="_model.DefaultLang">
+                                    <option value="fr_FR">fr_FR</option>
+                                    <option value="en_US">en_US</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Event Handler (TCL)</label>
+                            <InputText class="form-control" @bind-Value="_model.EventHandler" />
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Erreurs globales ────────────────────────────────────── -->
+    @if (_errors.Any())
+    {
+        <div class="global-errors">
+            @foreach (var err in _errors)
+            {
+                <div class="global-error-item">
+                    <span class="material-symbols-outlined">error</span>
+                    @err
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ── Actions ────────────────────────────────────────────── -->
+    <div class="form-actions">
+        <a href="/salons" class="btn btn-secondary">
+            <span class="material-symbols-outlined">close</span>
+            Annuler
+        </a>
+        <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <span class="material-symbols-outlined spin">progress_activity</span>
+            }
+            else
+            {
+                <span class="material-symbols-outlined">save</span>
+            }
+            Créer le salon
+        </button>
+    </div>
+
+</EditForm>
+
+<style>
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: var(--text-muted);
+        transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--text); }
+    .back-link .material-symbols-outlined { font-size: 16px; }
+
+    .form-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-bottom: 24px;
+    }
+    @@media (max-width: 900px) { .form-layout { grid-template-columns: 1fr; } }
+
+    .form-col { display: flex; flex-direction: column; }
+
+    .form-row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+
+    .required { color: var(--danger); margin-left: 2px; }
+
+    .field-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .field-error {
+        display: block;
+        font-size: 12px;
+        color: var(--danger);
+        margin-top: 4px;
+    }
+
+    /* ── Toggles ─────────────────────────────────────────────── */
+    .toggles-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-top: 4px;
+    }
+
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+    }
+
+    .toggle-info { display: flex; flex-direction: column; gap: 2px; }
+
+    .toggle-label { font-size: 14px; font-weight: 500; color: var(--text); }
+    .toggle-desc  { font-size: 12px; color: var(--text-muted); }
+
+    .toggle-input { display: none; }
+
+    .toggle-switch {
+        position: relative;
+        width: 42px;
+        height: 24px;
+        background: var(--border-card);
+        border-radius: 50px;
+        cursor: pointer;
+        transition: background 0.2s;
+        flex-shrink: 0;
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        background: var(--text-muted);
+        border-radius: 50%;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle-input:checked + .toggle-switch {
+        background: var(--accent);
+    }
+
+    .toggle-input:checked + .toggle-switch::after {
+        background: #fff;
+        transform: translateX(18px);
+    }
+
+    /* ── Section avancée ─────────────────────────────────────── */
+    .card-advanced { padding-top: 16px; }
+
+    .advanced-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        background: none;
+        border: none;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+        text-align: left;
+    }
+
+    .advanced-toggle .material-symbols-outlined { font-size: 20px; color: var(--accent); }
+
+    .advanced-chevron {
+        margin-left: auto;
+        font-size: 20px !important;
+        color: var(--text-muted) !important;
+        transition: transform 0.2s;
+    }
+    .advanced-chevron.open { transform: rotate(180deg); }
+
+    .advanced-hint {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 10px;
+        padding: 12px;
+        background: rgba(108,92,231,0.06);
+        border-radius: var(--radius-sm);
+        border-left: 3px solid var(--accent);
+    }
+
+    .advanced-body { margin-top: 18px; }
+
+    /* ── Erreurs globales ─────────────────────────────────────── */
+    .global-errors {
+        background: var(--danger-light);
+        border: 1px solid rgba(255,107,107,0.3);
+        border-radius: var(--radius-sm);
+        padding: 14px 16px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .global-error-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--danger);
+    }
+
+    .global-error-item .material-symbols-outlined { font-size: 16px; }
+
+    /* ── Actions ─────────────────────────────────────────────── */
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private readonly SalonFormModel _model = new();
+    private IReadOnlyList<SoundAggregate> _sounds = [];
+    private Dictionary<decimal, string> _ctcssOptions = [];
+    private bool _showAdvanced;
+    private bool _isSubmitting;
+    private List<string> _errors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
+        try
+        {
+            _sounds = await Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
+        }
+        catch
+        {
+            // Sons non-critiques pour la création
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _errors.Clear();
+        _isSubmitting = true;
+
+        try
+        {
+            var config = new SvxLinkConfiguration(
+                Id:                  Guid.NewGuid(),
+                Logics:              "ReflectorLogic",
+                CfgDir:              "/etc/svxlink/conf.d",
+                CardSampleRate:      16000,
+                CardChannels:        1,
+                Host:                _model.Host.Trim(),
+                Port:                _model.Port,
+                Callsign:            _model.Callsign.Trim().ToUpperInvariant(),
+                AuthKey:             _model.AuthKey,
+                AudioCodec:          _model.AudioCodec,
+                JitterBufferDelay:   0,
+                SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
+                                         ? _model.Callsign.Trim().ToUpperInvariant()
+                                         : _model.SimplexCallsign.Trim().ToUpperInvariant(),
+                Modules:             "ModuleEchoLink",
+                ShortIdentInterval:  _model.ShortIdentInterval,
+                LongIdentInterval:   _model.LongIdentInterval,
+                ReportCtcss:         null,
+                EventHandler:        _model.EventHandler,
+                DefaultLang:         _model.DefaultLang,
+                RgrSoundDelay:       _model.RgrSoundDelay,
+                SoundId:             string.IsNullOrEmpty(_model.SoundId) ? null : Guid.Parse(_model.SoundId),
+                RxFrequency:         _model.RxFrequency,
+                TxFrequency:         _model.TxFrequency,
+                RxCtcss:             ParseCtcss(_model.RxCtcssStr),
+                TxCtcss:             ParseCtcss(_model.TxCtcssStr)
+            );
+
+            var command = new CreateSalonCommand(
+                Id:           Guid.NewGuid(),
+                Name:         _model.Name.Trim(),
+                IsDefault:    _model.IsDefault,
+                IsTemporized: _model.IsTemporized,
+                RxFrequency:  _model.RxFrequency,
+                TxFrequency:  _model.TxFrequency,
+                RxCtcss:      ParseCtcss(_model.RxCtcssStr),
+                TxCtcss:      ParseCtcss(_model.TxCtcssStr),
+                Configuration: config
+            );
+
+            var result = await Bus.InvokeAsync<Validation<Error, Guid>>(command);
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess($"Salon « {_model.Name} » créé avec succès.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                }
+            );
+
+            if (!_errors.Any())
+                Nav.NavigateTo("/salons");
+        }
+        catch (Exception ex)
+        {
+            _errors = [$"Erreur inattendue : {ex.Message}"];
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private static decimal? ParseCtcss(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        return decimal.TryParse(value, System.Globalization.NumberStyles.Number,
+                                System.Globalization.CultureInfo.InvariantCulture, out var d)
+               ? d : null;
+    }
+
+    // ── Modèle de formulaire ──────────────────────────────────
+    private class SalonFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Le nom est obligatoire.")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, MinimumLength = 2,
+            ErrorMessage = "Le nom doit contenir entre 2 et 100 caractères.")]
+        public string Name { get; set; } = "";
+
+        public bool IsDefault { get; set; }
+        public bool IsTemporized { get; set; }
+        public string SoundId { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La fréquence RX est obligatoire.")]
+        [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]
+        public decimal RxFrequency { get; set; } = 145.550M;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La fréquence TX est obligatoire.")]
+        [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]
+        public decimal TxFrequency { get; set; } = 145.550M;
+
+        public string RxCtcssStr { get; set; } = "";
+        public string TxCtcssStr { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "L'hôte est obligatoire.")]
+        public string Host { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Range(1, 65535, ErrorMessage = "Le port doit être entre 1 et 65535.")]
+        public int Port { get; set; } = 5300;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Le callsign est obligatoire.")]
+        public string Callsign { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La clé d'authentification est obligatoire.")]
+        public string AuthKey { get; set; } = "";
+
+        public string AudioCodec { get; set; } = "OPUS";
+        public string SimplexCallsign { get; set; } = "";
+        public int ShortIdentInterval { get; set; } = 6;
+        public int LongIdentInterval { get; set; } = 60;
+        public int RgrSoundDelay { get; set; } = 0;
+        public string DefaultLang { get; set; } = "fr_FR";
+        public string EventHandler { get; set; } = "Logic.tcl";
+    }
+}
