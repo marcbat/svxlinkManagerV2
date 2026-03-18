@@ -1,0 +1,402 @@
+@page "/"
+@using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
+@using SvxlinkManagerV2.Application.Features.SA818
+@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.SA818
+@using SvxlinkManagerV2.Domain.Aggregates.Sound
+@using SvxlinkManagerV2.Domain.Common
+@using Wolverine
+
+@inject IMessageBus Bus
+@inject ISvxLinkDaemonService DaemonService
+@inject ToastService ToastService
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Tableau de bord</h1>
+        <p class="page-subtitle">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"))</p>
+    </div>
+    <div class="page-header-meta">
+        @if (_daemonRunning)
+        {
+            <span class="badge badge-success">
+                <span class="material-symbols-outlined">cell_tower</span>
+                Connecté
+            </span>
+        }
+        else
+        {
+            <span class="badge badge-danger">
+                <span class="material-symbols-outlined">cell_tower</span>
+                Hors ligne
+            </span>
+        }
+    </div>
+</div>
+
+<!-- ── Stats Grid ────────────────────────────────────────────── -->
+<div class="stats-grid">
+
+    <!-- Card : Salon Actif -->
+    <div class="card">
+        <div class="card-title">
+            <span class="material-symbols-outlined">dns</span>
+            Salon Actif
+        </div>
+        @if (_isLoading)
+        {
+            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
+            <div class="skeleton" style="height:16px;width:50%;"></div>
+        }
+        else if (_activeSalon is not null)
+        {
+            <div class="card-value">@_activeSalon.Name</div>
+            <div class="card-meta">
+                <span class="badge badge-success">Actif</span>
+            </div>
+        }
+        else
+        {
+            <div class="card-value" style="font-size:16px;color:var(--text-muted)">Aucun salon actif</div>
+            <div class="card-meta">
+                <span class="badge badge-muted">Inactif</span>
+            </div>
+        }
+    </div>
+
+    <!-- Card : État SVXLink -->
+    <div class="card">
+        <div class="card-title">
+            <span class="material-symbols-outlined">settings_input_component</span>
+            État SVXLink
+        </div>
+        @if (_isLoading)
+        {
+            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
+            <div class="skeleton" style="height:16px;width:50%;"></div>
+        }
+        else if (_daemonRunning)
+        {
+            <div class="card-value">En cours d'exécution</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
+                Daemon actif
+            </div>
+        }
+        else
+        {
+            <div class="card-value" style="color:var(--danger)">Arrêté</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">cancel</span>
+                Daemon inactif
+            </div>
+        }
+    </div>
+
+    <!-- Card : Module SA818 -->
+    <div class="card">
+        <div class="card-title">
+            <span class="material-symbols-outlined">settings_input_component</span>
+            Module SA818
+        </div>
+        @if (_isLoading)
+        {
+            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
+            <div class="skeleton" style="height:16px;width:60%;"></div>
+        }
+        else if (_sa818Dto is not null)
+        {
+            <div class="card-value">Vol: @_sa818Dto.Volume&nbsp;|&nbsp;SQL: @_sa818Dto.Squelch</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent)">radio</span>
+                Bande: @(_sa818Dto.Bandwidth == SA818Bandwidth.Wide25kHz ? "25 kHz" : "12.5 kHz")
+            </div>
+        }
+        else
+        {
+            <div class="card-value" style="color:var(--text-muted);font-size:16px">Non configuré</div>
+        }
+    </div>
+
+    <!-- Card : Sons -->
+    <div class="card">
+        <div class="card-title">
+            <span class="material-symbols-outlined">library_music</span>
+            Sons
+        </div>
+        @if (_isLoading)
+        {
+            <div class="skeleton" style="height:24px;width:50%;margin-bottom:8px;"></div>
+            <div class="skeleton" style="height:16px;width:60%;"></div>
+        }
+        else
+        {
+            <div class="card-value">@_sounds.Count fichier@(_sounds.Count != 1 ? "s" : "")</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--warning)">storage</span>
+                Bibliothèque locale
+            </div>
+        }
+    </div>
+
+</div>
+
+<!-- ── Dashboard Bottom Grid ─────────────────────────────────── -->
+<div class="dashboard-grid">
+
+    <!-- Actions rapides -->
+    <div class="card">
+        <div class="section-header">
+            <span class="material-symbols-outlined">bolt</span>
+            Actions rapides
+        </div>
+
+        <div class="actions-stack">
+            <div class="form-group">
+                <label class="form-label">Activer un salon</label>
+                <div class="action-group">
+                    <select class="form-select" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
+                        <option value="">— Choisir un salon —</option>
+                        @foreach (var salon in _salons.Where(s => !s.IsActive))
+                        {
+                            <option value="@salon.Id">@salon.Name@(salon.IsDefault ? " ★" : "")</option>
+                        }
+                    </select>
+                    <button class="btn btn-primary btn-sm"
+                            disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
+                            @onclick="ActivateSalon">
+                        @if (_isActivating)
+                        {
+                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">play_arrow</span>
+                        }
+                        Activer
+                    </button>
+                </div>
+            </div>
+
+            <div class="divider" style="margin:6px 0;"></div>
+
+            <div>
+                <button class="btn btn-danger btn-sm"
+                        disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
+                        @onclick="DeactivateSalon">
+                    @if (_isDeactivating)
+                    {
+                        <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">power_settings_new</span>
+                    }
+                    Désactiver le salon actif
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Salon actif — Détails -->
+    <div class="card">
+        <div class="section-header">
+            <span class="material-symbols-outlined">settings</span>
+            Salon actif — Détails
+        </div>
+
+        @if (_isLoading)
+        {
+            @for (int i = 0; i < 6; i++)
+            {
+                <div class="skeleton" style="height:16px;margin-bottom:10px;width:@(60 + i * 5)%;"></div>
+            }
+        }
+        else if (_activeSalon is not null)
+        {
+            <!-- Configuration Radio -->
+            <div class="detail-section">
+                <div class="detail-section-title">
+                    <span class="material-symbols-outlined">radio</span>
+                    Configuration Radio
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Fréquence RX</span>
+                    <span class="detail-value">@_activeSalon.Configuration.RxFrequency.ToString("F3") MHz</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Fréquence TX</span>
+                    <span class="detail-value">@_activeSalon.Configuration.TxFrequency.ToString("F3") MHz</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">CTCSS RX</span>
+                    <span class="detail-value">
+                        @(_activeSalon.Configuration.RxCtcss.HasValue
+                            ? $"{_activeSalon.Configuration.RxCtcss:F1} Hz"
+                            : "Aucun")
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">CTCSS TX</span>
+                    <span class="detail-value">
+                        @(_activeSalon.Configuration.TxCtcss.HasValue
+                            ? $"{_activeSalon.Configuration.TxCtcss:F1} Hz"
+                            : "Aucun")
+                    </span>
+                </div>
+            </div>
+
+            <!-- Configuration Réseau -->
+            <div class="detail-section">
+                <div class="detail-section-title">
+                    <span class="material-symbols-outlined">lan</span>
+                    Configuration Réseau
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Hôte</span>
+                    <span class="detail-value">@_activeSalon.Configuration.Host</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Port</span>
+                    <span class="detail-value">@_activeSalon.Configuration.Port</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Callsign</span>
+                    <span class="detail-value">@_activeSalon.Configuration.Callsign</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Codec</span>
+                    <span class="detail-value">@_activeSalon.Configuration.AudioCodec</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined">radio</span>
+                <p>Aucun salon actif.<br />Activez un salon depuis les actions rapides.</p>
+            </div>
+        }
+    </div>
+
+</div>
+
+<style>
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private SalonAggregate?              _activeSalon;
+    private SA818ConfigurationDto?       _sa818Dto;
+    private IReadOnlyList<SoundAggregate> _sounds  = [];
+    private IReadOnlyList<SalonAggregate> _salons  = [];
+    private bool _daemonRunning;
+    private bool _isLoading = true;
+    private Guid? _selectedSalonId;
+    private bool _isActivating;
+    private bool _isDeactivating;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            var activeSalonTask = Bus.InvokeAsync<SalonAggregate?>(new GetActiveSalonQuery());
+            var sa818Task       = Bus.InvokeAsync<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
+            var soundsTask      = Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
+            var salonsTask      = Bus.InvokeAsync<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
+            var daemonTask      = DaemonService.IsRunningAsync();
+
+            await Task.WhenAll(activeSalonTask, sa818Task, soundsTask, salonsTask, daemonTask);
+
+            _activeSalon   = activeSalonTask.Result;
+            _sa818Dto      = sa818Task.Result.Match(Succ: dto => (SA818ConfigurationDto?)dto, Fail: _ => null);
+            _sounds        = soundsTask.Result ?? [];
+            _salons        = salonsTask.Result ?? [];
+            _daemonRunning = daemonTask.Result.Match(Succ: b => b, Fail: _ => false);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors du chargement : {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ActivateSalon()
+    {
+        if (_selectedSalonId is null) return;
+        _isActivating = true;
+        try
+        {
+            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Salon activé avec succès.");
+                    _selectedSalonId = null;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isActivating = false;
+        }
+    }
+
+    private async Task DeactivateSalon()
+    {
+        if (_activeSalon is null) return;
+        _isDeactivating = true;
+        try
+        {
+            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Salon désactivé.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isDeactivating = false;
+        }
+    }
+}

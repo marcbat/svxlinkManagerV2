@@ -1,0 +1,80 @@
+@inject ToastService ToastService
+@implements IDisposable
+
+@if (_toasts.Any())
+{
+    <div class="toast-container">
+        @foreach (var toast in _toasts)
+        {
+            <div class="toast toast-@toast.Type.ToString().ToLower()">
+                <div class="toast-icon">
+                    <span class="material-symbols-outlined">@GetIcon(toast.Type)</span>
+                </div>
+                <div class="toast-body">
+                    @if (!string.IsNullOrEmpty(toast.Title))
+                    {
+                        <div class="toast-title">@toast.Title</div>
+                    }
+                    <div class="toast-message">@toast.Message</div>
+                </div>
+                <button class="toast-close" @onclick="() => Dismiss(toast.Id)">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ToastModel> _toasts = new();
+    private readonly Dictionary<Guid, Timer> _timers = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnToastAdded   += HandleToastAdded;
+        ToastService.OnToastRemoved += HandleToastRemoved;
+    }
+
+    private void HandleToastAdded()
+    {
+        _toasts = ToastService.Toasts.ToList();
+        InvokeAsync(StateHasChanged);
+
+        foreach (var toast in _toasts.Where(t => t.DurationMs > 0 && !_timers.ContainsKey(t.Id)))
+        {
+            var id = toast.Id;
+            _timers[id] = new Timer(_ => InvokeAsync(() => Dismiss(id)), null, toast.DurationMs, Timeout.Infinite);
+        }
+    }
+
+    private void HandleToastRemoved()
+    {
+        _toasts = ToastService.Toasts.ToList();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Dismiss(Guid id)
+    {
+        if (_timers.TryGetValue(id, out var timer))
+        {
+            timer.Dispose();
+            _timers.Remove(id);
+        }
+        ToastService.Remove(id);
+    }
+
+    private static string GetIcon(ToastType type) => type switch
+    {
+        ToastType.Success => "check_circle",
+        ToastType.Error   => "error",
+        ToastType.Warning => "warning",
+        _                 => "info"
+    };
+
+    public void Dispose()
+    {
+        ToastService.OnToastAdded   -= HandleToastAdded;
+        ToastService.OnToastRemoved -= HandleToastRemoved;
+        foreach (var timer in _timers.Values) timer.Dispose();
+    }
+}
