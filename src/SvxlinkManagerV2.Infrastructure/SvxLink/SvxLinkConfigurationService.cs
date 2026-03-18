@@ -1,10 +1,9 @@
-using IniParser;
-using IniParser.Model;
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Infrastructure.Common;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
@@ -16,7 +15,6 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
     private readonly ILogger<SvxLinkConfigurationService> _logger;
-    private readonly FileIniDataParser _iniParser;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
 
@@ -25,16 +23,6 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         string? templatePath = null)
     {
         _logger = logger;
-        
-        // Configurer le parser INI pour accepter les commentaires
-        var iniConfig = new IniParser.Parser.IniDataParser();
-        iniConfig.Configuration.AllowDuplicateKeys = true;
-        iniConfig.Configuration.AllowDuplicateSections = true;
-        iniConfig.Configuration.AllowKeysWithoutSection = false;
-        iniConfig.Configuration.CommentString = "#";
-        iniConfig.Configuration.AssigmentSpacer = "";
-        
-        _iniParser = new FileIniDataParser(iniConfig);
         _templatePath = templatePath;
     }
 
@@ -58,25 +46,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
                 return Validation<Error, Unit>.Fail(Seq1(error));
             }
 
-            // 2. Charger le template INI
-            // Lire le fichier et enlever TOUTES les lignes de commentaires (ini-parser 2.5.2 ne les supporte pas)
-            var templateContent = await File.ReadAllTextAsync(templatePath, cancellationToken);
-            var lines = templateContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            var filteredLines = new List<string>();
-            
-            foreach (var line in lines)
-            {
-                var trimmedLine = line.TrimStart();
-                
-                // Garder toutes les lignes sauf celles qui commencent par "#" (commentaires)
-                if (!trimmedLine.StartsWith("#"))
-                {
-                    filteredLines.Add(line);
-                }
-            }
-            
-            var cleanedContent = string.Join(Environment.NewLine, filteredLines);
-            var iniData = await Task.Run(() => _iniParser.Parser.Parse(cleanedContent), cancellationToken);
+            // 2. Charger le template INI (support natif des commentaires avec notre parser)
+            var iniData = await Task.Run(() => IniFile.Parse(templatePath), cancellationToken);
 
             // 3. Mettre à jour les sections avec les données du Salon
             UpdateGlobalSection(iniData, salon);
@@ -124,7 +95,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             }
 
             // Tenter de parser le fichier INI
-            await Task.Run(() => _iniParser.ReadFile(configPath), cancellationToken);
+            await Task.Run(() => IniFile.Parse(configPath), cancellationToken);
 
             _logger.LogInformation("Fichier de configuration valide: {ConfigPath}", configPath);
             return Success<Error, bool>(true);
@@ -140,7 +111,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [GLOBAL] avec les valeurs du Salon.
     /// </summary>
-    private void UpdateGlobalSection(IniData iniData, SalonAggregate salon)
+    private void UpdateGlobalSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
         
@@ -155,7 +126,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
     /// </summary>
-    private void UpdateReflectorLogicSection(IniData iniData, SalonAggregate salon)
+    private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
 
@@ -175,7 +146,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [SimplexLogic] avec les paramètres locaux.
     /// </summary>
-    private void UpdateSimplexLogicSection(IniData iniData, SalonAggregate salon)
+    private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
 
@@ -204,7 +175,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [Rx1] avec les fréquences et CTCSS de réception.
     /// </summary>
-    private void UpdateReceiverSection(IniData iniData, SalonAggregate salon)
+    private void UpdateReceiverSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
 
@@ -224,7 +195,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [Tx1] avec les fréquences et CTCSS de transmission.
     /// </summary>
-    private void UpdateTransmitterSection(IniData iniData, SalonAggregate salon)
+    private void UpdateTransmitterSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
 
@@ -239,7 +210,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// Écrit le fichier de configuration de manière atomique (temp + rename).
     /// </summary>
     private async Task<Validation<Error, Unit>> WriteConfigurationAtomicallyAsync(
-        IniData iniData,
+        IniFile iniData,
         string outputPath,
         CancellationToken cancellationToken)
     {
@@ -255,8 +226,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
             var tempPath = $"{outputPath}.tmp";
 
-            // 1. Écrire dans un fichier temporaire en utilisant ToString() au lieu de WriteFile
-            // car WriteFile de ini-parser peut avoir des problèmes avec .NET 9.0
+            // 1. Écrire dans un fichier temporaire
             var content = iniData.ToString();
             await File.WriteAllTextAsync(tempPath, content, cancellationToken);
             _logger.LogDebug("Fichier temporaire écrit: {TempPath} ({Length} bytes)", tempPath, content.Length);
