@@ -11,15 +11,48 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// Implémentation réelle du service daemon SVXLink.
 /// Gère le daemon SVXLink via des commandes directes (compatible container Docker).
 /// </summary>
-public class SvxLinkDaemonService : ISvxLinkDaemonService
+public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
 {
     private readonly ILogger<SvxLinkDaemonService> _logger;
     private const int TimeoutSeconds = 30;
     private const string SvxLinkConfigPath = "/etc/svxlink/svxlink.conf";
+    private Process? _svxlinkProcess;
+    private readonly object _processLock = new();
+    private bool _disposed;
 
     public SvxLinkDaemonService(ILogger<SvxLinkDaemonService> logger)
     {
         _logger = logger;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        lock (_processLock)
+        {
+            if (_svxlinkProcess != null && !_svxlinkProcess.HasExited)
+            {
+                try
+                {
+                    _logger.LogInformation("Arrêt du processus SVXLink lors du dispose");
+                    _svxlinkProcess.Kill(entireProcessTree: true);
+                    _svxlinkProcess.WaitForExit(5000);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erreur lors de l'arrêt du processus SVXLink");
+                }
+                finally
+                {
+                    _svxlinkProcess.Dispose();
+                    _svxlinkProcess = null;
+                }
+            }
+        }
+
+        _disposed = true;
     }
 
     public async Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default)
@@ -29,6 +62,29 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService
         try
         {
             // 1. Arrêter le processus s'il tourne
+            lock (_processLock)
+            {
+                if (_svxlinkProcess != null && !_svxlinkProcess.HasExited)
+                {
+                    _logger.LogInformation("Arrêt du processus SVXLink existant (PID: {Pid})", _svxlinkProcess.Id);
+                    try
+                    {
+                        _svxlinkProcess.Kill(entireProcessTree: true);
+                        _svxlinkProcess.WaitForExit(5000);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Erreur lors de l'arrêt du processus SVXLink");
+                    }
+                    finally
+                    {
+                        _svxlinkProcess.Dispose();
+                        _svxlinkProcess = null;
+                    }
+                }
+            }
+            
+            // 2. Vérifier qu'aucun autre processus svxlink ne tourne
             var isRunning = await IsRunningAsync(cancellationToken);
             var isCurrentlyRunning = isRunning.Match(
                 Succ: value => value,
@@ -37,56 +93,81 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService
             
             if (isCurrentlyRunning)
             {
-                _logger.LogInformation("Arrêt du daemon SVXLink en cours d'exécution");
-                var stopResult = await ExecuteCommandAsync("pkill", "-TERM svxlink", cancellationToken);
+                _logger.LogInformation("Un processus SVXLink est encore actif, tentative d'arrêt via pkill");
+                await ExecuteCommandAsync("pkill", "-TERM svxlink", cancellationToken);
                 
                 // Attendre que le processus se termine (max 5 secondes)
                 for (int i = 0; i < 10; i++)
                 {
                     await Task.Delay(500, cancellationToken);
                     var stillRunning = await IsRunningAsync(cancellationToken);
-                    var isStillRunning = stillRunning.Match(
-                        Succ: value => value,
-                        Fail: _ => true // En cas d'erreur, on suppose qu'il tourne encore
-                    );
-                    
-                    if (!isStillRunning)
+                    if (!stillRunning.Match(Succ: v => v, Fail: _ => true))
                     {
                         break;
                     }
                 }
             }
             
-            // 2. Démarrer le daemon SVXLink
-            _logger.LogInformation("Démarrage du daemon SVXLink");
-            var startResult = await ExecuteCommandAsync("svxlink", $"--daemon --config={SvxLinkConfigPath}", cancellationToken);
+            // 3. Démarrer SVXLink en mode non-daemon pour capturer les logs
+            _logger.LogInformation("Démarrage de SVXLink avec capture de logs");
             
-            if (startResult.ExitCode == 0)
+            var processStartInfo = new ProcessStartInfo
             {
-                // Attendre un peu que le daemon démarre
-                await Task.Delay(1000, cancellationToken);
-                
-                // Vérifier qu'il tourne bien
-                var checkRunning = await IsRunningAsync(cancellationToken);
-                var isDaemonRunning = checkRunning.Match(
-                    Succ: value => value,
-                    Fail: _ => false
-                );
-                
-                if (isDaemonRunning)
+                FileName = "svxlink",
+                Arguments = $"--logfile=stdout --config={SvxLinkConfigPath}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            var process = new Process { StartInfo = processStartInfo };
+            
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
                 {
-                    _logger.LogInformation("Daemon SVXLink redémarré avec succès");
-                    return Validation<Error, Unit>.Success(Unit.Default);
+                    _logger.LogInformation("[SVXLink] {Output}", e.Data);
                 }
-                
-                var errorMessage = "Le daemon SVXLink n'a pas démarré correctement";
+            };
+
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                {
+                    _logger.LogWarning("[SVXLink Error] {Error}", e.Data);
+                }
+            };
+
+            process.Exited += (sender, e) =>
+            {
+                _logger.LogWarning("Le processus SVXLink s'est terminé de manière inattendue");
+            };
+
+            process.EnableRaisingEvents = true;
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            lock (_processLock)
+            {
+                _svxlinkProcess = process;
+            }
+
+            _logger.LogInformation("SVXLink démarré (PID: {Pid})", process.Id);
+            
+            // 4. Attendre un peu et vérifier que le processus tourne toujours
+            await Task.Delay(2000, cancellationToken);
+            
+            if (process.HasExited)
+            {
+                var errorMessage = $"SVXLink s'est terminé immédiatement avec le code {process.ExitCode}";
                 _logger.LogError(errorMessage);
                 return Validation<Error, Unit>.Fail(Seq1(Error.New(errorMessage)));
             }
             
-            var error = $"Échec du démarrage du daemon SVXLink. Exit code: {startResult.ExitCode}. Error: {startResult.StandardError}";
-            _logger.LogError(error);
-            return Validation<Error, Unit>.Fail(Seq1(Error.New(error)));
+            _logger.LogInformation("Daemon SVXLink redémarré avec succès");
+            return Validation<Error, Unit>.Success(Unit.Default);
         }
         catch (Exception ex)
         {
@@ -97,17 +178,27 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService
 
     public async Task<Validation<Error, bool>> IsRunningAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Vérification de l'état du daemon SVXLink");
+        _logger.LogDebug("Vérification de l'état du daemon SVXLink");
 
         try
         {
-            // Utilise pgrep pour vérifier si le processus svxlink est actif
+            // D'abord vérifier si on a un processus actif
+            lock (_processLock)
+            {
+                if (_svxlinkProcess != null && !_svxlinkProcess.HasExited)
+                {
+                    _logger.LogDebug("Daemon SVXLink est actif (PID: {Pid})", _svxlinkProcess.Id);
+                    return Validation<Error, bool>.Success(true);
+                }
+            }
+
+            // Sinon, vérifier avec pgrep (au cas où le processus aurait été lancé autrement)
             var result = await ExecuteCommandAsync("pgrep", "-x svxlink", cancellationToken);
             
             // pgrep retourne 0 si le processus existe, 1 sinon
             bool isActive = result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.StandardOutput);
             
-            _logger.LogInformation("Daemon SVXLink est {Status}", isActive ? "actif" : "inactif");
+            _logger.LogDebug("Daemon SVXLink est {Status}", isActive ? "actif (via pgrep)" : "inactif");
             return Validation<Error, bool>.Success(isActive);
         }
         catch (Exception ex)
