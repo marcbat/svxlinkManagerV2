@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="WolverineFx.Http" Version="5.14.0" />
+    <PackageReference Include="WolverineFx.Marten" Version="5.14.0" />
   </ItemGroup>
 
 </Project>

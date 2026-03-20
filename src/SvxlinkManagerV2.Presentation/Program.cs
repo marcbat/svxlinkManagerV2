@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Wolverine;
 
 namespace SvxlinkManagerV2.Presentation
@@ -23,6 +24,18 @@ namespace SvxlinkManagerV2.Presentation
                 {
                     // Découverte automatique des handlers dans l'assembly Application
                     opts.Discovery.IncludeAssembly(typeof(SvxlinkManagerV2.Application.Features.Ping.PingCommand).Assembly);
+                })
+                .ConfigureLogging(logging =>
+                {
+                    // Format single-line avec timestamp — lisible dans docker logs
+                    logging.ClearProviders();
+                    logging.AddSimpleConsole(options =>
+                    {
+                        options.SingleLine = true;
+                        options.TimestampFormat = "HH:mm:ss ";
+                        options.IncludeScopes = false;
+                        options.ColorBehavior = LoggerColorBehavior.Disabled;
+                    });
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
