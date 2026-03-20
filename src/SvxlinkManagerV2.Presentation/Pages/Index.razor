@@ -1,4 +1,5 @@
 @page "/"
+@implements IDisposable
 @using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
 @using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
@@ -303,9 +304,46 @@
     private bool _isActivating;
     private bool _isDeactivating;
 
+    private PeriodicTimer? _statusTimer;
+    private CancellationTokenSource? _cts;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
+        StartDaemonPolling();
+    }
+
+    private void StartDaemonPolling()
+    {
+        _cts = new CancellationTokenSource();
+        _statusTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = PollDaemonStatusAsync(_cts.Token);
+    }
+
+    private async Task PollDaemonStatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _statusTimer!.WaitForNextTickAsync(ct))
+            {
+                var result = await DaemonService.IsRunningAsync(ct);
+                var isRunning = result.Match(Succ: b => b, Fail: _ => false);
+
+                if (isRunning != _daemonRunning)
+                {
+                    _daemonRunning = isRunning;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _statusTimer?.Dispose();
     }
 
     private async Task LoadData()
