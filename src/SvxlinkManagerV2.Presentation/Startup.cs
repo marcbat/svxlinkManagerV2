@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Marten;
 using Microsoft.AspNetCore.Builder;
+using Wolverine.Marten;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -16,7 +17,6 @@ using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Presentation.Services;
-
 namespace SvxlinkManagerV2.Presentation
 {
     public class Startup
@@ -33,6 +33,8 @@ namespace SvxlinkManagerV2.Presentation
         public void ConfigureServices(IServiceCollection services)
         {
             // Configuration Marten avec Event Sourcing
+            // IntegrateWithWolverine() : permet à Marten de publier les domain events vers le bus Wolverine
+            // UseFastEventForwarding : forward automatiquement les events Marten vers les handlers Wolverine
             services.AddMarten(options =>
             {
                 var connectionString = Configuration.GetConnectionString("PostgreSQL") 
@@ -40,7 +42,8 @@ namespace SvxlinkManagerV2.Presentation
                     
                 options.ConfigureMartenStore(connectionString);
             })
-            .UseLightweightSessions();
+            .UseLightweightSessions()
+            .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
             
             // Enregistrement du repository Event Store
             services.AddScoped<IEventStoreRepository, MartenEventStoreRepository>();
@@ -64,13 +67,16 @@ namespace SvxlinkManagerV2.Presentation
                 services.AddScoped<ISA818Service, SA818Service>();
             }
             
-            // Enregistrement du service daemon SVXLink (toujours l'implémentation réelle)
-            // En DEV: exécuté dans le container Docker avec SVXLink installé
-            // En PROD: exécuté sur Orange Pi avec Armbian et SVXLink installé
-            services.AddScoped<ISvxLinkDaemonService, SvxLinkDaemonService>();
+            // Enregistrement du service daemon SVXLink en SINGLETON
+            // IMPORTANT: doit être Singleton pour que le processus svxlink survive entre les requêtes.
+            // Un scope Scoped causerait le kill du processus à chaque fin de handler Wolverine.
+            services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             
             // Enregistrement du service de génération de configuration SVXLink (toujours réel)
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
+
+            // Diagnostics SVXLink au démarrage : banner avec mode daemon, config, état
+            services.AddHostedService<SvxLinkDiagnosticsHostedService>();
             
             // Enregistrement du service Toast pour les notifications UI (singleton)
             services.AddSingleton<ToastService>();

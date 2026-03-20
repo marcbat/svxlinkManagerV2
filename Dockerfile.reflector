@@ -1,0 +1,25 @@
+# Dockerfile pour le SvxReflector (serveur de conférence SvxLink)
+# Image légère Debian Bookworm-slim
+# Compatible avec le container svxlinkmanager-app (même dépôt apt -> même version svxreflector)
+
+FROM debian:bookworm-slim
+
+# Set timezone
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Installer svxreflector via apt
+RUN apt-get update && apt-get install -qq -y \
+    svxreflector \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# La configuration sera montée en volume sur /etc/svxlink/
+# svxreflector cherche sa configuration dans /etc/svxlink/svxreflector.conf par défaut
+
+# Exposer le port du reflector (TCP pour le contrôle, UDP pour l'audio)
+EXPOSE 5300/tcp
+EXPOSE 5300/udp
+
+# Lancer svxreflector en foreground (sans --daemon, adapté à Docker)
+CMD ["svxreflector", "--config=/etc/svxlink/svxreflector.conf"]

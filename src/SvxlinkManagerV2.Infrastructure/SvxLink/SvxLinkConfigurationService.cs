@@ -17,10 +17,16 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
+    private const string SvxLinkConfigDir = "/etc/svxlink";
 
+    // Constructeur pour l'injection de dépendances (Wolverine/DI ne peut pas résoudre string? depuis le conteneur)
+    public SvxLinkConfigurationService(ILogger<SvxLinkConfigurationService> logger)
+        : this(logger, null) { }
+
+    // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
-        string? templatePath = null)
+        string? templatePath)
     {
         _logger = logger;
         _templatePath = templatePath;
@@ -263,7 +269,15 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             return _templatePath;
         }
 
-        // Sinon, chercher dans l'arborescence
+        // Chercher dans le répertoire standard SVXLink (/etc/svxlink/)
+        var standardPath = Path.Combine(SvxLinkConfigDir, TemplateFileName);
+        if (File.Exists(standardPath))
+        {
+            _logger.LogDebug("Template trouvé dans le répertoire standard: {TemplatePath}", standardPath);
+            return standardPath;
+        }
+
+        // Fallback : chercher dans l'arborescence (environnement dev)
         var currentDirectory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
         
         while (currentDirectory != null)
@@ -279,9 +293,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             currentDirectory = currentDirectory.Parent;
         }
 
-        // Si non trouvé, retourner un chemin par défaut qui provoquera une erreur explicite
-        var defaultPath = Path.Combine("svxlink-config", TemplateFileName);
-        _logger.LogWarning("Template non trouvé, chemin par défaut: {TemplatePath}", defaultPath);
-        return defaultPath;
+        // Si non trouvé, retourner le chemin standard qui provoquera une erreur explicite
+        _logger.LogWarning("Template non trouvé, chemin par défaut: {TemplatePath}", standardPath);
+        return standardPath;
     }
 }

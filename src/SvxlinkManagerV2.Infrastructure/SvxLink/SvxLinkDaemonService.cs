@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
@@ -55,18 +56,17 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
         _disposed = true;
     }
 
-    public async Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default)
+    public async Task<Validation<Error, Unit>> StopAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Redémarrage du daemon SVXLink");
+        _logger.LogInformation("Arrêt du daemon SVXLink");
 
         try
         {
-            // 1. Arrêter le processus s'il tourne
             lock (_processLock)
             {
                 if (_svxlinkProcess != null && !_svxlinkProcess.HasExited)
                 {
-                    _logger.LogInformation("Arrêt du processus SVXLink existant (PID: {Pid})", _svxlinkProcess.Id);
+                    _logger.LogInformation("Arrêt du processus SVXLink (PID: {Pid})", _svxlinkProcess.Id);
                     try
                     {
                         _svxlinkProcess.Kill(entireProcessTree: true);
@@ -83,8 +83,57 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
                     }
                 }
             }
+
+            // Tuer également tout processus svxlink résiduel
+            var isRunning = await IsRunningAsync(cancellationToken);
+            if (isRunning.Match(Succ: v => v, Fail: _ => false))
+            {
+                _logger.LogInformation("Processus SVXLink résiduel détecté, arrêt via pkill -TERM");
+                await ExecuteCommandAsync("pkill", "-TERM svxlink", cancellationToken);
+                await Task.Delay(2000, cancellationToken);
+            }
+
+            _logger.LogInformation("Daemon SVXLink arrêté avec succès");
+            return unit;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception lors de l'arrêt du daemon SVXLink");
+            return Validation<Error, Unit>.Fail(Seq1(Error.New(ex)));
+        }
+    }
+
+    public async Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Redémarrage du daemon SVXLink");
+
+        try
+        {
+            // 1. Arrêter le processus s'il tourne
+            lock (_processLock)
+            {
+                if (_svxlinkProcess != null && !_svxlinkProcess.HasExited)
+                {
+                    _logger.LogInformation("Arrêt du processus SVXLink existant (PID: {Pid})", _svxlinkProcess.Id);
+                    try
+                    {
+                        // Arrêt gracieux via SIGTERM (comme le legacy), puis force si nécessaire
+                        _svxlinkProcess.Kill(entireProcessTree: true);
+                        _svxlinkProcess.WaitForExit(5000);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Erreur lors de l'arrêt du processus SVXLink");
+                    }
+                    finally
+                    {
+                        _svxlinkProcess.Dispose();
+                        _svxlinkProcess = null;
+                    }
+                }
+            }
             
-            // 2. Vérifier qu'aucun autre processus svxlink ne tourne
+            // 2. Vérifier qu'aucun autre processus svxlink ne tourne (lancé hors de notre contrôle)
             var isRunning = await IsRunningAsync(cancellationToken);
             var isCurrentlyRunning = isRunning.Match(
                 Succ: value => value,
@@ -93,7 +142,7 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
             
             if (isCurrentlyRunning)
             {
-                _logger.LogInformation("Un processus SVXLink est encore actif, tentative d'arrêt via pkill");
+                _logger.LogInformation("Un processus SVXLink résiduel détecté, arrêt via pkill -TERM");
                 await ExecuteCommandAsync("pkill", "-TERM svxlink", cancellationToken);
                 
                 // Attendre que le processus se termine (max 5 secondes)
@@ -102,52 +151,51 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
                     await Task.Delay(500, cancellationToken);
                     var stillRunning = await IsRunningAsync(cancellationToken);
                     if (!stillRunning.Match(Succ: v => v, Fail: _ => true))
-                    {
                         break;
-                    }
                 }
             }
             
-            // 3. Démarrer SVXLink en mode non-daemon pour capturer les logs
-            _logger.LogInformation("Démarrage de SVXLink avec capture de logs");
-            
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = "svxlink",
-                Arguments = $"--logfile=stdout --config={SvxLinkConfigPath}",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            // 3. Démarrer SVXLink via /bin/bash (comme le legacy) pour garantir le PATH
+            //    et l'encodage UTF8. SVXLink écrit TOUT sur stderr (logs normaux inclus).
+            _logger.LogInformation("Démarrage de SVXLink");
 
-            var process = new Process { StartInfo = processStartInfo };
-            
-            process.OutputDataReceived += (sender, e) =>
+            var process = new Process
             {
-                if (e.Data != null)
+                StartInfo = new ProcessStartInfo
                 {
-                    _logger.LogInformation("[SVXLink] {Output}", e.Data);
-                }
+                    FileName = "/bin/bash",
+                    Arguments = $"-c \"svxlink --config={SvxLinkConfigPath}\"",
+                    RedirectStandardOutput = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    RedirectStandardError = true,
+                    StandardErrorEncoding = Encoding.UTF8,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                },
+                EnableRaisingEvents = true
             };
 
+            // SVXLink écrit sa sortie sur stderr — les deux canaux vont en LogInformation
             process.ErrorDataReceived += (sender, e) =>
             {
                 if (e.Data != null)
-                {
-                    _logger.LogWarning("[SVXLink Error] {Error}", e.Data);
-                }
+                    _logger.LogInformation("[SVXLink] {Output}", e.Data);
+            };
+
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                    _logger.LogInformation("[SVXLink] {Output}", e.Data);
             };
 
             process.Exited += (sender, e) =>
             {
-                _logger.LogWarning("Le processus SVXLink s'est terminé de manière inattendue");
+                _logger.LogWarning("Le processus SVXLink s'est terminé (code: {ExitCode})", process.ExitCode);
             };
 
-            process.EnableRaisingEvents = true;
             process.Start();
-            process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+            process.BeginOutputReadLine();
 
             lock (_processLock)
             {

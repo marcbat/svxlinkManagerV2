@@ -17,6 +17,13 @@ public interface ISvxLinkDaemonService
     Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Arrête le daemon SVXLink.
+    /// </summary>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    /// <returns>Validation indiquant le succès ou l'erreur</returns>
+    Task<Validation<Error, Unit>> StopAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Vérifie si le daemon SVXLink est actuellement en cours d'exécution.
     /// </summary>
     /// <param name="cancellationToken">Token d'annulation</param>
