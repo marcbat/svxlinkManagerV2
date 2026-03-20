@@ -377,7 +377,7 @@ else
             if (_filterActif)   list = list.Where(s => s.IsActive);
             if (_filterDefault) list = list.Where(s => s.IsDefault);
             if (_filterTemp)    list = list.Where(s => s.IsTemporized);
-            return list;
+            return list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase);
         }
     }
 
