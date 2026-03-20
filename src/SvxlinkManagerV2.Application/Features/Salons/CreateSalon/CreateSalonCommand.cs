@@ -65,10 +65,29 @@ public static class CreateSalonCommandHandler
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: errors => Validation<Error, Guid>.Fail(errors));
 
-        // Sauvegarde de l'aggregate
         var aggregate = aggregateResult.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
+
+        // Règle métier : si le nouveau salon est par défaut, unsetter l'ancien salon par défaut
+        if (command.IsDefault)
+        {
+            var currentDefault = await repository.GetDefaultAsync(cancellationToken);
+            if (currentDefault != null)
+            {
+                var unsetResult = currentDefault.UnsetDefault();
+                if (unsetResult.IsFail)
+                    return unsetResult.Match(
+                        Succ: _ => throw new InvalidOperationException(),
+                        Fail: errors => Validation<Error, Guid>.Fail(errors));
+
+                var saveOldResult = await repository.SaveAsync(currentDefault, cancellationToken);
+                if (saveOldResult.IsFail)
+                    return saveOldResult.Match(
+                        Succ: _ => throw new InvalidOperationException(),
+                        Fail: errors => Validation<Error, Guid>.Fail(errors));
+            }
+        }
 
         var saveResult = await repository.SaveAsync(aggregate, cancellationToken);
 

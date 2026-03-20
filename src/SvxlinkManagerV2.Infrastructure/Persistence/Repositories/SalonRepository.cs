@@ -160,4 +160,30 @@ public class SalonRepository : ISalonRepository
         // Sauvegarder l'aggregate avec l'événement de suppression
         return await SaveAsync(aggregate, cancellationToken);
     }
+
+    public async Task<SalonAggregate?> GetDefaultAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Récupérer la projection du salon par défaut
+            var projection = await _session.Query<Projections.SalonProjection>()
+                .Where(p => p.IsDefault && !p.IsDeleted)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (projection == null)
+                return null;
+
+            // Rehydrater l'aggregate depuis son stream
+            var aggregate = await _session.Events.AggregateStreamAsync<SalonAggregate>(
+                projection.Id,
+                token: cancellationToken);
+
+            return aggregate?.Id != Guid.Empty ? aggregate : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 }
