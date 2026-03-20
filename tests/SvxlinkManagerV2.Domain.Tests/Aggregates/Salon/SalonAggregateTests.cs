@@ -763,6 +763,23 @@ public class SalonAggregateTests
         });
     }
 
+    [Fact]
+    public void Delete_WhenIsDefault_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.SetAsDefault();
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_IS_DEFAULT");
+        });
+    }
+
     #endregion
 
     #region Event Sourcing Tests

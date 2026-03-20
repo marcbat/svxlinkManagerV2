@@ -236,6 +236,10 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_ACTIVE", "Impossible de supprimer un salon actif")
                 .ToFailure<Unit>();
 
+        if (IsDefault)
+            return Error.Validation("SALON_IS_DEFAULT", "Impossible de supprimer le salon par défaut")
+                .ToFailure<Unit>();
+
         var @event = new SalonDeleted(Id);
         Apply(@event);
         AddDomainEvent(@event);

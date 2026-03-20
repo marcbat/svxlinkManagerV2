@@ -3,6 +3,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon
+@using SvxlinkManagerV2.Application.Features.Salons.SetSalonAsDefault
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Common
 @using Wolverine
@@ -183,7 +184,24 @@ else
                             </button>
                         }
 
-                        @if (!salon.IsActive)
+                        @if (!salon.IsDefault)
+                        {
+                            <button class="btn btn-accent btn-sm"
+                                    disabled="@_isBusy"
+                                    @onclick="() => SetAsDefault(salonIdCapture)">
+                                @if (_busySalonId == salonIdCapture && _isBusy)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">star</span>
+                                }
+                                Défaut
+                            </button>
+                        }
+
+                        @if (!salon.IsActive && !salon.IsDefault)
                         {
                             <button class="btn btn-sm btn-delete"
                                     disabled="@_isBusy"
@@ -319,6 +337,10 @@ else
         border: 1px solid rgba(255,107,107,0.25);
     }
     .btn-delete:hover { background: var(--danger-light); }
+    .btn-accent {
+        background: var(--accent);
+        color: #fff;
+    }
 
     /* ── Confirmation suppression ───────────────────────────── */
     .confirm-delete {
@@ -414,6 +436,30 @@ else
             var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new DeactivateSalonCommand(id));
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Salon désactivé."); return Unit.Default; },
+                Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
+            );
+            await LoadSalons();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+            _busySalonId = null;
+        }
+    }
+
+    private async Task SetAsDefault(Guid id)
+    {
+        _isBusy = true;
+        _busySalonId = id;
+        try
+        {
+            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new SetSalonAsDefaultCommand(id));
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Salon défini comme salon par défaut."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
             );
             await LoadSalons();
