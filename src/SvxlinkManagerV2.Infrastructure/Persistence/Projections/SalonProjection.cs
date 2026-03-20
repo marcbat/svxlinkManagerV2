@@ -153,4 +153,22 @@ public class SalonProjection
         IsDeleted = true;
         UpdatedAt = @event.OccurredOn;
     }
+
+    /// <summary>
+    /// Applique l'événement SalonSetAsDefault
+    /// </summary>
+    public void Apply(SalonSetAsDefault @event)
+    {
+        IsDefault = true;
+        UpdatedAt = @event.OccurredOn;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonUnsetDefault
+    /// </summary>
+    public void Apply(SalonUnsetDefault @event)
+    {
+        IsDefault = false;
+        UpdatedAt = @event.OccurredOn;
+    }
 }

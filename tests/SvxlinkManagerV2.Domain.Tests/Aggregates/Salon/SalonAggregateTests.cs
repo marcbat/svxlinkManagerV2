@@ -875,6 +875,146 @@ public class SalonAggregateTests
 
     #endregion
 
+    #region SetAsDefault / UnsetDefault Tests
+
+    [Fact]
+    public void SetAsDefault_WhenNotDefault_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate(); // IsDefault = false par défaut
+
+        // Act
+        var result = aggregate.SetAsDefault();
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.IsDefault.Should().BeTrue();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonSetAsDefault>();
+        });
+    }
+
+    [Fact]
+    public void SetAsDefault_WhenAlreadyDefault_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.SetAsDefault();
+
+        // Act
+        var result = aggregate.SetAsDefault();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ALREADY_DEFAULT");
+        });
+    }
+
+    [Fact]
+    public void SetAsDefault_WhenDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+
+        // Act
+        var result = aggregate.SetAsDefault();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    [Fact]
+    public void UnsetDefault_WhenIsDefault_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.SetAsDefault();
+
+        // Act
+        var result = aggregate.UnsetDefault();
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.IsDefault.Should().BeFalse();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonUnsetDefault>();
+        });
+    }
+
+    [Fact]
+    public void UnsetDefault_WhenNotDefault_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate(); // IsDefault = false
+
+        // Act
+        var result = aggregate.UnsetDefault();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_NOT_DEFAULT");
+        });
+    }
+
+    [Fact]
+    public void UnsetDefault_WhenDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.SetAsDefault();
+        aggregate.UnsetDefault(); // Remettre à false pour pouvoir supprimer
+        aggregate.Delete();
+
+        // Act
+        var result = aggregate.UnsetDefault();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    [Fact]
+    public void EventSourcing_Apply_SalonSetAsDefault_ShouldSetIsDefaultTrue()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var @event = new SalonSetAsDefault(aggregate.Id);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.IsDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void EventSourcing_Apply_SalonUnsetDefault_ShouldSetIsDefaultFalse()
+    {
+        // Arrange
+        var aggregate = new SalonAggregate();
+        var id = Guid.NewGuid();
+        var config = CreateValidConfiguration();
+        aggregate.Apply(new SalonCreated(id, "Salon Test", isDefault: true, isTemporized: false, config));
+
+        var @event = new SalonUnsetDefault(id);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.IsDefault.Should().BeFalse();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static SvxLinkConfiguration CreateValidConfiguration()

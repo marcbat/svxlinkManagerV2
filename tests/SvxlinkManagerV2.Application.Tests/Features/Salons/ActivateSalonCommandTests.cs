@@ -33,7 +33,8 @@ public class ActivateSalonCommandTests
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(salon.ToSuccess());
-
+        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
+            .Returns((SalonAggregate?)null);
         _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
             .Returns(unit.ToSuccess());
 
@@ -48,6 +49,67 @@ public class ActivateSalonCommandTests
 
         await _repository.Received(1).GetByIdAsync(salonId, Arg.Any<CancellationToken>());
         await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.IsActive), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenAnotherSalonIsActive_ShouldDeactivateItFirst()
+    {
+        // Arrange
+        var currentActiveId = Guid.NewGuid();
+        var newSalonId = Guid.NewGuid();
+
+        var currentActive = CreateValidAggregate(currentActiveId);
+        currentActive.Activate();
+
+        var newSalon = CreateValidAggregate(newSalonId);
+        var command = new ActivateSalonCommand(newSalonId);
+
+        _repository.GetByIdAsync(newSalonId, Arg.Any<CancellationToken>())
+            .Returns(newSalon.ToSuccess());
+        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
+            .Returns(currentActive);
+        _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(unit.ToSuccess());
+
+        // Act
+        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeSuccess();
+        currentActive.IsActive.Should().BeFalse();
+        newSalon.IsActive.Should().BeTrue();
+
+        // l'ancien salon actif doit être sauvegardé désactivé
+        await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.Id == currentActiveId && !a.IsActive), Arg.Any<CancellationToken>());
+        // le nouveau salon doit être sauvegardé activé
+        await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.Id == newSalonId && a.IsActive), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenSameActiveSalonActivatedAgain_ShouldFail()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId);
+        salon.Activate();
+        var command = new ActivateSalonCommand(salonId);
+
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(salon.ToSuccess());
+        // Le salon courant actif est le même que celui qu'on essaie d'activer
+        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
+            .Returns(salon);
+
+        // Act
+        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_ALREADY_ACTIVE");
+        });
+
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -84,6 +146,8 @@ public class ActivateSalonCommandTests
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(salon.ToSuccess());
+        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
+            .Returns((SalonAggregate?)null);
 
         // Act
         var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);

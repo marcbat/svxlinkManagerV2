@@ -181,6 +181,48 @@ public class SalonAggregate : AggregateRoot
     }
 
     /// <summary>
+    /// Définit ce salon comme salon par défaut (activé automatiquement au démarrage)
+    /// </summary>
+    /// <returns>Validation du résultat</returns>
+    public Validation<Error, Unit> SetAsDefault()
+    {
+        if (IsDeleted)
+            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
+                .ToFailure<Unit>();
+
+        if (IsDefault)
+            return Error.Validation("SALON_ALREADY_DEFAULT", "Le salon est déjà le salon par défaut")
+                .ToFailure<Unit>();
+
+        var @event = new SalonSetAsDefault(Id);
+        Apply(@event);
+        AddDomainEvent(@event);
+
+        return unit.ToSuccess();
+    }
+
+    /// <summary>
+    /// Retire à ce salon son statut de salon par défaut
+    /// </summary>
+    /// <returns>Validation du résultat</returns>
+    public Validation<Error, Unit> UnsetDefault()
+    {
+        if (IsDeleted)
+            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
+                .ToFailure<Unit>();
+
+        if (!IsDefault)
+            return Error.Validation("SALON_NOT_DEFAULT", "Le salon n'est pas le salon par défaut")
+                .ToFailure<Unit>();
+
+        var @event = new SalonUnsetDefault(Id);
+        Apply(@event);
+        AddDomainEvent(@event);
+
+        return unit.ToSuccess();
+    }
+
+    /// <summary>
     /// Suppression logique du salon
     /// </summary>
     /// <returns>Validation du résultat</returns>
@@ -247,6 +289,22 @@ public class SalonAggregate : AggregateRoot
     public void Apply(SalonDeleted @event)
     {
         IsDeleted = true;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonSetAsDefault (Event Sourcing)
+    /// </summary>
+    public void Apply(SalonSetAsDefault @event)
+    {
+        IsDefault = true;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonUnsetDefault (Event Sourcing)
+    /// </summary>
+    public void Apply(SalonUnsetDefault @event)
+    {
+        IsDefault = false;
     }
 
     #endregion
