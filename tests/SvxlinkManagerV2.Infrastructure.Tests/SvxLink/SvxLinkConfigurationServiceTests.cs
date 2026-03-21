@@ -1,9 +1,9 @@
 using FluentAssertions;
-using IniParser;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Infrastructure.Common;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 
 namespace SvxlinkManagerV2.Infrastructure.Tests.SvxLink;
@@ -67,8 +67,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         File.Exists(outputPath).Should().BeTrue();
 
         // Vérifier que le fichier est un INI valide
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
         iniData.Should().NotBeNull();
     }
 
@@ -83,8 +82,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         await _service.GenerateAsync(salon, outputPath);
 
         // Assert
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
 
         iniData["GLOBAL"]["LOGICS"].Should().Be("SimplexLogic,ReflectorLogic");
         iniData["GLOBAL"]["CFG_DIR"].Should().Be("svxlink.d");
@@ -103,8 +101,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         await _service.GenerateAsync(salon, outputPath);
 
         // Assert
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
 
         iniData["ReflectorLogic"]["TYPE"].Should().Be("Reflector");
         iniData["ReflectorLogic"]["HOST"].Should().Be("ref.example.com");
@@ -127,8 +124,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         await _service.GenerateAsync(salon, outputPath);
 
         // Assert
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
 
         iniData["SimplexLogic"]["TYPE"].Should().Be("Simplex");
         iniData["SimplexLogic"]["RX"].Should().Be("Rx1");
@@ -153,8 +149,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         await _service.GenerateAsync(salon, outputPath);
 
         // Assert
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
 
         // Les sections Rx1 et Tx1 doivent conserver leurs paramètres hardware du template
         iniData["Rx1"]["TYPE"].Should().Be("Local");
@@ -176,8 +171,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         await _service.GenerateAsync(salon, outputPath);
 
         // Assert
-        var parser = new FileIniDataParser();
-        var iniData = parser.ReadFile(outputPath);
+        var iniData = IniFile.Parse(outputPath);
 
         iniData["SimplexLogic"]["REPORT_CTCSS"].Should().Be("136.5");
     }

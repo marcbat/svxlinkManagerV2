@@ -164,6 +164,6 @@ public class SvxLinkDaemonServiceTests
         await service.IsRunningAsync();
 
         // Assert
-        _logger.Received(1).LogInformation("Vérification de l'état du daemon SVXLink");
+        _logger.Received(1).LogDebug("Vérification de l'état du daemon SVXLink");
     }
 }
