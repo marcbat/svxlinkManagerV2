@@ -20,6 +20,7 @@ public static class SalonDeactivatedHandler
     public static async Task<Validation<Error, Unit>> Handle(
         SalonDeactivated @event,
         ISvxLinkDaemonService daemonService,
+        IConnectedNodesService connectedNodesService,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -37,6 +38,9 @@ public static class SalonDeactivatedHandler
                 logger.LogError("Échec de l'arrêt du daemon SVXLink");
                 return stopResult;
             }
+
+            // Vider la liste des nœuds connectés car SVXLink ne publie pas de "Node left" à l'arrêt
+            connectedNodesService.Reset();
 
             logger.LogInformation(
                 "Side-effect SalonDeactivated terminé avec succès pour Salon {SalonId}",

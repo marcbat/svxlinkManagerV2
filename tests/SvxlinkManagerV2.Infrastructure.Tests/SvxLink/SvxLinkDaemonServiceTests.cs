@@ -89,17 +89,19 @@ public class SvxLinkDaemonServiceMockTests
 public class SvxLinkDaemonServiceTests
 {
     private readonly ILogger<SvxLinkDaemonService> _logger;
+    private readonly ISvxLinkLogService _logService;
 
     public SvxLinkDaemonServiceTests()
     {
         _logger = Substitute.For<ILogger<SvxLinkDaemonService>>();
+        _logService = Substitute.For<ISvxLinkLogService>();
     }
 
     [Fact]
     public void Constructor_ShouldNotThrow()
     {
         // Act
-        var act = () => new SvxLinkDaemonService(_logger);
+        var act = () => new SvxLinkDaemonService(_logger, _logService);
 
         // Assert
         act.Should().NotThrow();
@@ -109,7 +111,7 @@ public class SvxLinkDaemonServiceTests
     public async Task RestartAsync_OnWindows_ShouldReturnFailure()
     {
         // Arrange
-        var service = new SvxLinkDaemonService(_logger);
+        var service = new SvxLinkDaemonService(_logger, _logService);
 
         // Act
         // Sur Windows, systemctl n'existe pas, donc cela devrait échouer
@@ -126,7 +128,7 @@ public class SvxLinkDaemonServiceTests
     public async Task IsRunningAsync_OnWindows_ShouldReturnFailure()
     {
         // Arrange
-        var service = new SvxLinkDaemonService(_logger);
+        var service = new SvxLinkDaemonService(_logger, _logService);
 
         // Act
         // Sur Windows, systemctl n'existe pas, donc cela devrait échouer
@@ -143,7 +145,7 @@ public class SvxLinkDaemonServiceTests
     public async Task RestartAsync_ShouldLogOperations()
     {
         // Arrange
-        var service = new SvxLinkDaemonService(_logger);
+        var service = new SvxLinkDaemonService(_logger, _logService);
 
         // Act
         await service.RestartAsync();
@@ -156,7 +158,7 @@ public class SvxLinkDaemonServiceTests
     public async Task IsRunningAsync_ShouldLogOperations()
     {
         // Arrange
-        var service = new SvxLinkDaemonService(_logger);
+        var service = new SvxLinkDaemonService(_logger, _logService);
 
         // Act
         await service.IsRunningAsync();

@@ -8,6 +8,7 @@
 @using SvxlinkManagerV2.Application.Features.SA818
 @using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
 @using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Application.Models
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
@@ -16,6 +17,7 @@
 
 @inject IMessageBus Bus
 @inject ISvxLinkDaemonService DaemonService
+@inject IConnectedNodesService ConnectedNodesService
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -206,83 +208,34 @@
         </div>
     </div>
 
-    <!-- Salon actif — Détails -->
+    <!-- Nœuds connectés -->
     <div class="card">
         <div class="section-header">
-            <span class="material-symbols-outlined">settings</span>
-            Salon actif — Détails
+            <span class="material-symbols-outlined">hub</span>
+            Nœuds connectés
+            @if (_connectedNodes.Count > 0)
+            {
+                <span class="badge badge-accent" style="margin-left:8px;">@_connectedNodes.Count</span>
+            }
         </div>
 
-        @if (_isLoading)
+        @if (_connectedNodes.Count > 0)
         {
-            @for (int i = 0; i < 6; i++)
-            {
-                <div class="skeleton" style="height:16px;margin-bottom:10px;width:@(60 + i * 5)%;"></div>
-            }
-        }
-        else if (_activeSalon is not null)
-        {
-            <!-- Configuration Radio -->
-            <div class="detail-section">
-                <div class="detail-section-title">
-                    <span class="material-symbols-outlined">radio</span>
-                    Configuration Radio
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Fréquence RX</span>
-                    <span class="detail-value">@_activeSalon.Configuration.RxFrequency.ToString("F3") MHz</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Fréquence TX</span>
-                    <span class="detail-value">@_activeSalon.Configuration.TxFrequency.ToString("F3") MHz</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">CTCSS RX</span>
-                    <span class="detail-value">
-                        @(_activeSalon.Configuration.RxCtcss.HasValue
-                            ? $"{_activeSalon.Configuration.RxCtcss:F1} Hz"
-                            : "Aucun")
-                    </span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">CTCSS TX</span>
-                    <span class="detail-value">
-                        @(_activeSalon.Configuration.TxCtcss.HasValue
-                            ? $"{_activeSalon.Configuration.TxCtcss:F1} Hz"
-                            : "Aucun")
-                    </span>
-                </div>
-            </div>
-
-            <!-- Configuration Réseau -->
-            <div class="detail-section">
-                <div class="detail-section-title">
-                    <span class="material-symbols-outlined">lan</span>
-                    Configuration Réseau
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Hôte</span>
-                    <span class="detail-value">@_activeSalon.Configuration.Host</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Port</span>
-                    <span class="detail-value">@_activeSalon.Configuration.Port</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Callsign</span>
-                    <span class="detail-value">@_activeSalon.Configuration.Callsign</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Codec</span>
-                    <span class="detail-value">@_activeSalon.Configuration.AudioCodec</span>
-                </div>
+            <div class="node-list">
+                @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
+                {
+                    <div class="node-chip">
+                        <span class="material-symbols-outlined" style="font-size:16px;">radio_button_checked</span>
+                        @node.Name
+                    </div>
+                }
             </div>
         }
         else
         {
             <div class="empty-state">
-                <span class="material-symbols-outlined">radio</span>
-                <p>Aucun salon actif.<br />Activez un salon depuis les actions rapides.</p>
+                <span class="material-symbols-outlined">hub</span>
+                <p>Aucun nœud connecté.<br />Les nœuds apparaîtront ici une fois le salon actif.</p>
             </div>
         }
     </div>
@@ -291,6 +244,38 @@
 
 <style>
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    
+    .node-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    
+    .node-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: rgba(101, 133, 255, 0.15);
+        border: 1px solid rgba(101, 133, 255, 0.3);
+        border-radius: 16px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: default;
+        user-select: none;
+        transition: all 0.2s ease;
+    }
+    
+    .node-chip:hover {
+        background: rgba(101, 133, 255, 0.25);
+        border-color: rgba(101, 133, 255, 0.5);
+    }
+    
+    .node-chip .material-symbols-outlined {
+        color: var(--accent);
+    }
 </style>
 
 @code {
@@ -298,6 +283,7 @@
     private SA818ConfigurationDto?       _sa818Dto;
     private IReadOnlyList<SoundAggregate> _sounds  = [];
     private IReadOnlyList<SalonAggregate> _salons  = [];
+    private List<ConnectedNodeInfo>      _connectedNodes = new();
     private bool _daemonRunning;
     private bool _isLoading = true;
     private Guid? _selectedSalonId;
@@ -311,6 +297,12 @@
     {
         await LoadData();
         StartDaemonPolling();
+        
+        // Charger les nœuds connectés et s'abonner aux événements
+        _connectedNodes = ConnectedNodesService.ConnectedNodes.ToList();
+        ConnectedNodesService.OnNodeJoined += OnNodeJoined;
+        ConnectedNodesService.OnNodeLeft += OnNodeLeft;
+        ConnectedNodesService.OnNodesInitialized += OnNodesInitialized;
     }
 
     private void StartDaemonPolling()
@@ -339,8 +331,45 @@
         catch (OperationCanceledException) { }
     }
 
+    private void OnNodeJoined(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            if (!_connectedNodes.Any(n => n.Name == node.Name))
+            {
+                _connectedNodes.Add(node);
+            }
+            ToastService.ShowInfo($"{node.Name} a rejoint le salon", "Nœud connecté", 4000);
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodeLeft(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            _connectedNodes.RemoveAll(n => n.Name == node.Name);
+            ToastService.ShowInfo($"{node.Name} a quitté le salon", "Nœud déconnecté", 4000);
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodesInitialized(IReadOnlyList<ConnectedNodeInfo> nodes)
+    {
+        InvokeAsync(() =>
+        {
+            _connectedNodes = nodes.ToList();
+            StateHasChanged();
+        });
+    }
+
     public void Dispose()
     {
+        // Désabonnement des événements de nœuds connectés
+        ConnectedNodesService.OnNodeJoined -= OnNodeJoined;
+        ConnectedNodesService.OnNodeLeft -= OnNodeLeft;
+        ConnectedNodesService.OnNodesInitialized -= OnNodesInitialized;
+        
         _cts?.Cancel();
         _cts?.Dispose();
         _statusTimer?.Dispose();

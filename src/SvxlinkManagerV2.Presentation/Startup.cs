@@ -72,6 +72,10 @@ namespace SvxlinkManagerV2.Presentation
             // Doit être enregistré AVANT SvxLinkDaemonService car il en dépend.
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             
+            // Enregistrement du tracker de nœuds connectés en SINGLETON
+            // Singleton car dépend de ISvxLinkLogService (singleton) et l'état doit persister
+            services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
+            
             // Enregistrement du service daemon SVXLink en SINGLETON
             // IMPORTANT: doit être Singleton pour que le processus svxlink survive entre les requêtes.
             // Un scope Scoped causerait le kill du processus à chaque fin de handler Wolverine.

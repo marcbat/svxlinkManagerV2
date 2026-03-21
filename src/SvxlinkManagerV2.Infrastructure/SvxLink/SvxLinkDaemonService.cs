@@ -96,6 +96,7 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
             }
 
             _logger.LogInformation("Daemon SVXLink arrêté avec succès");
+            _logService.AddLog("--- Daemon SVXLink arrêté ---");
             return unit;
         }
         catch (Exception ex)
