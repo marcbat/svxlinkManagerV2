@@ -44,9 +44,9 @@
     </div>
 
     <div class="header-actions">
-        <button class="btn btn-secondary"
+        <button class="btn @(_hasUnsavedChanges && !_isActive ? "btn-primary" : "btn-secondary")"
                 @onclick="SaveConfigAsync"
-                disabled="@(_isActive || _isSaving || _isLoading)">
+                disabled="@(_isActive || _isSaving || _isLoading || !_hasUnsavedChanges)">
             @if (_isSaving)
             {
                 <span class="material-symbols-outlined spin">sync</span>
@@ -78,7 +78,8 @@
         {
             <button class="btn btn-success"
                     @onclick="StartReflectorAsync"
-                    disabled="@(_isToggling || _isLoading)">
+                    disabled="@(_isToggling || _isLoading || _hasUnsavedChanges)"
+                    title="@(_hasUnsavedChanges ? "Sauvegardez la configuration avant de démarrer" : "")">
                 @if (_isToggling)
                 {
                     <span class="material-symbols-outlined spin">sync</span>
@@ -104,6 +105,17 @@
     </div>
 }
 
+@if (_hasUnsavedChanges && !_isActive)
+{
+    <div class="alert-unsaved">
+        <span class="material-symbols-outlined">edit_note</span>
+        <div>
+            <strong>Modifications non sauvegardées</strong>
+            <span>Sauvegardez la configuration avant de démarrer le reflector.</span>
+        </div>
+    </div>
+}
+
 @if (_isLoading)
 {
     <div class="card skeleton-card">
@@ -121,8 +133,9 @@ else
             Éditez directement le fichier de configuration INI du reflector.
             La section <code>[GLOBAL]</code> est obligatoire.
         </p>
-        <textarea class="config-textarea"
-                  @bind="_configText"
+        <textarea class="config-textarea @(_hasUnsavedChanges ? "config-textarea--modified" : "")"
+                  value="@_configText"
+                  @oninput="OnConfigChanged"
                   disabled="@_isActive"
                   rows="25"
                   spellcheck="false"
@@ -133,10 +146,12 @@ else
 @code {
     private ReflectorAggregate? _reflector;
     private string _configText = string.Empty;
+    private string _savedConfigText = string.Empty;
     private bool _isLoading = true;
     private bool _isActive;
     private bool _isSaving;
     private bool _isToggling;
+    private bool _hasUnsavedChanges;
 
     private const string DefaultConfig =
         "[GLOBAL]\r\n" +
@@ -178,6 +193,7 @@ else
 
             _reflector = reflectors.FirstOrDefault();
             _configText = _reflector?.Config ?? DefaultConfig;
+            _savedConfigText = _configText;
 
             // Vérifier l'état du daemon
             var runningResult = await DaemonService.IsRunningAsync();
@@ -202,7 +218,13 @@ else
                 new UpdateReflectorConfigurationCommand(_reflector.Id, _reflector.Name, _configText));
 
             result.Match(
-                Succ: _ => { ToastService.ShowSuccess("Configuration sauvegardée avec succès."); return Unit.Default; },
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Configuration sauvegardée avec succès.");
+                    _savedConfigText = _configText;
+                    _hasUnsavedChanges = false;
+                    return Unit.Default;
+                },
                 Fail: errors => { ToastService.ShowError("Erreur lors de la sauvegarde : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
         }
         catch (Exception ex)
@@ -239,6 +261,12 @@ else
         {
             _isToggling = false;
         }
+    }
+
+    private void OnConfigChanged(ChangeEventArgs e)
+    {
+        _configText = e.Value?.ToString() ?? string.Empty;
+        _hasUnsavedChanges = _configText != _savedConfigText;
     }
 
     private async Task StopReflectorAsync()
@@ -364,6 +392,40 @@ else
         .alert-active strong {
             font-weight: 600;
         }
+
+    .alert-unsaved {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        background: rgba(116, 185, 255, .1);
+        border: 1px solid rgba(116, 185, 255, .35);
+        color: #74b9ff;
+        margin-bottom: 18px;
+        font-size: 0.9rem;
+    }
+
+        .alert-unsaved .material-symbols-outlined {
+            font-size: 22px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .alert-unsaved div {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .alert-unsaved strong {
+            font-weight: 600;
+        }
+
+    .config-textarea--modified {
+        border-color: rgba(116, 185, 255, .6) !important;
+        box-shadow: 0 0 0 2px rgba(116, 185, 255, .12);
+    }
 
     .config-card {
         padding: 20px;
