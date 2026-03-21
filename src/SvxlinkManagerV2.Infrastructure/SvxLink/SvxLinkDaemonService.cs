@@ -15,15 +15,17 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
 {
     private readonly ILogger<SvxLinkDaemonService> _logger;
+    private readonly ISvxLinkLogService _logService;
     private const int TimeoutSeconds = 30;
     private const string SvxLinkConfigPath = "/etc/svxlink/svxlink.conf";
     private Process? _svxlinkProcess;
     private readonly object _processLock = new();
     private bool _disposed;
 
-    public SvxLinkDaemonService(ILogger<SvxLinkDaemonService> logger)
+    public SvxLinkDaemonService(ILogger<SvxLinkDaemonService> logger, ISvxLinkLogService logService)
     {
         _logger = logger;
+        _logService = logService;
     }
 
     public void Dispose()
@@ -179,13 +181,19 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
             process.ErrorDataReceived += (sender, e) =>
             {
                 if (e.Data != null)
+                {
                     _logger.LogInformation("[SVXLink] {Output}", e.Data);
+                    _logService.AddLog(e.Data);
+                }
             };
 
             process.OutputDataReceived += (sender, e) =>
             {
                 if (e.Data != null)
+                {
                     _logger.LogInformation("[SVXLink] {Output}", e.Data);
+                    _logService.AddLog(e.Data);
+                }
             };
 
             process.Exited += (sender, e) =>

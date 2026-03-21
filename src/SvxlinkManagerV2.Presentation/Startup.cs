@@ -17,6 +17,7 @@ using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Presentation.Services;
+
 namespace SvxlinkManagerV2.Presentation
 {
     public class Startup
@@ -66,6 +67,10 @@ namespace SvxlinkManagerV2.Presentation
             {
                 services.AddScoped<ISA818Service, SA818Service>();
             }
+            
+            // Enregistrement du buffer de logs SVXLink en SINGLETON
+            // Doit être enregistré AVANT SvxLinkDaemonService car il en dépend.
+            services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             
             // Enregistrement du service daemon SVXLink en SINGLETON
             // IMPORTANT: doit être Singleton pour que le processus svxlink survive entre les requêtes.

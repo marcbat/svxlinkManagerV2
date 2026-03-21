@@ -28,7 +28,6 @@ README.md
 
 # Logs
 logs/
-**/Logs/
 *.log
 
 # Docker files (no need to copy them into the image)
