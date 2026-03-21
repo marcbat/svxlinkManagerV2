@@ -27,6 +27,21 @@ services:
       - svxlink-network
     restart: unless-stopped
 
+  # Nœud SVXLink 2 - Second nœud pour tester la connexion multi-nœuds au réflecteur
+  svxlink-node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: svxlink-node2
+    volumes:
+      - ./svxlink-config-node2:/etc/svxlink
+    depends_on:
+      svxreflector:
+        condition: service_started
+    networks:
+      - svxlink-network
+    restart: unless-stopped
+
   # SvxReflector - Serveur de conférence pour nœuds SvxLink
   svxreflector:
     build:

@@ -1,0 +1,27 @@
+# Image légère SVXLink pour tester la connexion de plusieurs nœuds au réflecteur
+# Pas d'application .NET, uniquement le daemon svxlink
+
+FROM debian:bookworm-slim
+
+# Set timezone
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Install SVXLink server and ALSA utilities
+RUN apt-get update && apt-get install -y \
+    svxlink-server \
+    alsa-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure ALSA null device for headless operation (pas de hardware audio)
+RUN echo 'pcm.null { type null }' > /etc/asound.conf && \
+    echo 'ctl.null { type null }' >> /etc/asound.conf && \
+    echo 'pcm.default { type null }' >> /etc/asound.conf && \
+    echo 'ctl.default { type null }' >> /etc/asound.conf
+
+# Create required directories
+RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d
+
+# SVXLink runs in foreground (pas de --daemon pour Docker)
+ENTRYPOINT ["svxlink", "--config=/etc/svxlink/svxlink.conf"]
