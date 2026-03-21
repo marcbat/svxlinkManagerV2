@@ -15,17 +15,16 @@ public record DeleteSalonCommand(Guid Id);
 /// </summary>
 public static class DeleteSalonCommandHandler
 {
-    /// <summary>
-    /// Traite la commande de suppression d'un Salon
-    /// </summary>
     public static async Task<Validation<Error, Unit>> Handle(
         DeleteSalonCommand command,
         ISalonRepository repository,
+        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        // Récupération de l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        if (tracker.IsSalonActive(command.Id))
+            return Error.Validation("SALON_ACTIVE", "Impossible de supprimer un salon actif").ToFailure<Unit>();
 
+        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -35,13 +34,10 @@ public static class DeleteSalonCommandHandler
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
-        // Suppression du salon
         var deleteResult = aggregate.Delete();
-
         if (deleteResult.IsFail)
             return deleteResult;
 
-        // Sauvegarde de l'aggregate
         return await repository.SaveAsync(aggregate, cancellationToken);
     }
 }

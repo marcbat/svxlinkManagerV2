@@ -1,23 +1,10 @@
-using SvxlinkManagerV2.Domain.Common;
-
+// Cet événement a été supprimé : l'état actif est désormais géré par IActiveSessionTracker (runtime uniquement).
+// Fichier conservé uniquement pour les stubs obsolètes des tests.
 namespace SvxlinkManagerV2.Domain.Aggregates.Reflector.Events;
 
-/// <summary>
-/// Événement émis lors de l'activation du Reflector.
-/// L'activation signifie que le daemon svxreflector est démarré.
-/// </summary>
-public record ReflectorActivated : DomainEvent
+[Obsolete("ReflectorActivated est supprimé. Utiliser IActiveSessionTracker.")]
+public record ReflectorActivated
 {
-    /// <summary>
-    /// Identifiant unique du Reflector activé
-    /// </summary>
     public Guid Id { get; init; }
-
-    /// <summary>
-    /// Constructeur
-    /// </summary>
-    public ReflectorActivated(Guid id)
-    {
-        Id = id;
-    }
+    public ReflectorActivated(Guid id) { Id = id; }
 }

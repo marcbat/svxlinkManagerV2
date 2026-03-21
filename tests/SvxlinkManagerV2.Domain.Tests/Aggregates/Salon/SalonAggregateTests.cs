@@ -31,7 +31,6 @@ public class SalonAggregateTests
             aggregate.Name.Should().Be(name);
             aggregate.IsDefault.Should().BeTrue();
             aggregate.IsTemporized.Should().BeFalse();
-            aggregate.IsActive.Should().BeFalse();
             aggregate.IsDeleted.Should().BeFalse();
             aggregate.Configuration.Should().Be(config);
             aggregate.DomainEvents.Should().ContainSingle()
@@ -601,113 +600,6 @@ public class SalonAggregateTests
         });
     }
 
-    [Fact]
-    public void UpdateConfiguration_WhenActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        var newConfig = CreateValidConfiguration();
-
-        // Act
-        var result = aggregate.UpdateConfiguration(newConfig);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_ACTIVE");
-        });
-    }
-
-    #endregion
-
-    #region Activation/Deactivation Tests
-
-    [Fact]
-    public void Activate_WhenNotActive_ShouldSucceed()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeSuccess(_ =>
-        {
-            aggregate.IsActive.Should().BeTrue();
-            aggregate.DomainEvents.Last().Should().BeOfType<SalonActivated>();
-        });
-    }
-
-    [Fact]
-    public void Activate_WhenAlreadyActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_ALREADY_ACTIVE");
-        });
-    }
-
-    [Fact]
-    public void Activate_WhenDeleted_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Delete();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_DELETED");
-        });
-    }
-
-    [Fact]
-    public void Deactivate_WhenActive_ShouldSucceed()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-
-        // Act
-        var result = aggregate.Deactivate();
-
-        // Assert
-        result.ShouldBeSuccess(_ =>
-        {
-            aggregate.IsActive.Should().BeFalse();
-            aggregate.DomainEvents.Last().Should().BeOfType<SalonDeactivated>();
-        });
-    }
-
-    [Fact]
-    public void Deactivate_WhenNotActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-
-        // Act
-        var result = aggregate.Deactivate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_ALREADY_INACTIVE");
-        });
-    }
-
     #endregion
 
     #region Delete Tests
@@ -743,23 +635,6 @@ public class SalonAggregateTests
         result.ShouldBeFail(errors =>
         {
             errors.Should().Contain(e => e.Code == "SALON_ALREADY_DELETED");
-        });
-    }
-
-    [Fact]
-    public void Delete_WhenActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-
-        // Act
-        var result = aggregate.Delete();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_ACTIVE");
         });
     }
 
@@ -801,7 +676,6 @@ public class SalonAggregateTests
         aggregate.Name.Should().Be("Salon Test");
         aggregate.IsDefault.Should().BeTrue();
         aggregate.IsTemporized.Should().BeFalse();
-        aggregate.IsActive.Should().BeFalse();
         aggregate.IsDeleted.Should().BeFalse();
         aggregate.Configuration.Should().Be(config);
     }
@@ -819,35 +693,6 @@ public class SalonAggregateTests
 
         // Assert
         aggregate.Configuration.Should().Be(newConfig);
-    }
-
-    [Fact]
-    public void Apply_SalonActivated_ShouldSetActive()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        var @event = new SalonActivated(aggregate.Id);
-
-        // Act
-        aggregate.Apply(@event);
-
-        // Assert
-        aggregate.IsActive.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Apply_SalonDeactivated_ShouldUnsetActive()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        var @event = new SalonDeactivated(aggregate.Id);
-
-        // Act
-        aggregate.Apply(@event);
-
-        // Assert
-        aggregate.IsActive.Should().BeFalse();
     }
 
     [Fact]
@@ -874,19 +719,14 @@ public class SalonAggregateTests
 
         var createdEvent = new SalonCreated(id, "Salon Initial", true, false, config);
         var updatedEvent = new SalonConfigurationUpdated(id, CreateValidConfiguration());
-        var activatedEvent = new SalonActivated(id);
-        var deactivatedEvent = new SalonDeactivated(id);
 
         // Act - Rejouer les événements
         aggregate.Apply(createdEvent);
         aggregate.Apply(updatedEvent);
-        aggregate.Apply(activatedEvent);
-        aggregate.Apply(deactivatedEvent);
 
         // Assert
         aggregate.Id.Should().Be(id);
         aggregate.Name.Should().Be("Salon Initial");
-        aggregate.IsActive.Should().BeFalse();
         aggregate.IsDeleted.Should().BeFalse();
     }
 

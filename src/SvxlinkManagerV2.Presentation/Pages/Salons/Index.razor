@@ -4,6 +4,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon
 @using SvxlinkManagerV2.Application.Features.Salons.SetSalonAsDefault
+@using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Common
 @using Wolverine
@@ -11,6 +12,7 @@
 @inject IMessageBus Bus
 @inject NavigationManager Nav
 @inject ToastService ToastService
+@inject IActiveSessionTracker Tracker
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
 <div class="page-header">
@@ -75,13 +77,13 @@ else
         @foreach (var salon in FilteredSalons)
         {
             var salonIdCapture = salon.Id;
-            <div class="card salon-card @(salon.IsActive ? "salon-card--active" : "")">
+            <div class="card salon-card @(Tracker.IsSalonActive(salon.Id) ? "salon-card--active" : "")">
 
                 <!-- En-tête carte -->
                 <div class="salon-card-header">
                     <div class="salon-card-title">@salon.Name</div>
                     <div class="salon-badges">
-                        @if (salon.IsActive)
+                        @if (Tracker.IsSalonActive(salon.Id))
                         {
                             <span class="badge badge-success">
                                 <span class="material-symbols-outlined">check_circle</span>
@@ -151,7 +153,7 @@ else
                             Éditer
                         </a>
 
-                        @if (salon.IsActive)
+                        @if (Tracker.IsSalonActive(salon.Id))
                         {
                             <button class="btn btn-danger btn-sm"
                                     disabled="@_isBusy"
@@ -201,7 +203,7 @@ else
                             </button>
                         }
 
-                        @if (!salon.IsActive && !salon.IsDefault)
+                        @if (!Tracker.IsSalonActive(salon.Id) && !salon.IsDefault)
                         {
                             <button class="btn btn-sm btn-delete"
                                     disabled="@_isBusy"
@@ -374,7 +376,7 @@ else
         get
         {
             var list = _salons.AsEnumerable();
-            if (_filterActif)   list = list.Where(s => s.IsActive);
+            if (_filterActif)   list = list.Where(s => Tracker.IsSalonActive(s.Id));
             if (_filterDefault) list = list.Where(s => s.IsDefault);
             if (_filterTemp)    list = list.Where(s => s.IsTemporized);
             return list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase);

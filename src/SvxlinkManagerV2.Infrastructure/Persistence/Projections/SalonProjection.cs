@@ -8,89 +8,22 @@ namespace SvxlinkManagerV2.Infrastructure.Persistence.Projections;
 /// </summary>
 public class SalonProjection
 {
-    /// <summary>
-    /// Identifiant du Salon
-    /// </summary>
     public Guid Id { get; set; }
-
-    /// <summary>
-    /// Nom du salon
-    /// </summary>
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Hôte du reflector
-    /// </summary>
     public string Host { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Port du reflector
-    /// </summary>
     public int Port { get; set; }
-
-    /// <summary>
-    /// Indicatif du nœud
-    /// </summary>
     public string Callsign { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Indique si c'est le salon par défaut
-    /// </summary>
     public bool IsDefault { get; set; }
-
-    /// <summary>
-    /// Indique si le salon est temporisé
-    /// </summary>
     public bool IsTemporized { get; set; }
-
-    /// <summary>
-    /// Indique si le salon est actuellement actif
-    /// </summary>
-    public bool IsActive { get; set; }
-
-    /// <summary>
-    /// Date de création
-    /// </summary>
     public DateTime CreatedAt { get; set; }
-
-    /// <summary>
-    /// Date de dernière modification
-    /// </summary>
     public DateTime UpdatedAt { get; set; }
-
-    /// <summary>
-    /// Indique si le salon est supprimé
-    /// </summary>
     public bool IsDeleted { get; set; }
-
-    /// <summary>
-    /// Fréquence de réception en MHz
-    /// </summary>
     public decimal RxFrequency { get; set; }
-
-    /// <summary>
-    /// Fréquence de transmission en MHz
-    /// </summary>
     public decimal TxFrequency { get; set; }
-
-    /// <summary>
-    /// Tonalité CTCSS de réception en Hz (nullable)
-    /// </summary>
     public decimal? RxCtcss { get; set; }
-
-    /// <summary>
-    /// Tonalité CTCSS de transmission en Hz (nullable)
-    /// </summary>
     public decimal? TxCtcss { get; set; }
-
-    /// <summary>
-    /// Identifiant du Sound associé (optionnel)
-    /// </summary>
     public Guid? SoundId { get; set; }
 
-    /// <summary>
-    /// Applique l'événement SalonCreated
-    /// </summary>
     public void Apply(SalonCreated @event)
     {
         Id = @event.Id;
@@ -105,15 +38,11 @@ public class SalonProjection
         RxCtcss = @event.Configuration.RxCtcss;
         TxCtcss = @event.Configuration.TxCtcss;
         SoundId = @event.Configuration.SoundId;
-        IsActive = false;
         IsDeleted = false;
         CreatedAt = @event.OccurredOn;
         UpdatedAt = @event.OccurredOn;
     }
 
-    /// <summary>
-    /// Applique l'événement SalonConfigurationUpdated
-    /// </summary>
     public void Apply(SalonConfigurationUpdated @event)
     {
         Host = @event.Configuration.Host;
@@ -127,48 +56,22 @@ public class SalonProjection
         UpdatedAt = @event.OccurredOn;
     }
 
-    /// <summary>
-    /// Applique l'événement SalonActivated
-    /// </summary>
-    public void Apply(SalonActivated @event)
-    {
-        IsActive = true;
-        UpdatedAt = @event.OccurredOn;
-    }
-
-    /// <summary>
-    /// Applique l'événement SalonDeactivated
-    /// </summary>
-    public void Apply(SalonDeactivated @event)
-    {
-        IsActive = false;
-        UpdatedAt = @event.OccurredOn;
-    }
-
-    /// <summary>
-    /// Applique l'événement SalonDeleted
-    /// </summary>
     public void Apply(SalonDeleted @event)
     {
         IsDeleted = true;
         UpdatedAt = @event.OccurredOn;
     }
 
-    /// <summary>
-    /// Applique l'événement SalonSetAsDefault
-    /// </summary>
     public void Apply(SalonSetAsDefault @event)
     {
         IsDefault = true;
         UpdatedAt = @event.OccurredOn;
     }
 
-    /// <summary>
-    /// Applique l'événement SalonUnsetDefault
-    /// </summary>
     public void Apply(SalonUnsetDefault @event)
     {
         IsDefault = false;
         UpdatedAt = @event.OccurredOn;
     }
 }
+

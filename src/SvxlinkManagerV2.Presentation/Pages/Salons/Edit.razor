@@ -2,6 +2,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
 @using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
@@ -11,6 +12,7 @@
 @inject IMessageBus Bus
 @inject NavigationManager Nav
 @inject ToastService ToastService
+@inject IActiveSessionTracker Tracker
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
 <div class="page-header">
@@ -56,7 +58,7 @@ else if (_notFound)
 else if (_salon is not null)
 {
     <!-- Bandeau salon actif -->
-    @if (_salon.IsActive)
+    @if (_salonIsActive)
     {
         <div class="alert-active">
             <span class="material-symbols-outlined">lock</span>
@@ -81,7 +83,7 @@ else if (_salon is not null)
         {
             <span class="badge badge-temp">Temporisé</span>
         }
-        @if (_salon.IsActive)
+        @if (_salonIsActive)
         {
             <span class="badge badge-active">Actif</span>
         }
@@ -107,14 +109,14 @@ else if (_salon is not null)
                         <div class="form-group">
                             <label class="form-label">Fréquence RX (MHz) <span class="required">*</span></label>
                             <InputNumber class="form-control" @bind-Value="_model.RxFrequency"
-                                         step="0.005" disabled="@_salon.IsActive" />
+                                         step="0.005" disabled="@_salonIsActive" />
                             <div class="field-hint">30 – 3000 MHz</div>
                             <ValidationMessage For="() => _model.RxFrequency" class="field-error" />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Fréquence TX (MHz) <span class="required">*</span></label>
                             <InputNumber class="form-control" @bind-Value="_model.TxFrequency"
-                                         step="0.005" disabled="@_salon.IsActive" />
+                                         step="0.005" disabled="@_salonIsActive" />
                             <div class="field-hint">30 – 3000 MHz</div>
                             <ValidationMessage For="() => _model.TxFrequency" class="field-error" />
                         </div>
@@ -123,7 +125,7 @@ else if (_salon is not null)
                     <div class="form-row-2">
                         <div class="form-group">
                             <label class="form-label">CTCSS RX</label>
-                            <select class="form-select" @bind="_model.RxCtcssStr" disabled="@_salon.IsActive">
+                            <select class="form-select" @bind="_model.RxCtcssStr" disabled="@_salonIsActive">
                                 <option value="">Aucun</option>
                                 @foreach (var (freq, label) in _ctcssOptions)
                                 {
@@ -133,7 +135,7 @@ else if (_salon is not null)
                         </div>
                         <div class="form-group">
                             <label class="form-label">CTCSS TX</label>
-                            <select class="form-select" @bind="_model.TxCtcssStr" disabled="@_salon.IsActive">
+                            <select class="form-select" @bind="_model.TxCtcssStr" disabled="@_salonIsActive">
                                 <option value="">Aucun</option>
                                 @foreach (var (freq, label) in _ctcssOptions)
                                 {
@@ -151,7 +153,7 @@ else if (_salon is not null)
                         Son d'annonce
                     </div>
                     <div class="form-group" style="margin-bottom:0">
-                        <select class="form-select" @bind="_model.SoundId" disabled="@_salon.IsActive">
+                        <select class="form-select" @bind="_model.SoundId" disabled="@_salonIsActive">
                             <option value="">— Aucun son —</option>
                             @foreach (var sound in _sounds)
                             {
@@ -176,7 +178,7 @@ else if (_salon is not null)
                     <div class="form-group">
                         <label class="form-label">Hôte <span class="required">*</span></label>
                         <InputText class="form-control" @bind-Value="_model.Host"
-                                   placeholder="ex: rrf.music-all.fr" disabled="@_salon.IsActive" />
+                                   placeholder="ex: rrf.music-all.fr" disabled="@_salonIsActive" />
                         <ValidationMessage For="() => _model.Host" class="field-error" />
                     </div>
 
@@ -184,12 +186,12 @@ else if (_salon is not null)
                         <div class="form-group">
                             <label class="form-label">Port <span class="required">*</span></label>
                             <InputNumber class="form-control" @bind-Value="_model.Port"
-                                         disabled="@_salon.IsActive" />
+                                         disabled="@_salonIsActive" />
                             <ValidationMessage For="() => _model.Port" class="field-error" />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Codec Audio</label>
-                            <select class="form-select" @bind="_model.AudioCodec" disabled="@_salon.IsActive">
+                            <select class="form-select" @bind="_model.AudioCodec" disabled="@_salonIsActive">
                                 <option value="OPUS">OPUS</option>
                                 <option value="GSM">GSM</option>
                                 <option value="SPEEX">SPEEX</option>
@@ -200,14 +202,14 @@ else if (_salon is not null)
                     <div class="form-group">
                         <label class="form-label">Callsign <span class="required">*</span></label>
                         <InputText class="form-control" @bind-Value="_model.Callsign"
-                                   disabled="@_salon.IsActive" />
+                                   disabled="@_salonIsActive" />
                         <ValidationMessage For="() => _model.Callsign" class="field-error" />
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Clé d'authentification <span class="required">*</span></label>
                         <InputText class="form-control" @bind-Value="_model.AuthKey"
-                                   type="password" disabled="@_salon.IsActive" />
+                                   type="password" disabled="@_salonIsActive" />
                         <ValidationMessage For="() => _model.AuthKey" class="field-error" />
                     </div>
                 </div>
@@ -234,19 +236,19 @@ else if (_salon is not null)
                             <div class="form-group">
                                 <label class="form-label">Callsign Simplex</label>
                                 <InputText class="form-control" @bind-Value="_model.SimplexCallsign"
-                                           disabled="@_salon.IsActive" />
+                                           disabled="@_salonIsActive" />
                             </div>
 
                             <div class="form-row-2">
                                 <div class="form-group">
                                     <label class="form-label">Intervalle ident. court (s)</label>
                                     <InputNumber class="form-control" @bind-Value="_model.ShortIdentInterval"
-                                                 disabled="@_salon.IsActive" />
+                                                 disabled="@_salonIsActive" />
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Intervalle ident. long (s)</label>
                                     <InputNumber class="form-control" @bind-Value="_model.LongIdentInterval"
-                                                 disabled="@_salon.IsActive" />
+                                                 disabled="@_salonIsActive" />
                                 </div>
                             </div>
 
@@ -254,12 +256,12 @@ else if (_salon is not null)
                                 <div class="form-group">
                                     <label class="form-label">Délai son de roger (ms)</label>
                                     <InputNumber class="form-control" @bind-Value="_model.RgrSoundDelay"
-                                                 disabled="@_salon.IsActive" />
+                                                 disabled="@_salonIsActive" />
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Langue par défaut</label>
                                     <select class="form-select" @bind="_model.DefaultLang"
-                                            disabled="@_salon.IsActive">
+                                            disabled="@_salonIsActive">
                                         <option value="fr_FR">fr_FR</option>
                                         <option value="en_US">en_US</option>
                                     </select>
@@ -269,7 +271,7 @@ else if (_salon is not null)
                             <div class="form-group">
                                 <label class="form-label">Event Handler (TCL)</label>
                                 <InputText class="form-control" @bind-Value="_model.EventHandler"
-                                           disabled="@_salon.IsActive" />
+                                           disabled="@_salonIsActive" />
                             </div>
                         </div>
                     }
@@ -298,7 +300,7 @@ else if (_salon is not null)
                 Annuler
             </a>
             <button type="submit" class="btn btn-primary"
-                    disabled="@(_isSubmitting || _salon.IsActive)">
+                    disabled="@(_isSubmitting || _salonIsActive)">
                 @if (_isSubmitting)
                 {
                     <span class="material-symbols-outlined spin">progress_activity</span>
@@ -497,6 +499,7 @@ else if (_salon is not null)
     [Parameter] public Guid Id { get; set; }
 
     private SalonAggregate? _salon;
+    private bool _salonIsActive;
     private IReadOnlyList<SoundAggregate> _sounds = [];
     private Dictionary<decimal, string> _ctcssOptions = [];
     private readonly EditModel _model = new();
@@ -522,6 +525,7 @@ else if (_salon is not null)
             Succ: salon =>
             {
                 _salon = salon;
+                _salonIsActive = Tracker.IsSalonActive(salon.Id);
                 PopulateModel(salon);
                 return Unit.Default;
             },
@@ -559,7 +563,7 @@ else if (_salon is not null)
 
     private async Task HandleSubmit()
     {
-        if (_salon is null || _salon.IsActive) return;
+        if (_salon is null || _salonIsActive) return;
 
         _errors.Clear();
         _isSubmitting = true;

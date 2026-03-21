@@ -76,7 +76,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
             reloaded.Name.Should().Be("Salon National France");
             reloaded.IsDefault.Should().BeTrue();
             reloaded.IsTemporized.Should().BeFalse();
-            reloaded.IsActive.Should().BeFalse();
             reloaded.Configuration.Host.Should().Be(config.Host);
             reloaded.Configuration.Port.Should().Be(config.Port);
         });
@@ -128,38 +127,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         {
             errors.Should().Contain(e => e.Code.Contains("NOT_FOUND"));
         });
-    }
-
-    [Fact]
-    public async Task Activate_ShouldAppendActivatedEventToStream()
-    {
-        // Arrange
-        var salonId = Guid.NewGuid();
-        var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon Activation Test", false, false, config)
-            .Match(
-                Succ: s => s,
-                Fail: _ => throw new InvalidOperationException("Failed to create salon"));
-
-        await _repository.SaveAsync(salon, CancellationToken.None);
-        salon.ClearDomainEvents();
-
-        // Act - Activer le salon
-        salon.Activate();
-        await _repository.SaveAsync(salon, CancellationToken.None);
-
-        // Recharger depuis le stream
-        var newSession = _fixture.DocumentStore.LightweightSession();
-        var newRepository = new SalonRepository(newSession);
-        var reloadResult = await newRepository.GetByIdAsync(salonId, CancellationToken.None);
-
-        // Assert
-        reloadResult.ShouldBeSuccess(reloaded =>
-        {
-            reloaded.IsActive.Should().BeTrue();
-        });
-
-        newSession.Dispose();
     }
 
     [Fact]
@@ -283,51 +250,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetActiveAsync_WhenActiveSalonExists_ShouldReturnIt()
-    {
-        // Arrange
-        var config = CreateValidConfiguration();
-        
-        var salon1 = SalonAggregate.Create(Guid.NewGuid(), "Salon Inactif", false, false, config)
-            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-        var salon2 = SalonAggregate.Create(Guid.NewGuid(), "Salon Actif", false, false, config)
-            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-
-        await _repository.SaveAsync(salon1, CancellationToken.None);
-        await _repository.SaveAsync(salon2, CancellationToken.None);
-
-        // Activer salon2
-        salon2.ClearDomainEvents();
-        salon2.Activate();
-        await _repository.SaveAsync(salon2, CancellationToken.None);
-
-        // Act
-        var result = await _repository.GetActiveAsync(CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.Name.Should().Be("Salon Actif");
-        result.IsActive.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetActiveAsync_WhenNoActiveSalon_ShouldReturnNull()
-    {
-        // Arrange
-        var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Inactif", false, false, config)
-            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-
-        await _repository.SaveAsync(salon, CancellationToken.None);
-
-        // Act
-        var result = await _repository.GetActiveAsync(CancellationToken.None);
-
-        // Assert
-        result.Should().BeNull();
-    }
-
-    [Fact]
     public async Task EventSourcing_CompleteLifecycle_ShouldReconstructAllStates()
     {
         // Arrange
@@ -337,16 +259,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         // Création
         var salon = SalonAggregate.Create(salonId, "Salon Lifecycle Test", false, false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-        await _repository.SaveAsync(salon, CancellationToken.None);
-        salon.ClearDomainEvents();
-
-        // Activation
-        salon.Activate();
-        await _repository.SaveAsync(salon, CancellationToken.None);
-        salon.ClearDomainEvents();
-
-        // Désactivation
-        salon.Deactivate();
         await _repository.SaveAsync(salon, CancellationToken.None);
         salon.ClearDomainEvents();
 
@@ -365,7 +277,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         {
             reloaded.Id.Should().Be(salonId);
             reloaded.Name.Should().Be("Salon Lifecycle Test");
-            reloaded.IsActive.Should().BeFalse(); // Désactivé
             reloaded.IsDeleted.Should().BeFalse();
             reloaded.Configuration.Should().NotBe(config); // Configuration mise à jour
         });

@@ -35,13 +35,6 @@ public interface IReflectorRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Récupère le Reflector actuellement actif (s'il existe)
-    /// </summary>
-    /// <param name="cancellationToken">Token d'annulation</param>
-    Task<ReflectorAggregate?> GetActiveAsync(
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Supprime un Reflector (événement de suppression)
     /// </summary>
     /// <param name="id">Identifiant du Reflector</param>

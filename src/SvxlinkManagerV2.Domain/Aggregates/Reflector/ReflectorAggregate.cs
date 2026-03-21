@@ -19,14 +19,8 @@ public class ReflectorAggregate : AggregateRoot
 
     /// <summary>
     /// Contenu brut du fichier de configuration INI svxreflector.conf.
-    /// Édité librement par l'utilisateur, écrit tel quel dans /etc/svxlink/svxreflector.conf.
     /// </summary>
     public string Config { get; private set; } = string.Empty;
-
-    /// <summary>
-    /// Indique si le daemon svxreflector est actuellement actif
-    /// </summary>
-    public bool IsActive { get; private set; }
 
     /// <summary>
     /// Indique si le reflector est supprimé (soft delete)
@@ -87,10 +81,6 @@ public class ReflectorAggregate : AggregateRoot
             return Error.Validation("REFLECTOR_DELETED", "Le reflector est supprimé")
                 .ToFailure<Unit>();
 
-        if (IsActive)
-            return Error.Validation("REFLECTOR_ACTIVE", "Impossible de modifier un reflector actif. Arrêtez-le d'abord.")
-                .ToFailure<Unit>();
-
         var nameValidation = name.ValidateNotEmpty(
             "REFLECTOR_NAME_REQUIRED",
             "Le nom du reflector est obligatoire");
@@ -108,60 +98,13 @@ public class ReflectorAggregate : AggregateRoot
     }
 
     /// <summary>
-    /// Active le reflector (démarre le daemon svxreflector).
-    /// </summary>
-    /// <returns>Validation du résultat</returns>
-    public Validation<Error, Unit> Activate()
-    {
-        if (IsDeleted)
-            return Error.Validation("REFLECTOR_DELETED", "Le reflector est supprimé")
-                .ToFailure<Unit>();
-
-        if (IsActive)
-            return Error.Validation("REFLECTOR_ALREADY_ACTIVE", "Le reflector est déjà actif")
-                .ToFailure<Unit>();
-
-        var @event = new ReflectorActivated(Id);
-        Apply(@event);
-        AddDomainEvent(@event);
-
-        return unit.ToSuccess();
-    }
-
-    /// <summary>
-    /// Désactive le reflector (arrête le daemon svxreflector).
-    /// </summary>
-    /// <returns>Validation du résultat</returns>
-    public Validation<Error, Unit> Deactivate()
-    {
-        if (IsDeleted)
-            return Error.Validation("REFLECTOR_DELETED", "Le reflector est supprimé")
-                .ToFailure<Unit>();
-
-        if (!IsActive)
-            return Error.Validation("REFLECTOR_ALREADY_INACTIVE", "Le reflector est déjà arrêté")
-                .ToFailure<Unit>();
-
-        var @event = new ReflectorDeactivated(Id);
-        Apply(@event);
-        AddDomainEvent(@event);
-
-        return unit.ToSuccess();
-    }
-
-    /// <summary>
     /// Suppression logique du reflector.
-    /// Bloqué si le reflector est actif.
     /// </summary>
     /// <returns>Validation du résultat</returns>
     public Validation<Error, Unit> Delete()
     {
         if (IsDeleted)
             return Error.Validation("REFLECTOR_ALREADY_DELETED", "Le reflector est déjà supprimé")
-                .ToFailure<Unit>();
-
-        if (IsActive)
-            return Error.Validation("REFLECTOR_ACTIVE", "Impossible de supprimer un reflector actif. Arrêtez-le d'abord.")
                 .ToFailure<Unit>();
 
         var @event = new ReflectorDeleted(Id);
@@ -181,7 +124,6 @@ public class ReflectorAggregate : AggregateRoot
         Id = @event.Id;
         Name = @event.Name;
         Config = @event.Config;
-        IsActive = false;
         IsDeleted = false;
     }
 
@@ -192,22 +134,6 @@ public class ReflectorAggregate : AggregateRoot
     {
         Name = @event.Name;
         Config = @event.Config;
-    }
-
-    /// <summary>
-    /// Applique l'événement ReflectorActivated (Event Sourcing)
-    /// </summary>
-    public void Apply(ReflectorActivated @event)
-    {
-        IsActive = true;
-    }
-
-    /// <summary>
-    /// Applique l'événement ReflectorDeactivated (Event Sourcing)
-    /// </summary>
-    public void Apply(ReflectorDeactivated @event)
-    {
-        IsActive = false;
     }
 
     /// <summary>

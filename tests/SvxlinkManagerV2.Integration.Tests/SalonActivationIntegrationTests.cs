@@ -8,11 +8,9 @@ using SvxlinkManagerV2.Application.Features.SA818.UpdateSA818Configuration;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Features.Salons.CreateSalon;
 using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
-using SvxlinkManagerV2.Application.Features.Salons.GetSalonById;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
-using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 using SvxlinkManagerV2.Infrastructure.Persistence.Projections;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using Xunit;
@@ -21,18 +19,8 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Integration.Tests;
 
 /// <summary>
-/// **TEST CRITIQUE** : Valide le workflow complet d'activation d'un Salon avec side-effect.
-/// 
-/// Workflow testé :
-/// 1. Création de la configuration SA818 (hardware)
-/// 2. Création d'un Salon (config radio)
-/// 3. Activation du Salon → SalonActivated event
-/// 4. Side-effect handler (SalonActivatedHandler) exécuté :
-///    - Fusion paramètres Salon + SA818 → commandes AT
-///    - Configuration hardware via ISA818Service
-///    - Génération svxlink.conf via ISvxLinkConfigurationService
-///    - Redémarrage daemon via ISvxLinkDaemonService
-/// 5. Projection mise à jour : IsActive = true
+/// Tests d'intégration validant le workflow complet d'activation d'un Salon.
+/// Dans la nouvelle architecture, ActivateSalonCommandHandler orchestre tout.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection("IntegrationTests")]
@@ -47,6 +35,8 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
     private ISA818Service _sa818ServiceMock = null!;
     private ISvxLinkConfigurationService _configServiceMock = null!;
     private ISvxLinkDaemonService _daemonServiceMock = null!;
+    private IActiveSessionTracker _trackerMock = null!;
+    private IConnectedNodesService _connectedNodesMock = null!;
 
     public SalonActivationIntegrationTests(PostgresFixture fixture)
     {
@@ -68,20 +58,23 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         _session.DeleteWhere<SA818Projection>(x => true);
         await _session.SaveChangesAsync();
 
-        // Créer les mocks pour les services hardware
+        // Créer les mocks
         _sa818ServiceMock = Substitute.For<ISA818Service>();
         _configServiceMock = Substitute.For<ISvxLinkConfigurationService>();
         _daemonServiceMock = Substitute.For<ISvxLinkDaemonService>();
+        _trackerMock = Substitute.For<IActiveSessionTracker>();
+        _connectedNodesMock = Substitute.For<IConnectedNodesService>();
 
-        // Configurer les mocks pour retourner des succès par défaut
+        // Services retournent succès par défaut
         _sa818ServiceMock.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
-            .Returns(Success<LanguageExt.Common.Error, LanguageExt.Unit>(unit));
-        
+            .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
         _configServiceMock.GenerateAsync(Arg.Any<Domain.Aggregates.Salon.SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Success<LanguageExt.Common.Error, LanguageExt.Unit>(unit));
-        
+            .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
         _daemonServiceMock.RestartAsync(Arg.Any<CancellationToken>())
-            .Returns(Success<LanguageExt.Common.Error, LanguageExt.Unit>(unit));
+            .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
+        _daemonServiceMock.StopAsync(Arg.Any<CancellationToken>())
+            .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
+        _trackerMock.ActiveSalonId.Returns((Guid?)null);
     }
 
     /// <summary>
@@ -135,49 +128,28 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         // ACT - Activer le Salon
         // ============================================================
 
-        // Étape 3 : Activer le Salon (génère l'événement SalonActivated)
+        // Activer le Salon (nouvelle architecture : tout dans le handler)
         var activateCommand = new ActivateSalonCommand(salonId);
         var activateResult = await ActivateSalonCommandHandler.Handle(
             activateCommand,
             _salonRepository,
-            CancellationToken.None
-        );
-        await _session.SaveChangesAsync();
-
-        // Valider que l'activation a réussi
-        activateResult.ShouldBeSuccess();
-
-        // Étape 4 : Récupérer l'événement SalonActivated et exécuter le side-effect manuellement
-        // (Dans un vrai environnement Wolverine, ceci serait automatique)
-        var salon = await _salonRepository.GetByIdAsync(salonId, CancellationToken.None);
-        var salonAggregate = salon.Match(
-            Succ: s => s,
-            Fail: _ => throw new InvalidOperationException("Salon not found")
-        );
-
-        // Créer l'événement manuellement (dans la vraie app, Wolverine le fait automatiquement)
-        var salonActivatedEvent = new SalonActivated(salonId);
-
-        // Exécuter le side-effect handler
-        var sideEffectResult = await SalonActivatedHandler.Handle(
-            salonActivatedEvent,
-            _salonRepository,
+            _trackerMock,
             _sa818Repository,
             _sa818ServiceMock,
             _configServiceMock,
             _daemonServiceMock,
+            _connectedNodesMock,
             NullLogger.Instance,
             CancellationToken.None
         );
-
         await _session.SaveChangesAsync();
 
         // ============================================================
         // ASSERT - Vérifications complètes
         // ============================================================
 
-        // Vérification 1 : Side-effect handler a réussi
-        sideEffectResult.ShouldBeSuccess();
+        // Vérification 1 : Activation a réussi
+        activateResult.ShouldBeSuccess();
 
         // Vérification 2 : Le mock ISA818Service.ConfigureAsync() a été appelé
         await _sa818ServiceMock.Received(1).ConfigureAsync(
@@ -195,36 +167,8 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
             Arg.Any<CancellationToken>()
         );
 
-        // Vérification 4 : Le mock ISvxLinkDaemonService.RestartAsync() a été appelé
-        await _daemonServiceMock.Received(1).RestartAsync(Arg.Any<CancellationToken>());
-
-        // Vérification 5 : La projection du Salon indique IsActive = true
-        var activeSalonQuery = new GetActiveSalonQuery();
-        var activeSalon = await GetActiveSalonQueryHandler.Handle(
-            activeSalonQuery,
-            _salonRepository,
-            CancellationToken.None
-        );
-
-        activeSalon.Should().NotBeNull();
-        activeSalon!.Id.Should().Be(salonId);
-        activeSalon.IsActive.Should().BeTrue();
-        activeSalon.Name.Should().Be("Salon National France");
-
-        // Vérification 6 : GetSalonById retourne le Salon actif
-        var getSalonQuery = new GetSalonByIdQuery(salonId);
-        var getSalonResult = await GetSalonByIdQueryHandler.Handle(
-            getSalonQuery,
-            _salonRepository,
-            CancellationToken.None
-        );
-
-        getSalonResult.ShouldBeSuccess(s =>
-        {
-            s.IsActive.Should().BeTrue();
-            s.Configuration.RxFrequency.Should().Be(145.550m);
-            s.Configuration.TxFrequency.Should().Be(145.575m);
-        });
+        // Vérification 4 : Le tracker a été mis à jour
+        _trackerMock.Received(1).SetActiveSalon(salonId);
     }
 
     [Fact]
@@ -268,19 +212,10 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         // ============================================================
 
         var activateCommand = new ActivateSalonCommand(salonId);
-        await ActivateSalonCommandHandler.Handle(activateCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        var salonActivatedEvent = new SalonActivated(salonId);
-        await SalonActivatedHandler.Handle(
-            salonActivatedEvent,
-            _salonRepository,
-            _sa818Repository,
-            _sa818ServiceMock,
-            _configServiceMock,
-            _daemonServiceMock,
-            NullLogger.Instance,
-            CancellationToken.None
+        await ActivateSalonCommandHandler.Handle(
+            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
+            _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
+            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
         );
 
         // ============================================================
@@ -329,19 +264,10 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         // ============================================================
 
         var activateCommand = new ActivateSalonCommand(salonId);
-        await ActivateSalonCommandHandler.Handle(activateCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        var salonActivatedEvent = new SalonActivated(salonId);
-        await SalonActivatedHandler.Handle(
-            salonActivatedEvent,
-            _salonRepository,
-            _sa818Repository,
-            _sa818ServiceMock,
-            _configServiceMock,
-            _daemonServiceMock,
-            NullLogger.Instance,
-            CancellationToken.None
+        await ActivateSalonCommandHandler.Handle(
+            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
+            _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
+            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
         );
 
         // ============================================================
@@ -383,30 +309,21 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         // ============================================================
 
         var activateCommand = new ActivateSalonCommand(salonId);
-        await ActivateSalonCommandHandler.Handle(activateCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        var salonActivatedEvent = new SalonActivated(salonId);
-        var sideEffectResult = await SalonActivatedHandler.Handle(
-            salonActivatedEvent,
-            _salonRepository,
-            _sa818Repository,
-            _sa818ServiceMock,
-            _configServiceMock,
-            _daemonServiceMock,
-            NullLogger.Instance,
-            CancellationToken.None
+        var result = await ActivateSalonCommandHandler.Handle(
+            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
+            _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
+            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
         );
 
         // ============================================================
-        // ASSERT - Le side-effect doit échouer
+        // ASSERT - La commande doit échouer car SA818 non configuré
         // ============================================================
 
-        sideEffectResult.ShouldBeFail(errors =>
+        result.ShouldBeFail(errors =>
         {
-            errors.Should().ContainSingle();
-            errors.Head.Message.Should().Contain("SA818");
+            errors.Should().Contain(e => e.Code == "SA818_CONFIG_NOT_FOUND");
         });
+        _trackerMock.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
 
     #region Helper Methods

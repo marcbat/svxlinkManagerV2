@@ -17,10 +17,12 @@ namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 public class UpdateSalonConfigurationCommandTests
 {
     private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
 
     public UpdateSalonConfigurationCommandTests()
     {
         _repository = Substitute.For<ISalonRepository>();
+        _tracker = Substitute.For<IActiveSessionTracker>();
     }
 
     [Fact]
@@ -45,7 +47,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -74,7 +76,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -104,7 +106,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -134,7 +136,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -164,7 +166,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -180,11 +182,8 @@ public class UpdateSalonConfigurationCommandTests
     {
         // Arrange - Créer un salon actif
         var salonId = Guid.NewGuid();
-        var aggregate = CreateValidSalonAggregate(salonId);
-        aggregate.Activate(); // Activer le salon
-
-        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
-            .Returns(aggregate.ToSuccess());
+        _ = CreateValidSalonAggregate(salonId);
+        _tracker.IsSalonActive(salonId).Returns(true);
 
         var command = new UpdateSalonConfigurationCommand(
             salonId,
@@ -195,7 +194,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>

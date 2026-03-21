@@ -167,7 +167,7 @@
                 <div class="action-group">
                     <select class="form-select" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
                         <option value="">— Choisir un salon —</option>
-                        @foreach (var salon in _salons.Where(s => !s.IsActive))
+                        @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
                         {
                             <option value="@salon.Id">@salon.Name@(salon.IsDefault ? " ★" : "")</option>
                         }

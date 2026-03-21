@@ -41,7 +41,6 @@ public class ReflectorAggregateTests
             aggregate.Id.Should().Be(id);
             aggregate.Name.Should().Be(name);
             aggregate.Config.Should().Be(ValidConfig);
-            aggregate.IsActive.Should().BeFalse();
             aggregate.IsDeleted.Should().BeFalse();
             aggregate.DomainEvents.Should().ContainSingle()
                 .Which.Should().BeOfType<ReflectorCreated>();
@@ -162,24 +161,6 @@ public class ReflectorAggregateTests
     }
 
     [Fact]
-    public void UpdateConfiguration_WhenActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.UpdateConfiguration("Nouveau Nom", ValidConfig);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_ACTIVE");
-        });
-    }
-
-    [Fact]
     public void UpdateConfiguration_WhenDeleted_ShouldFail()
     {
         // Arrange
@@ -231,118 +212,6 @@ public class ReflectorAggregateTests
 
     #endregion
 
-    #region Activate Tests
-
-    [Fact]
-    public void Activate_WhenInactive_ShouldSucceed()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeSuccess();
-        aggregate.IsActive.Should().BeTrue();
-        aggregate.DomainEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<ReflectorActivated>();
-    }
-
-    [Fact]
-    public void Activate_WhenAlreadyActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_ALREADY_ACTIVE");
-        });
-    }
-
-    [Fact]
-    public void Activate_WhenDeleted_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Delete();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.Activate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_DELETED");
-        });
-    }
-
-    #endregion
-
-    #region Deactivate Tests
-
-    [Fact]
-    public void Deactivate_WhenActive_ShouldSucceed()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.Deactivate();
-
-        // Assert
-        result.ShouldBeSuccess();
-        aggregate.IsActive.Should().BeFalse();
-        aggregate.DomainEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<ReflectorDeactivated>();
-    }
-
-    [Fact]
-    public void Deactivate_WhenAlreadyInactive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-
-        // Act
-        var result = aggregate.Deactivate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_ALREADY_INACTIVE");
-        });
-    }
-
-    [Fact]
-    public void Deactivate_WhenDeleted_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Delete();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.Deactivate();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_DELETED");
-        });
-    }
-
-    #endregion
-
     #region Delete Tests
 
     [Fact]
@@ -359,24 +228,6 @@ public class ReflectorAggregateTests
         aggregate.IsDeleted.Should().BeTrue();
         aggregate.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<ReflectorDeleted>();
-    }
-
-    [Fact]
-    public void Delete_WhenActive_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.Activate();
-        aggregate.ClearDomainEvents();
-
-        // Act
-        var result = aggregate.Delete();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "REFLECTOR_ACTIVE");
-        });
     }
 
     [Fact]
@@ -414,30 +265,8 @@ public class ReflectorAggregateTests
             aggregate.Id.Should().Be(id);
             aggregate.Name.Should().Be("SvxReflector Local");
             aggregate.Config.Should().Be(ValidConfig);
-            aggregate.IsActive.Should().BeFalse();
             aggregate.IsDeleted.Should().BeFalse();
         });
-    }
-
-    [Fact]
-    public void Apply_MultipleEvents_ShouldReplayCorrectly()
-    {
-        // Arrange
-        var aggregate = CreateValidAggregate();
-
-        // Act - Simulate lifecycle
-        aggregate.Activate();
-        aggregate.Deactivate();
-        aggregate.UpdateConfiguration("Nom Mis à Jour", ValidConfig);
-        aggregate.Activate();
-        aggregate.Deactivate();
-        aggregate.Delete();
-
-        // Assert final state
-        aggregate.IsActive.Should().BeFalse();
-        aggregate.IsDeleted.Should().BeTrue();
-        aggregate.Name.Should().Be("Nom Mis à Jour");
-        aggregate.DomainEvents.Should().HaveCount(6);
     }
 
     #endregion

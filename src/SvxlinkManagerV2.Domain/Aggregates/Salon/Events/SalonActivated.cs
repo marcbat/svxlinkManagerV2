@@ -1,23 +1,12 @@
-using SvxlinkManagerV2.Domain.Common;
-
+// Cet événement a été supprimé : l'état actif est désormais géré par IActiveSessionTracker (runtime uniquement).
+// Fichier conservé uniquement pour les stubs obsolètes des tests en attente de mise à jour.
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 
-/// <summary>
-/// Événement émis lors de l'activation d'un Salon.
-/// L'activation signifie que le Salon devient le salon actif et que SVXLink se connecte au reflector.
-/// </summary>
-public record SalonActivated : DomainEvent
+[Obsolete("SalonActivated est supprimé. Utiliser IActiveSessionTracker.")]
+public record SalonActivated
 {
-    /// <summary>
-    /// Identifiant unique du Salon activé
-    /// </summary>
     public Guid Id { get; init; }
-
-    /// <summary>
-    /// Constructeur
-    /// </summary>
-    public SalonActivated(Guid id)
-    {
+    public SalonActivated(Guid id) {
         Id = id;
     }
 }

@@ -1,9 +1,12 @@
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.UnitTesting;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 using SvxlinkManagerV2.Domain.Common;
@@ -12,104 +15,60 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 
 /// <summary>
-/// Tests unitaires pour ActivateSalonCommand et son handler
+/// Tests unitaires pour ActivateSalonCommand et son handler.
+/// Le handler orchestre : configuration SA818, generation svxlink.conf, 
+/// restart daemon et mise a jour du tracker d'etat runtime.
 /// </summary>
 public class ActivateSalonCommandTests
 {
     private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+    private readonly ISA818Repository _sa818Repository;
+    private readonly ISA818Service _sa818Service;
+    private readonly ISvxLinkConfigurationService _configurationService;
+    private readonly ISvxLinkDaemonService _daemonService;
+    private readonly IConnectedNodesService _connectedNodesService;
+    private readonly ILogger _logger;
 
     public ActivateSalonCommandTests()
     {
         _repository = Substitute.For<ISalonRepository>();
+        _tracker = Substitute.For<IActiveSessionTracker>();
+        _sa818Repository = Substitute.For<ISA818Repository>();
+        _sa818Service = Substitute.For<ISA818Service>();
+        _configurationService = Substitute.For<ISvxLinkConfigurationService>();
+        _daemonService = Substitute.For<ISvxLinkDaemonService>();
+        _connectedNodesService = Substitute.For<IConnectedNodesService>();
+        _logger = Substitute.For<ILogger>();
     }
 
     [Fact]
-    public async Task Handle_WithValidSalon_ShouldActivate()
+    public async Task Handle_WithValidSalon_ShouldActivateAndUpdateTracker()
     {
         // Arrange
         var salonId = Guid.NewGuid();
         var salon = CreateValidAggregate(salonId);
         var command = new ActivateSalonCommand(salonId);
+        var sa818Config = CreateValidSA818Config();
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(salon.ToSuccess());
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns((SalonAggregate?)null);
-        _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
-            .Returns(unit.ToSuccess());
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(sa818Config);
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
-        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeSuccess(_ =>
-        {
-            salon.IsActive.Should().BeTrue();
-        });
-
-        await _repository.Received(1).GetByIdAsync(salonId, Arg.Any<CancellationToken>());
-        await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.IsActive), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_WhenAnotherSalonIsActive_ShouldDeactivateItFirst()
-    {
-        // Arrange
-        var currentActiveId = Guid.NewGuid();
-        var newSalonId = Guid.NewGuid();
-
-        var currentActive = CreateValidAggregate(currentActiveId);
-        currentActive.Activate();
-
-        var newSalon = CreateValidAggregate(newSalonId);
-        var command = new ActivateSalonCommand(newSalonId);
-
-        _repository.GetByIdAsync(newSalonId, Arg.Any<CancellationToken>())
-            .Returns(newSalon.ToSuccess());
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns(currentActive);
-        _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
-            .Returns(unit.ToSuccess());
-
-        // Act
-        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await CallHandle(command);
 
         // Assert
         result.ShouldBeSuccess();
-        currentActive.IsActive.Should().BeFalse();
-        newSalon.IsActive.Should().BeTrue();
-
-        // l'ancien salon actif doit être sauvegardé désactivé
-        await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.Id == currentActiveId && !a.IsActive), Arg.Any<CancellationToken>());
-        // le nouveau salon doit être sauvegardé activé
-        await _repository.Received(1).SaveAsync(Arg.Is<SalonAggregate>(a => a.Id == newSalonId && a.IsActive), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_WhenSameActiveSalonActivatedAgain_ShouldFail()
-    {
-        // Arrange
-        var salonId = Guid.NewGuid();
-        var salon = CreateValidAggregate(salonId);
-        salon.Activate();
-        var command = new ActivateSalonCommand(salonId);
-
-        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
-            .Returns(salon.ToSuccess());
-        // Le salon courant actif est le même que celui qu'on essaie d'activer
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns(salon);
-
-        // Act
-        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_ALREADY_ACTIVE");
-        });
-
-        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+        _tracker.Received(1).SetActiveSalon(salonId);
     }
 
     [Fact]
@@ -118,46 +77,126 @@ public class ActivateSalonCommandTests
         // Arrange
         var salonId = Guid.NewGuid();
         var command = new ActivateSalonCommand(salonId);
-
         var notFoundError = Error.NotFound("Salon", salonId);
+
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(notFoundError.ToFailure<SalonAggregate>());
 
         // Act
-        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await CallHandle(command);
 
         // Assert
         result.ShouldBeFail(errors =>
         {
             errors.Should().Contain(e => e.Code.Contains("NOT_FOUND"));
         });
-
-        await _repository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+        _tracker.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
 
     [Fact]
-    public async Task Handle_WhenSalonAlreadyActive_ShouldFail()
+    public async Task Handle_WhenAnotherSalonIsActive_ShouldStopDaemonFirst()
+    {
+        // Arrange
+        var activeSalonId = Guid.NewGuid();
+        var newSalonId = Guid.NewGuid();
+        var newSalon = CreateValidAggregate(newSalonId);
+        var command = new ActivateSalonCommand(newSalonId);
+        var sa818Config = CreateValidSA818Config();
+
+        _tracker.ActiveSalonId.Returns((Guid?)activeSalonId);
+        _repository.GetByIdAsync(newSalonId, Arg.Any<CancellationToken>())
+            .Returns(newSalon.ToSuccess());
+        _daemonService.StopAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(sa818Config);
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+        // Act
+        var result = await CallHandle(command);
+
+        // Assert
+        result.ShouldBeSuccess();
+        await _daemonService.Received(1).StopAsync(Arg.Any<CancellationToken>());
+        _connectedNodesService.Received(1).Reset();
+        _tracker.Received(1).SetActiveSalon(null);
+        _tracker.Received(1).SetActiveSalon(newSalonId);
+    }
+
+    [Fact]
+    public async Task Handle_WhenSA818ConfigNotFound_ShouldFail()
     {
         // Arrange
         var salonId = Guid.NewGuid();
         var salon = CreateValidAggregate(salonId);
-        salon.Activate(); // Déjà actif
         var command = new ActivateSalonCommand(salonId);
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(salon.ToSuccess());
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns((SalonAggregate?)null);
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns((SA818ConfigurationDto?)null);
 
         // Act
-        var result = await ActivateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await CallHandle(command);
 
         // Assert
         result.ShouldBeFail(errors =>
         {
-            errors.Should().Contain(e => e.Code == "SALON_ALREADY_ACTIVE");
+            errors.Should().Contain(e => e.Code == "SA818_CONFIG_NOT_FOUND");
         });
+        _tracker.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
+
+    [Fact]
+    public async Task Handle_WhenDaemonRestartFails_ShouldFail()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId);
+        var command = new ActivateSalonCommand(salonId);
+        var sa818Config = CreateValidSA818Config();
+
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(salon.ToSuccess());
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(sa818Config);
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(global::LanguageExt.Common.Error.New("SVXLINK_RESTART_ERROR")));
+
+        // Act
+        var result = await CallHandle(command);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SVXLINK_RESTART_ERROR");
+        });
+        _tracker.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
+    }
+
+    private Task<Validation<Error, Unit>> CallHandle(ActivateSalonCommand command) =>
+        ActivateSalonCommandHandler.Handle(
+            command,
+            _repository,
+            _tracker,
+            _sa818Repository,
+            _sa818Service,
+            _configurationService,
+            _daemonService,
+            _connectedNodesService,
+            _logger,
+            CancellationToken.None);
 
     private static SalonAggregate CreateValidAggregate(Guid id)
     {
@@ -181,15 +220,26 @@ public class ActivateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,      // SoundId
-            145.550m,  // RxFrequency
-            145.550m,  // TxFrequency
-            136.5m,    // RxCtcss
-            136.5m);   // TxCtcss
-
+            null,
+            145.550m,
+            145.550m,
+            136.5m,
+            136.5m);
         var result = SalonAggregate.Create(id, "Salon Test", false, false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));
     }
+
+    private static SA818ConfigurationDto CreateValidSA818Config() => new()
+    {
+        Id = Guid.NewGuid(),
+        Volume = 4,
+        Squelch = 2,
+        Bandwidth = SA818Bandwidth.Wide25kHz,
+        PreEmph = false,
+        HighPass = false,
+        LowPass = false,
+        UpdatedAt = DateTime.UtcNow
+    };
 }

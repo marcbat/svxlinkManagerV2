@@ -1,6 +1,8 @@
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
+using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector;
 
@@ -11,38 +13,34 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector;
 public record DeactivateReflectorCommand(Guid Id);
 
 /// <summary>
-/// Handler pour la commande DeactivateReflectorCommand
+/// Handler pour la commande DeactivateReflectorCommand.
+/// Arrête le daemon svxreflector et met à jour le tracker d'état runtime.
 /// </summary>
 public static class DeactivateReflectorCommandHandler
 {
     /// <summary>
-    /// Désactive le Reflector : marque l'état inactif dans l'event store.
-    /// Le side-effect (arrêt daemon) est géré par ReflectorDeactivatedHandler.
+    /// Désactive le Reflector : arrête le daemon svxreflector
+    /// et met à jour le tracker d'état runtime.
     /// </summary>
     public static async Task<Validation<Error, Unit>> Handle(
         DeactivateReflectorCommand command,
-        IReflectorRepository repository,
+        IActiveSessionTracker tracker,
+        IReflectorDaemonService daemonService,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Chargement de l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        logger.LogInformation("Désactivation du Reflector {ReflectorId}", command.Id);
 
-        if (aggregateResult.IsFail)
-            return aggregateResult.Match(
-                Succ: _ => throw new InvalidOperationException(),
-                Fail: errors => Validation<Error, Unit>.Fail(errors));
+        if (!tracker.IsReflectorActive(command.Id))
+            return Error.Validation("REFLECTOR_NOT_ACTIVE", "Ce reflector n'est pas actuellement actif").ToFailure<Unit>();
 
-        var aggregate = aggregateResult.Match(
-            Succ: a => a,
-            Fail: _ => throw new InvalidOperationException());
+        var result = await daemonService.StopAsync(cancellationToken);
+        if (result.IsFail)
+            return Error.Validation("REFLECTOR_STOP_ERROR", "Impossible d'arrêter le daemon svxreflector").ToFailure<Unit>();
 
-        // Désactivation (validation : bloqué si déjà inactif ou supprimé)
-        var deactivateResult = aggregate.Deactivate();
+        tracker.SetActiveReflector(null);
 
-        if (deactivateResult.IsFail)
-            return deactivateResult;
-
-        // Sauvegarde — déclenche l'event ReflectorDeactivated via Marten/Wolverine
-        return await repository.SaveAsync(aggregate, cancellationToken);
+        logger.LogInformation("Reflector {ReflectorId} désactivé avec succès", command.Id);
+        return unit.ToSuccess();
     }
 }

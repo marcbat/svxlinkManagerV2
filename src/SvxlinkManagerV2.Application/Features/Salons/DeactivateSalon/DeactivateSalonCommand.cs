@@ -1,11 +1,13 @@
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
+using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon;
 
 /// <summary>
-/// Commande pour désactiver un Salon (déconnexion du reflector)
+/// Commande pour désactiver un Salon (déconnexion du reflector).
 /// </summary>
 /// <param name="Id">Identifiant unique du salon à désactiver</param>
 public record DeactivateSalonCommand(Guid Id);
@@ -16,32 +18,30 @@ public record DeactivateSalonCommand(Guid Id);
 public static class DeactivateSalonCommandHandler
 {
     /// <summary>
-    /// Traite la commande de désactivation d'un Salon
+    /// Désactive le Salon : arrête le daemon SVXLink, vide les nœuds connectés
+    /// et met à jour le tracker d'état runtime.
     /// </summary>
     public static async Task<Validation<Error, Unit>> Handle(
         DeactivateSalonCommand command,
-        ISalonRepository repository,
+        IActiveSessionTracker tracker,
+        ISvxLinkDaemonService daemonService,
+        IConnectedNodesService connectedNodesService,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Récupération de l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        logger.LogInformation("Désactivation du Salon {SalonId}", command.Id);
 
-        if (aggregateResult.IsFail)
-            return aggregateResult.Match(
-                Succ: _ => throw new InvalidOperationException(),
-                Fail: errors => Validation<Error, Unit>.Fail(errors));
+        if (!tracker.IsSalonActive(command.Id))
+            return Error.Validation("SALON_NOT_ACTIVE", "Ce salon n'est pas actuellement actif").ToFailure<Unit>();
 
-        var aggregate = aggregateResult.Match(
-            Succ: a => a,
-            Fail: _ => throw new InvalidOperationException());
+        var stopResult = await daemonService.StopAsync(cancellationToken);
+        if (stopResult.IsFail)
+            return Error.Validation("SVXLINK_STOP_ERROR", "Impossible d'arrêter le daemon SVXLink").ToFailure<Unit>();
 
-        // Désactivation du salon
-        var deactivateResult = aggregate.Deactivate();
+        connectedNodesService.Reset();
+        tracker.SetActiveSalon(null);
 
-        if (deactivateResult.IsFail)
-            return deactivateResult;
-
-        // Sauvegarde de l'aggregate
-        return await repository.SaveAsync(aggregate, cancellationToken);
+        logger.LogInformation("Salon {SalonId} désactivé avec succès", command.Id);
+        return unit.ToSuccess();
     }
 }

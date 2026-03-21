@@ -16,6 +16,7 @@ using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.Reflector;
+using SvxlinkManagerV2.Infrastructure.Runtime;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Presentation.Services;
 
@@ -47,6 +48,9 @@ namespace SvxlinkManagerV2.Presentation
             .UseLightweightSessions()
             .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
             
+            // Tracker d'état actif (runtime, singleton — réinitialisé à chaque démarrage)
+            services.AddSingleton<IActiveSessionTracker, ActiveSessionTracker>();
+
             // Enregistrement du repository Event Store
             services.AddScoped<IEventStoreRepository, MartenEventStoreRepository>();
             
@@ -54,9 +58,13 @@ namespace SvxlinkManagerV2.Presentation
             services.AddScoped<ISA818Repository, SA818Repository>();
             services.AddScoped<ISalonRepository, SalonRepository>();
             services.AddScoped<ISoundRepository, SoundRepository>();
+            services.AddScoped<IGeneralConfigurationRepository, GeneralConfigurationRepository>();
             
             // Enregistrement du service d'initialisation SA818 (s'exécute au démarrage)
             services.AddHostedService<SA818InitializerHostedService>();
+
+            // Activation automatique au démarrage selon la configuration générale
+            services.AddHostedService<StartupActivationHostedService>();
             
             // Enregistrement conditionnel du service SA818 (réel ou mock selon configuration)
             var useSA818Mock = Configuration.GetValue<bool>("SA818:UseMock", false);

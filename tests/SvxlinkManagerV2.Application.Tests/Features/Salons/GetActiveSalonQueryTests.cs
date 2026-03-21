@@ -1,6 +1,7 @@
 using FluentAssertions;
-using LanguageExt.UnitTesting;
+using LanguageExt;
 using NSubstitute;
+using SvxlinkManagerV2.Domain.Common;
 using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
@@ -14,49 +15,52 @@ namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 public class GetActiveSalonQueryTests
 {
     private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
 
     public GetActiveSalonQueryTests()
     {
         _repository = Substitute.For<ISalonRepository>();
+        _tracker = Substitute.For<IActiveSessionTracker>();
     }
 
     [Fact]
     public async Task Handle_WhenActiveSalonExists_ShouldReturnIt()
     {
         // Arrange
-        var activeSalon = CreateValidAggregate(Guid.NewGuid(), "Salon Actif");
-        activeSalon.Activate();
+        var activeSalonId = Guid.NewGuid();
+        var activeSalon = CreateValidAggregate(activeSalonId, "Salon Actif");
 
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns(activeSalon);
+        _tracker.ActiveSalonId.Returns((Guid?)activeSalonId);
+        _repository.GetByIdAsync(activeSalonId, Arg.Any<CancellationToken>())
+            .Returns(activeSalon.ToSuccess());
 
         var query = new GetActiveSalonQuery();
 
         // Act
-        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, CancellationToken.None);
+        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
         result!.Name.Should().Be("Salon Actif");
-        result.IsActive.Should().BeTrue();
+        result.Id.Should().Be(activeSalonId);
 
-        await _repository.Received(1).GetActiveAsync(Arg.Any<CancellationToken>());
+        await _repository.Received(1).GetByIdAsync(activeSalonId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenNoActiveSalon_ShouldReturnNull()
     {
         // Arrange
-        _repository.GetActiveAsync(Arg.Any<CancellationToken>())
-            .Returns((SalonAggregate?)null);
+        _tracker.ActiveSalonId.Returns((Guid?)null);
 
         var query = new GetActiveSalonQuery();
 
         // Act
-        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, CancellationToken.None);
+        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, _tracker, CancellationToken.None);
 
         // Assert
         result.Should().BeNull();
+        await _repository.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     private static SalonAggregate CreateValidAggregate(Guid id, string name)
@@ -81,11 +85,11 @@ public class GetActiveSalonQueryTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,      // SoundId
-            145.550m,  // RxFrequency
-            145.550m,  // TxFrequency
-            136.5m,    // RxCtcss
-            136.5m);   // TxCtcss
+            null,
+            145.550m,
+            145.550m,
+            136.5m,
+            136.5m);
 
         var result = SalonAggregate.Create(id, name, false, false, config);
         return result.Match(

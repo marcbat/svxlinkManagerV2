@@ -31,11 +31,6 @@ public class SalonAggregate : AggregateRoot
     public bool IsTemporized { get; private set; }
 
     /// <summary>
-    /// Indique si le salon est actuellement actif (connecté au reflector)
-    /// </summary>
-    public bool IsActive { get; private set; }
-
-    /// <summary>
     /// Configuration complète SVXLink pour ce salon
     /// </summary>
     public SvxLinkConfiguration Configuration { get; private set; } = null!;
@@ -122,10 +117,6 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_DELETED", "Le salon est supprimé")
                 .ToFailure<Unit>();
 
-        if (IsActive)
-            return Error.Validation("SALON_ACTIVE", "Impossible de modifier un salon actif")
-                .ToFailure<Unit>();
-
         // Validation de la configuration
         var configValidation = ValidateConfiguration(configuration);
 
@@ -136,48 +127,6 @@ public class SalonAggregate : AggregateRoot
             AddDomainEvent(@event);
             return unit;
         });
-    }
-
-    /// <summary>
-    /// Active le salon (connexion au reflector)
-    /// </summary>
-    /// <returns>Validation du résultat</returns>
-    public Validation<Error, Unit> Activate()
-    {
-        if (IsDeleted)
-            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
-                .ToFailure<Unit>();
-
-        if (IsActive)
-            return Error.Validation("SALON_ALREADY_ACTIVE", "Le salon est déjà actif")
-                .ToFailure<Unit>();
-
-        var @event = new SalonActivated(Id);
-        Apply(@event);
-        AddDomainEvent(@event);
-
-        return unit.ToSuccess();
-    }
-
-    /// <summary>
-    /// Désactive le salon (déconnexion du reflector)
-    /// </summary>
-    /// <returns>Validation du résultat</returns>
-    public Validation<Error, Unit> Deactivate()
-    {
-        if (IsDeleted)
-            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
-                .ToFailure<Unit>();
-
-        if (!IsActive)
-            return Error.Validation("SALON_ALREADY_INACTIVE", "Le salon est déjà inactif")
-                .ToFailure<Unit>();
-
-        var @event = new SalonDeactivated(Id);
-        Apply(@event);
-        AddDomainEvent(@event);
-
-        return unit.ToSuccess();
     }
 
     /// <summary>
@@ -232,10 +181,6 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_ALREADY_DELETED", "Le salon est déjà supprimé")
                 .ToFailure<Unit>();
 
-        if (IsActive)
-            return Error.Validation("SALON_ACTIVE", "Impossible de supprimer un salon actif")
-                .ToFailure<Unit>();
-
         if (IsDefault)
             return Error.Validation("SALON_IS_DEFAULT", "Impossible de supprimer le salon par défaut")
                 .ToFailure<Unit>();
@@ -259,7 +204,6 @@ public class SalonAggregate : AggregateRoot
         IsDefault = @event.IsDefault;
         IsTemporized = @event.IsTemporized;
         Configuration = @event.Configuration;
-        IsActive = false;
         IsDeleted = false;
     }
 
@@ -270,26 +214,6 @@ public class SalonAggregate : AggregateRoot
     {
         Configuration = @event.Configuration;
     }
-
-    /// <summary>
-    /// Applique l'événement SalonActivated (Event Sourcing)
-    /// </summary>
-    public void Apply(SalonActivated @event)
-    {
-        IsActive = true;
-    }
-
-    /// <summary>
-    /// Applique l'événement SalonDeactivated (Event Sourcing)
-    /// </summary>
-    public void Apply(SalonDeactivated @event)
-    {
-        IsActive = false;
-    }
-
-    /// <summary>
-    /// Applique l'événement SalonDeleted (Event Sourcing)
-    /// </summary>
     public void Apply(SalonDeleted @event)
     {
         IsDeleted = true;

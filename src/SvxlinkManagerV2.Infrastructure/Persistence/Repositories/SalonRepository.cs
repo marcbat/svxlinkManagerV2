@@ -109,32 +109,6 @@ public class SalonRepository : ISalonRepository
         }
     }
 
-    public async Task<SalonAggregate?> GetActiveAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            // Récupérer la projection du salon actif
-            var projection = await _session.Query<Projections.SalonProjection>()
-                .Where(p => p.IsActive && !p.IsDeleted)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (projection == null)
-                return null;
-
-            // Rehydrater l'aggregate depuis son stream
-            var aggregate = await _session.Events.AggregateStreamAsync<SalonAggregate>(
-                projection.Id,
-                token: cancellationToken);
-
-            return aggregate?.Id != Guid.Empty ? aggregate : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     public async Task<Validation<Error, Unit>> DeleteAsync(
         Guid id,
         CancellationToken cancellationToken = default)

@@ -18,17 +18,16 @@ public record UpdateReflectorConfigurationCommand(Guid Id, string Name, string C
 /// </summary>
 public static class UpdateReflectorConfigurationCommandHandler
 {
-    /// <summary>
-    /// Met à jour la configuration du Reflector
-    /// </summary>
     public static async Task<Validation<Error, Unit>> Handle(
         UpdateReflectorConfigurationCommand command,
         IReflectorRepository repository,
+        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        // Chargement de l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        if (tracker.IsReflectorActive(command.Id))
+            return Error.Validation("REFLECTOR_ACTIVE", "Impossible de modifier la configuration d'un reflector actif").ToFailure<Unit>();
 
+        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -38,13 +37,10 @@ public static class UpdateReflectorConfigurationCommandHandler
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
-        // Mise à jour via l'aggregate (validation incluse : bloqué si actif)
         var updateResult = aggregate.UpdateConfiguration(command.Name, command.Config);
-
         if (updateResult.IsFail)
             return updateResult;
 
-        // Sauvegarde
         return await repository.SaveAsync(aggregate, cancellationToken);
     }
 }

@@ -1,5 +1,7 @@
+using LanguageExt;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Common;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 
@@ -14,13 +16,22 @@ public record GetActiveSalonQuery();
 public static class GetActiveSalonQueryHandler
 {
     /// <summary>
-    /// Traite la query de récupération du Salon actif
+    /// Récupère le Salon actif en utilisant le tracker d'état runtime.
+    /// Retourne null si aucun salon n'est actif.
     /// </summary>
     public static async Task<SalonAggregate?> Handle(
         GetActiveSalonQuery query,
         ISalonRepository repository,
+        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        return await repository.GetActiveAsync(cancellationToken);
+        var activeSalonId = tracker.ActiveSalonId;
+        if (!activeSalonId.HasValue)
+            return null;
+
+        var result = await repository.GetByIdAsync(activeSalonId.Value, cancellationToken);
+        return result.Match(
+            Succ: a => a.IsDeleted ? null : a,
+            Fail: _ => null);
     }
 }

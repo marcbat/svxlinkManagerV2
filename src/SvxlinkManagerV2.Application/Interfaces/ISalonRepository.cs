@@ -35,13 +35,6 @@ public interface ISalonRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Récupère le Salon actuellement actif (s'il existe)
-    /// </summary>
-    /// <param name="cancellationToken">Token d'annulation</param>
-    Task<SalonAggregate?> GetActiveAsync(
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Récupère le Salon par défaut (s'il existe)
     /// </summary>
     /// <param name="cancellationToken">Token d'annulation</param>

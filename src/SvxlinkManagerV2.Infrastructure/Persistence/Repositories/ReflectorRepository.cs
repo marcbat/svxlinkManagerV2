@@ -99,30 +99,6 @@ public class ReflectorRepository : IReflectorRepository
         }
     }
 
-    public async Task<ReflectorAggregate?> GetActiveAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var projection = await _session.Query<Projections.ReflectorProjection>()
-                .Where(p => p.IsActive && !p.IsDeleted)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (projection == null)
-                return null;
-
-            var aggregate = await _session.Events.AggregateStreamAsync<ReflectorAggregate>(
-                projection.Id,
-                token: cancellationToken);
-
-            return aggregate?.Id != Guid.Empty ? aggregate : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     public async Task<Validation<Error, Unit>> DeleteAsync(
         Guid id,
         CancellationToken cancellationToken = default)

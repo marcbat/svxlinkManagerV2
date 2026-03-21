@@ -16,14 +16,15 @@ public record DeleteReflectorCommand(Guid Id);
 /// </summary>
 public static class DeleteReflectorCommandHandler
 {
-    /// <summary>
-    /// Effectue la suppression logique du Reflector
-    /// </summary>
     public static async Task<Validation<Error, Unit>> Handle(
         DeleteReflectorCommand command,
         IReflectorRepository repository,
+        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
+        if (tracker.IsReflectorActive(command.Id))
+            return Error.Validation("REFLECTOR_ACTIVE", "Impossible de supprimer un reflector actif").ToFailure<Unit>();
+
         return await repository.DeleteAsync(command.Id, cancellationToken);
     }
 }

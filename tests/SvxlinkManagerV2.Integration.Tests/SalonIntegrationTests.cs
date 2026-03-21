@@ -1,7 +1,9 @@
 using FluentAssertions;
 using LanguageExt.UnitTesting;
 using Marten;
+using NSubstitute;
 using SvxlinkManagerV2.Application.Features.Salons.CreateSalon;
+using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Features.Salons.GetSalonById;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
@@ -22,6 +24,7 @@ public class SalonIntegrationTests : IAsyncLifetime
     private readonly PostgresFixture _fixture;
     private IDocumentSession _session = null!;
     private SalonRepository _repository = null!;
+    private IActiveSessionTracker _tracker = null!;
 
     public SalonIntegrationTests(PostgresFixture fixture)
     {
@@ -36,6 +39,8 @@ public class SalonIntegrationTests : IAsyncLifetime
         // Créer une nouvelle session pour ce test
         _session = _fixture.DocumentStore.LightweightSession();
         _repository = new SalonRepository(_session);
+        _tracker = Substitute.For<IActiveSessionTracker>();
+        _tracker.ActiveSalonId.Returns((Guid?)null);
 
         // Nettoyer toutes les projections Salon des tests précédents
         _session.DeleteWhere<SalonProjection>(x => true);
@@ -97,7 +102,6 @@ public class SalonIntegrationTests : IAsyncLifetime
             salon.Name.Should().Be("Salon National France");
             salon.IsDefault.Should().BeTrue();
             salon.IsTemporized.Should().BeFalse();
-            salon.IsActive.Should().BeFalse();
             salon.IsDeleted.Should().BeFalse();
             salon.Configuration.RxFrequency.Should().Be(145.550m);
             salon.Configuration.TxFrequency.Should().Be(145.550m);
@@ -255,6 +259,7 @@ public class SalonIntegrationTests : IAsyncLifetime
         var result = await GetActiveSalonQueryHandler.Handle(
             query,
             _repository,
+            _tracker,
             CancellationToken.None
         );
 
