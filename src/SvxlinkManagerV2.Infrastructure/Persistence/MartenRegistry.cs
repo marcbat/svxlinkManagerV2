@@ -17,6 +17,7 @@ public static class MartenRegistry
         options.Projections.Snapshot<SoundProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SalonProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SA818Projection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
+        options.Projections.Snapshot<ReflectorProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         
         return options;
     }

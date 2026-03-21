@@ -15,6 +15,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
+using SvxlinkManagerV2.Infrastructure.Reflector;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Presentation.Services;
 
@@ -83,6 +84,13 @@ namespace SvxlinkManagerV2.Presentation
             
             // Enregistrement du service de génération de configuration SVXLink (toujours réel)
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
+
+            // Enregistrement des services Reflector
+            // IReflectorLogService doit être enregistré AVANT IReflectorDaemonService car il en dépend.
+            services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
+            services.AddSingleton<IReflectorDaemonService, ReflectorDaemonService>();
+            services.AddScoped<IReflectorRepository, ReflectorRepository>();
+            services.AddScoped<IReflectorConfigurationService, ReflectorConfigurationService>();
 
             // Diagnostics SVXLink au démarrage : banner avec mode daemon, config, état
             services.AddHostedService<SvxLinkDiagnosticsHostedService>();
