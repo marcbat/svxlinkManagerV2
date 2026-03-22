@@ -57,6 +57,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
             // 3. Mettre à jour les sections avec les données du Salon
             UpdateGlobalSection(iniData, salon);
+            UpdateLinkSection(iniData);
             UpdateReflectorLogicSection(iniData, salon);
             UpdateSimplexLogicSection(iniData, salon);
             UpdateReceiverSection(iniData, salon);
@@ -122,11 +123,26 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         var config = salon.Configuration;
         
         iniData["GLOBAL"]["LOGICS"] = config.Logics;
+        iniData["GLOBAL"]["LINKS"] = "LinkToReflector";
         iniData["GLOBAL"]["CFG_DIR"] = config.CfgDir;
         iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = config.CardSampleRate.ToString();
         iniData["GLOBAL"]["CARD_CHANNELS"] = config.CardChannels.ToString();
 
         _logger.LogDebug("Section [GLOBAL] mise à jour");
+    }
+
+    /// <summary>
+    /// Met à jour la section [LinkToReflector] qui relie SimplexLogic et ReflectorLogic.
+    /// Cette section est constante : SVXLink requiert ce pont pour router l'audio
+    /// entre le hardware local (SimplexLogic) et le reflector (ReflectorLogic).
+    /// </summary>
+    private void UpdateLinkSection(IniFile iniData)
+    {
+        iniData["LinkToReflector"]["CONNECT_LOGICS"] = "SimplexLogic,ReflectorLogic";
+        iniData["LinkToReflector"]["DEFAULT_ACTIVE"] = "1";
+        iniData["LinkToReflector"]["TIMEOUT"] = "0";
+
+        _logger.LogDebug("Section [LinkToReflector] mise à jour");
     }
 
     /// <summary>
