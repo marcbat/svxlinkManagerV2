@@ -12,7 +12,15 @@ public static class MartenRegistry
     {
         // Chaîne de connexion PostgreSQL
         options.Connection(connectionString);
-        
+
+        // Configurer System.Text.Json avec correspondance case-insensitive des noms de propriétés.
+        // Nécessaire pour la désérialisation des événements depuis la DB vers les records C# :
+        // les paramètres du constructeur sont en camelCase mais le JSON est en PascalCase.
+        options.UseSystemTextJsonForSerialization(configure: opts =>
+        {
+            opts.PropertyNameCaseInsensitive = true;
+        });
+
         // Enregistrement des projections en mode Inline (synchrone)
         options.Projections.Snapshot<SoundProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
         options.Projections.Snapshot<SalonProjection>(Marten.Events.Projections.SnapshotLifecycle.Inline);
