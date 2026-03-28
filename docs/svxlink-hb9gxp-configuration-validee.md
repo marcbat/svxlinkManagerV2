@@ -220,3 +220,100 @@ GPIO_GROUP="svxlink"
 - **GPIO gérés par `gpio.conf`** — c'est le mécanisme officiel SVXLink. SvxlinkManagerV2 devra écrire ce fichier (pas exporter les GPIO directement).
 - **Les fichiers `events.d/local/*.tcl` doivent rester vides** — ne pas y écrire de contenu binaire.
 - **Persistance ALSA** : `alsactl store` sauvegarde dans `/var/lib/alsa/asound.state` — chargé automatiquement au boot par `alsa-restore.service`.
+
+---
+
+## Déploiement SvxlinkManagerV2 — Validé le 28 mars 2026
+
+### Stack installée sur le Pi
+
+| Composant        | Version / Détail                                              |
+|------------------|---------------------------------------------------------------|
+| **.NET Runtime** | ASP.NET Core 8.0.15 (tarball officiel `linux-arm`)           |
+| **PostgreSQL**   | 12.22 (paquet `postgresql` Ubuntu focal)                      |
+| **App**          | SvxlinkManagerV2, publication framework-dependent, ~19 MB     |
+| **Port**         | HTTP port **80**                                              |
+| **Swap**         | 512 MB (`/swapfile`) — indispensable                         |
+
+### Installation .NET 8 Runtime
+
+Le dépôt apt Microsoft Ubuntu 20.04 **ne fournit pas** `aspnetcore-runtime-8.0` pour `armhf`. Installation via tarball officiel :
+
+```bash
+mkdir -p /usr/share/dotnet
+wget "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.15/aspnetcore-runtime-8.0.15-linux-arm.tar.gz" -O /tmp/aspnetcore-8.0.tar.gz
+tar -xzf /tmp/aspnetcore-8.0.tar.gz -C /usr/share/dotnet
+ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet
+```
+
+> ⚠️ **Utiliser .NET 8, pas .NET 9** — .NET 9 requiert `GLIBC_2.34` et `GLIBCXX_3.4.29`, absents sur Ubuntu 20.04 (glibc 2.31). L'app plante immédiatement au démarrage avec `.NET 9`.
+
+### Création de la base de données PostgreSQL
+
+```bash
+sudo -u postgres psql << 'EOSQL'
+CREATE USER svxlinkv2 WITH PASSWORD 'svxlinkmanager';
+CREATE DATABASE svxlinkv2 OWNER svxlinkv2;
+EOSQL
+```
+
+### Swap obligatoire
+
+L'app (Marten + Wolverine + Blazor) consomme ~290 MB de RAM à chaud. Le Pi n'ayant que 491 MB, le **OOM Killer** tue le processus sans swap.
+
+```bash
+fallocate -l 512M /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+### Service systemd `/etc/systemd/system/svxlinkmanagerv2.service`
+
+```ini
+[Unit]
+Description=SvxlinkManager V2
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/svxlinkv2
+ExecStart=/usr/local/bin/dotnet /opt/svxlinkv2/SvxlinkManagerV2.Presentation.dll
+Restart=on-failure
+RestartSec=5
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://*:80
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### `appsettings.Production.json`
+
+```json
+{
+  "ConnectionStrings": {
+    "PostgreSQL": "Host=localhost;Port=5432;Database=svxlinkv2;Username=svxlinkv2;Password=svxlinkmanager"
+  },
+  "SA818": { "UseMock": false },
+  "SvxLink": { "UseMockDaemon": false }
+}
+```
+
+### Compilation sur Windows pour le Pi
+
+```powershell
+# Migrer les .csproj de net9.0 → net8.0 (obligatoire)
+# Puis publier framework-dependent :
+dotnet publish -c Release -r linux-arm --no-self-contained -o C:\deploy\svxlinkv2-fd
+```
+
+> Le build framework-dependent produit ~19 MB (vs ~148 MB en self-contained).
+
+### Temps de démarrage
+
+Marten et Wolverine initialisent leurs schémas PostgreSQL au **premier lancement** — compter **~90 secondes** avant que le port 80 soit disponible. Les démarrages suivants sont identiques (les schémas existent déjà mais Wolverine effectue quand même ses vérifications).
