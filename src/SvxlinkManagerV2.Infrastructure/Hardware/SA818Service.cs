@@ -1,4 +1,5 @@
-using System.IO.Ports;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Configuration;
@@ -19,7 +20,7 @@ public class SA818Service : ISA818Service, IDisposable
     private readonly int _readTimeout;
     private readonly int _writeTimeout;
     private readonly int _commandDelay;
-    private SerialPort? _port;
+    private bool _portConfigured;
 
     public SA818Service(IConfiguration configuration, ILogger<SA818Service> logger)
     {
@@ -115,30 +116,32 @@ public class SA818Service : ISA818Service, IDisposable
     {
         try
         {
-            if (_port?.IsOpen == true)
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return Task.FromResult<Validation<Error, Unit>>(
+                    Error.New(500, "SA818Service réel supporté uniquement sous Linux"));
+            }
+
+            if (_portConfigured)
             {
                 return Task.FromResult<Validation<Error, Unit>>(Unit.Default);
             }
 
-            _port = new SerialPort(_serialPort, _baudRate, Parity.None, 8, StopBits.One)
-            {
-                ReadTimeout = _readTimeout,
-                WriteTimeout = _writeTimeout
-            };
+            var escapedPort = EscapeSingleQuoted(_serialPort);
+            var sttyCommand =
+                $"stty -F '{escapedPort}' {_baudRate} cs8 -cstopb -parenb -ixon -ixoff -icanon -echo min 0 time 5";
 
-            _port.Open();
-            _logger.LogDebug("Port série {SerialPort} ouvert avec succès", _serialPort);
+            var (exitCode, _, stderr) = RunShellCommand(sttyCommand, _writeTimeout, cancellationToken);
+            if (exitCode != 0)
+            {
+                _logger.LogError("Impossible de configurer le port série {SerialPort}. stderr={StdErr}", _serialPort, stderr);
+                return Task.FromResult<Validation<Error, Unit>>(
+                    Error.New(500, $"Impossible de configurer le port série {_serialPort}: {stderr}"));
+            }
+
+            _portConfigured = true;
+            _logger.LogDebug("Port série {SerialPort} configuré avec succès via stty", _serialPort);
             return Task.FromResult<Validation<Error, Unit>>(Unit.Default);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogError(ex, "Accès non autorisé au port série {SerialPort}", _serialPort);
-            return Task.FromResult<Validation<Error, Unit>>(Error.New(403, $"Accès non autorisé au port série {_serialPort}", ex));
-        }
-        catch (IOException ex)
-        {
-            _logger.LogError(ex, "Erreur I/O lors de l'ouverture du port série {SerialPort}", _serialPort);
-            return Task.FromResult<Validation<Error, Unit>>(Error.New(500, $"Erreur I/O sur le port {_serialPort}", ex));
         }
         catch (Exception ex)
         {
@@ -147,72 +150,105 @@ public class SA818Service : ISA818Service, IDisposable
         }
     }
 
-    private async Task<Validation<Error, string>> SendCommandAsync(string command, CancellationToken cancellationToken)
+    private Task<Validation<Error, string>> SendCommandAsync(string command, CancellationToken cancellationToken)
     {
         try
         {
-            if (_port?.IsOpen != true)
+            if (!_portConfigured)
             {
-                return Error.New(500, "Port série non ouvert");
+                return Task.FromResult<Validation<Error, string>>(Error.New(500, "Port série non configuré"));
             }
 
             _logger.LogDebug("Envoi de la commande AT: {Command}", command);
 
-            // Envoyer la commande avec terminateur CRLF
-            var commandWithTerminator = $"{command}\r\n";
-            await _port.BaseStream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(commandWithTerminator), cancellationToken);
-            await _port.BaseStream.FlushAsync(cancellationToken);
+            var escapedPort = EscapeSingleQuoted(_serialPort);
+            var escapedCommand = EscapeSingleQuoted(command);
+            var readTimeoutSeconds = Math.Max(1, _readTimeout / 1000);
 
-            // Lire la réponse
-            await Task.Delay(100, cancellationToken); // Délai pour laisser le module répondre
-            var response = _port.ReadLine().Trim();
+            var shellCommand =
+                $"printf '%s\\r\\n' '{escapedCommand}' > '{escapedPort}' && timeout {readTimeoutSeconds}s head -n 1 < '{escapedPort}'";
+
+            var (exitCode, stdout, stderr) = RunShellCommand(shellCommand, _readTimeout + _writeTimeout + 1000, cancellationToken);
+            if (exitCode != 0)
+            {
+                _logger.LogWarning("Commande SA818 en échec (code {ExitCode}). stderr={StdErr}", exitCode, stderr);
+                return Task.FromResult<Validation<Error, string>>(Error.New(500, $"Échec commande SA818: {stderr}"));
+            }
+
+            var response = (stdout ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                return Task.FromResult<Validation<Error, string>>(Error.New(408, $"Timeout sur la commande {command}"));
+            }
 
             _logger.LogDebug("Réponse reçue: {Response}", response);
 
-            // Vérifier si la réponse indique un succès (généralement "+DMOSETGROUP:0" ou "OK")
+            // Vérifier si la réponse indique un succès (les firmwares peuvent répondre SETFILTER ou DMOSETFILTER)
             if (response.Contains("+DMOSETGROUP:0") || 
                 response.Contains("+DMOSETVOLUME:0") || 
                 response.Contains("+SETFILTER:0") ||
+                response.Contains("+DMOSETFILTER:0") ||
                 response.Equals("OK", StringComparison.OrdinalIgnoreCase))
             {
-                return response;
+                return Task.FromResult<Validation<Error, string>>(response);
             }
 
             _logger.LogWarning("Réponse invalide du module SA818: {Response}", response);
-            return Error.New(500, $"Réponse invalide: {response}");
+            return Task.FromResult<Validation<Error, string>>(Error.New(500, $"Réponse invalide: {response}"));
         }
         catch (TimeoutException ex)
         {
             _logger.LogError(ex, "Timeout lors de l'envoi de la commande {Command}", command);
-            return Error.New(408, $"Timeout sur la commande {command}", ex);
+            return Task.FromResult<Validation<Error, string>>(Error.New(408, $"Timeout sur la commande {command}", ex));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de l'envoi de la commande {Command}", command);
-            return Error.New(500, "Erreur lors de l'envoi de la commande", ex);
+            return Task.FromResult<Validation<Error, string>>(Error.New(500, "Erreur lors de l'envoi de la commande", ex));
         }
+    }
+
+    private static string EscapeSingleQuoted(string input) => input.Replace("'", "'\"'\"'");
+
+    private static (int ExitCode, string StdOut, string StdErr) RunShellCommand(
+        string command,
+        int timeoutMs,
+        CancellationToken cancellationToken)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "/bin/bash",
+                Arguments = $"-lc \"{command.Replace("\"", "\\\"")}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(Math.Max(500, timeoutMs));
+
+        process.WaitForExitAsync(linkedCts.Token).GetAwaiter().GetResult();
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        return (process.ExitCode, stdout, stderr);
     }
 
     private void ClosePort()
     {
-        try
-        {
-            if (_port?.IsOpen == true)
-            {
-                _port.Close();
-                _logger.LogDebug("Port série fermé");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Erreur lors de la fermeture du port série");
-        }
+        _portConfigured = false;
+        _logger.LogDebug("Port série SA818 libéré");
     }
 
     public void Dispose()
     {
         ClosePort();
-        _port?.Dispose();
         GC.SuppressFinalize(this);
     }
 }
