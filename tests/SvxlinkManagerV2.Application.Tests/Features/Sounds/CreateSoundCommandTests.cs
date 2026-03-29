@@ -27,7 +27,7 @@ public class CreateSoundCommandTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var command = new CreateSoundCommand(id, "welcome", CreateValidWavFile());
+        var command = new CreateSoundCommand(id, "welcome", SoundTestHelpers.CreateValidWavFile());
 
         _repository.SaveAsync(Arg.Any<SoundAggregate>(), Arg.Any<CancellationToken>())
             .Returns(unit.ToSuccess());
@@ -50,7 +50,7 @@ public class CreateSoundCommandTests
     public async Task Handle_WithEmptyName_ShouldFail()
     {
         // Arrange
-        var command = new CreateSoundCommand(Guid.NewGuid(), "", CreateValidWavFile());
+        var command = new CreateSoundCommand(Guid.NewGuid(), "", SoundTestHelpers.CreateValidWavFile());
         // Act
         var result = await new CreateSoundCommandHandler(_repository).Handle(command, CancellationToken.None);
 
@@ -86,7 +86,7 @@ public class CreateSoundCommandTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var command = new CreateSoundCommand(id, "welcome", CreateValidWavFile());
+        var command = new CreateSoundCommand(id, "welcome", SoundTestHelpers.CreateValidWavFile());
         var saveError = Error.Validation("SAVE_ERROR", "Erreur lors de la sauvegarde");
 
         _repository.SaveAsync(Arg.Any<SoundAggregate>(), Arg.Any<CancellationToken>())
@@ -100,37 +100,5 @@ public class CreateSoundCommandTests
         {
             errors.Should().Contain(e => e.Code == "SAVE_ERROR");
         });
-    }
-
-    private static byte[] CreateValidWavFile()
-    {
-        const int sampleRate = 16000;
-        const int channels = 1;
-        const int durationMs = 100;
-        var numSamples = sampleRate * durationMs / 1000;
-        var dataSize = numSamples * channels * 2;
-        var fileSize = 36 + dataSize;
-
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
-        writer.Write(fileSize);
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write((short)channels);
-        writer.Write(sampleRate);
-        writer.Write(sampleRate * channels * 2);
-        writer.Write((short)(channels * 2));
-        writer.Write((short)16);
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("data"));
-        writer.Write(dataSize);
-
-        for (int i = 0; i < numSamples * channels; i++)
-            writer.Write((short)0);
-
-        return ms.ToArray();
     }
 }
