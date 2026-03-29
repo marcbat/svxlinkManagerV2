@@ -110,7 +110,18 @@ jobs:
       - name: Run tests
         shell: pwsh
         run: |
-          dotnet test tests/**/*.csproj -c Release --logger "trx;LogFileName=test-results.trx" --results-directory artifacts/test-results
+          New-Item -ItemType Directory -Path artifacts/test-results -Force | Out-Null
+
+          $testProjects = Get-ChildItem -Path tests -Filter *.csproj -Recurse | Sort-Object FullName
+          if (-not $testProjects) {
+            throw "Aucun projet de test trouve sous tests/."
+          }
+
+          foreach ($project in $testProjects) {
+            $trxName = "$($project.BaseName).trx"
+            Write-Host "Execution des tests: $($project.FullName)"
+            dotnet test $project.FullName -c Release --logger "trx;LogFileName=$trxName" --results-directory artifacts/test-results
+          }
 
       - name: Upload test results
         if: always()
