@@ -47,4 +47,24 @@ public record SA818ConfigurationDto
     /// Date de dernière modification
     /// </summary>
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>
+    /// Fréquence de réception en MHz (ex: 145.550). Null si aucun salon actif.
+    /// </summary>
+    public decimal? RxFrequency { get; init; }
+
+    /// <summary>
+    /// Fréquence de transmission en MHz (ex: 145.550). Null si aucun salon actif.
+    /// </summary>
+    public decimal? TxFrequency { get; init; }
+
+    /// <summary>
+    /// Tonalité CTCSS de réception en Hz (ex: 136.5). Null si absente ou aucun salon actif.
+    /// </summary>
+    public decimal? RxCtcss { get; init; }
+
+    /// <summary>
+    /// Tonalité CTCSS de transmission en Hz (ex: 136.5). Null si absente ou aucun salon actif.
+    /// </summary>
+    public decimal? TxCtcss { get; init; }
 }
