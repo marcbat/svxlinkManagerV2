@@ -16,6 +16,7 @@
 
 @inject IMediator Mediator
 @inject ISvxLinkDaemonService DaemonService
+@inject IReflectorDaemonService ReflectorDaemonService
 @inject IConnectedNodesService ConnectedNodesService
 @inject ToastService ToastService
 
@@ -85,6 +86,35 @@
             <div class="skeleton" style="height:16px;width:50%;"></div>
         }
         else if (_daemonRunning)
+        {
+            <div class="card-value">En cours d'exécution</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
+                Daemon actif
+            </div>
+        }
+        else
+        {
+            <div class="card-value" style="color:var(--danger)">Arrêté</div>
+            <div class="card-meta">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">cancel</span>
+                Daemon inactif
+            </div>
+        }
+    </div>
+
+    <!-- Card : État Réflecteur Local -->
+    <div class="card">
+        <div class="card-title">
+            <span class="material-symbols-outlined">hub</span>
+            État Réflecteur Local
+        </div>
+        @if (_isLoading)
+        {
+            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
+            <div class="skeleton" style="height:16px;width:50%;"></div>
+        }
+        else if (_reflectorRunning)
         {
             <div class="card-value">En cours d'exécution</div>
             <div class="card-meta">
@@ -322,6 +352,7 @@
     private IReadOnlyList<SalonAggregate> _salons  = [];
     private List<ConnectedNodeInfo>      _connectedNodes = new();
     private bool _daemonRunning;
+    private bool _reflectorRunning;
     private bool _isLoading = true;
     private Guid? _selectedSalonId;
     private bool _isActivating;
@@ -360,9 +391,13 @@
                 var result = await DaemonService.IsRunningAsync(ct);
                 var isRunning = result.Match(Succ: b => b, Fail: _ => false);
 
-                if (isRunning != _daemonRunning)
+                var reflectorResult = await ReflectorDaemonService.IsRunningAsync(ct);
+                var isReflectorRunning = reflectorResult.Match(Succ: b => b, Fail: _ => false);
+
+                if (isRunning != _daemonRunning || isReflectorRunning != _reflectorRunning)
                 {
                     _daemonRunning = isRunning;
+                    _reflectorRunning = isReflectorRunning;
                     await InvokeAsync(StateHasChanged);
                 }
             }
@@ -499,6 +534,17 @@
             {
                 _daemonRunning = false;
                 loadErrors.Add($"état du daemon SVXLink: {ex.Message}");
+            }
+
+            try
+            {
+                var reflectorResult = await ReflectorDaemonService.IsRunningAsync();
+                _reflectorRunning = reflectorResult.Match(Succ: b => b, Fail: _ => false);
+            }
+            catch (Exception ex)
+            {
+                _reflectorRunning = false;
+                loadErrors.Add($"état du daemon réflecteur: {ex.Message}");
             }
         }
         finally
