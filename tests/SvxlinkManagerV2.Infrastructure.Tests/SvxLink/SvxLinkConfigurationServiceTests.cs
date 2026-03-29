@@ -196,6 +196,30 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_WithNullCtcss_ShouldGenerateValidConfig()
+    {
+        // Arrange - Salon avec CTCSS null (pas de sous-ton)
+        var salon = CreateTestSalonWithNullCtcss();
+        var outputPath = GetTestOutputPath("svxlink_null_ctcss.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert - La génération doit réussir même sans CTCSS
+        result.IsSuccess.Should().BeTrue();
+        File.Exists(outputPath).Should().BeTrue();
+
+        // Le fichier doit être un INI valide
+        var iniData = IniFile.Parse(outputPath);
+        iniData.Should().NotBeNull();
+
+        // Les paramètres reflector doivent être présents
+        iniData["ReflectorLogic"]["HOST"].Should().Be("ref.example.com");
+        iniData["ReflectorLogic"]["PORT"].Should().Be("5300");
+        iniData["ReflectorLogic"]["CALLSIGN"].Should().Be("F5TEST-L");
+    }
+
+    [Fact]
     public async Task GenerateAsync_WithOptionalReportCtcss_ShouldIncludeInConfig()
     {
         // Arrange
@@ -346,6 +370,49 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         return result.Match(
             Succ: salon => salon,
             Fail: errors => throw new Exception($"Impossible de créer le Salon de test: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestSalonWithNullCtcss()
+    {
+        var configuration = new SvxLinkConfiguration(
+            Id: Guid.NewGuid(),
+            Logics: "SimplexLogic,ReflectorLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "ref.example.com",
+            Port: 5300,
+            Callsign: "F5TEST-L",
+            AuthKey: "TestAuthKey123",
+            AudioCodec: "OPUS",
+            JitterBufferDelay: 0,
+            SimplexCallsign: "F5TEST",
+            Modules: "ModuleHelp",
+            ShortIdentInterval: 60,
+            LongIdentInterval: 60,
+            ReportCtcss: null,
+            EventHandler: "/usr/share/svxlink/events.tcl",
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            SoundId: null,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,   // Pas de sous-ton RX
+            TxCtcss: null    // Pas de sous-ton TX
+        );
+
+        var result = SalonAggregate.Create(
+            id: Guid.NewGuid(),
+            name: "Salon Sans CTCSS",
+            isDefault: false,
+            isTemporized: false,
+            configuration: configuration
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon de test sans CTCSS: {errors}")
         );
     }
 

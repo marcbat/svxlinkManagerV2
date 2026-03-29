@@ -72,6 +72,43 @@ public class ActivateSalonCommandTests
     }
 
     [Fact]
+    public async Task Handle_WithValidSalon_ShouldPassExactValuesToConfigService()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId);
+        var command = new ActivateSalonCommand(salonId);
+        var sa818Config = CreateValidSA818Config();
+
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(salon.ToSuccess());
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(sa818Config);
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+        // Act
+        var result = await CallHandle(command);
+
+        // Assert
+        result.ShouldBeSuccess();
+        await _configurationService.Received(1).GenerateAsync(
+            Arg.Is<SalonAggregate>(s =>
+                s.Id == salonId &&
+                s.Configuration.Host == "ref.f5kri.fr" &&
+                s.Configuration.Port == 5300 &&
+                s.Configuration.Callsign == "F5ABC-L" &&
+                s.Configuration.AuthKey == "test-auth-key"),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_WhenSalonNotFound_ShouldFail()
     {
         // Arrange
