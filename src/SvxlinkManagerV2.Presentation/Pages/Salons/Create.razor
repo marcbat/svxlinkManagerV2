@@ -463,7 +463,7 @@
         {
             var config = new SvxLinkConfiguration(
                 Id:                  Guid.NewGuid(),
-                Logics:              "ReflectorLogic",
+                Logics:              "SimplexLogic,ReflectorLogic",
                 CfgDir:              "svxlink.d",
                 CardSampleRate:      16000,
                 CardChannels:        1,
@@ -476,7 +476,7 @@
                 SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
                                          ? _model.Callsign.Trim().ToUpperInvariant()
                                          : _model.SimplexCallsign.Trim().ToUpperInvariant(),
-                Modules:             "ModuleEchoLink",
+                Modules:             "ModuleHelp,ModuleParrot",
                 ShortIdentInterval:  _model.ShortIdentInterval,
                 LongIdentInterval:   _model.LongIdentInterval,
                 ReportCtcss:         null,
@@ -579,6 +579,6 @@
         public int LongIdentInterval { get; set; } = 60;
         public int RgrSoundDelay { get; set; } = 0;
         public string DefaultLang { get; set; } = "fr_FR";
-        public string EventHandler { get; set; } = "Logic.tcl";
+        public string EventHandler { get; set; } = "/usr/share/svxlink/events.tcl";
     }
 }

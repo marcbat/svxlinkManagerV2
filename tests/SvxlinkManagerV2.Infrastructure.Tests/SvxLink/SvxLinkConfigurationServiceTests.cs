@@ -85,9 +85,44 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         var iniData = IniFile.Parse(outputPath);
 
         iniData["GLOBAL"]["LOGICS"].Should().Be("SimplexLogic,ReflectorLogic");
+        iniData["GLOBAL"]["LINKS"].Should().Be("LinkToReflector");
         iniData["GLOBAL"]["CFG_DIR"].Should().Be("svxlink.d");
         iniData["GLOBAL"]["CARD_SAMPLE_RATE"].Should().Be("16000");
         iniData["GLOBAL"]["CARD_CHANNELS"].Should().Be("1");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldIncludeLinksInGlobalSection()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_links_global.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["GLOBAL"]["LINKS"].Should().Be("LinkToReflector");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldCreateLinkToReflectorSection()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_linktoreflector.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["LinkToReflector"]["CONNECT_LOGICS"].Should().Be("SimplexLogic,ReflectorLogic");
+        iniData["LinkToReflector"]["DEFAULT_ACTIVE"].Should().Be("1");
+        iniData["LinkToReflector"]["TIMEOUT"].Should().Be("0");
     }
 
     [Fact]
