@@ -120,6 +120,34 @@
                 <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent)">radio</span>
                 Bande: @(_sa818Dto.Bandwidth == SA818Bandwidth.Wide25kHz ? "25 kHz" : "12.5 kHz")
             </div>
+            @if (_sa818Dto.RxFrequency.HasValue)
+            {
+                <div class="card-meta">
+                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">arrow_downward</span>
+                    RX: @_sa818Dto.RxFrequency.Value.ToString("F3") MHz
+                </div>
+            }
+            @if (_sa818Dto.TxFrequency.HasValue)
+            {
+                <div class="card-meta">
+                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">arrow_upward</span>
+                    TX: @_sa818Dto.TxFrequency.Value.ToString("F3") MHz
+                </div>
+            }
+            @if (_sa818Dto.RxCtcss.HasValue)
+            {
+                <div class="card-meta">
+                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">tune</span>
+                    CTCSS RX: @_sa818Dto.RxCtcss.Value.ToString("F1") Hz
+                </div>
+            }
+            @if (_sa818Dto.TxCtcss.HasValue)
+            {
+                <div class="card-meta">
+                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">tune</span>
+                    CTCSS TX: @_sa818Dto.TxCtcss.Value.ToString("F1") Hz
+                </div>
+            }
         }
         else
         {
