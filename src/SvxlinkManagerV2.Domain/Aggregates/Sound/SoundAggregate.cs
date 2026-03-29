@@ -221,12 +221,13 @@ public class SoundAggregate : AggregateRoot
             return Error.Validation("SOUND_NAME_REQUIRED", "Le nom du fichier est obligatoire")
                 .ToFailure<string>();
 
-        // Caractères invalides pour un nom de fichier
-        var invalidChars = System.IO.Path.GetInvalidFileNameChars();
+        // Caractères invalides pour un nom de fichier (indépendant de la plateforme)
+        // Inclut les caractères invalides sur Windows ET Linux pour une compatibilité maximale
+        var invalidChars = new char[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0' };
         if (name.Any(c => invalidChars.Contains(c)))
             return Error.Validation(
                 "SOUND_NAME_INVALID_CHARS",
-                $"Le nom contient des caractères invalides : {string.Join(", ", invalidChars)}")
+                $"Le nom contient des caractères invalides : {string.Join(", ", invalidChars.Where(c => c != '\0'))}")
                 .ToFailure<string>();
 
         // Longueur raisonnable

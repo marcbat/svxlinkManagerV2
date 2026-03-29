@@ -32,8 +32,8 @@ public class GetActiveSalonQueryHandler : IRequestHandler<GetActiveSalonQuery, S
             return null;
 
         var result = await _repository.GetByIdAsync(activeSalonId.Value, cancellationToken);
-        return result.Match(
-            Succ: a => a.IsDeleted ? null : a,
-            Fail: _ => null);
+        if (result.IsFail) return null;
+        var salon = result.Match(Succ: a => a, Fail: _ => throw new InvalidOperationException("Le salon devrait exister car IsFail a retourné false"));
+        return salon.IsDeleted ? null : salon;
     }
 }
