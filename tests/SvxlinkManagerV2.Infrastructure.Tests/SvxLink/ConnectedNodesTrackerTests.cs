@@ -315,6 +315,193 @@ public class ConnectedNodesTrackerTests
     }
 
     [Fact]
+    public void TxStart_ShouldRaiseEventAndMarkNodeAsTx()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        ConnectedNodeInfo? capturedNode = null;
+
+        tracker.OnNodeTxStarted += node => capturedNode = node;
+
+        var joinEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node joined: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(joinEntry);
+
+        var txEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker start: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+
+        // Act
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txEntry);
+
+        // Assert
+        capturedNode.Should().NotBeNull();
+        capturedNode!.Name.Should().Be("HB9GXP-H");
+        capturedNode.IsTx.Should().BeTrue();
+        tracker.ConnectedNodes.Single(n => n.Name == "HB9GXP-H").IsTx.Should().BeTrue();
+    }
+
+    [Fact]
+    public void TxStop_ShouldRaiseEventAndClearTxState()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        ConnectedNodeInfo? capturedNode = null;
+
+        tracker.OnNodeTxStopped += node => capturedNode = node;
+
+        var joinEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node joined: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(joinEntry);
+
+        var txStartEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker start: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txStartEntry);
+
+        var txStopEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker stop: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+
+        // Act
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txStopEntry);
+
+        // Assert
+        capturedNode.Should().NotBeNull();
+        capturedNode!.Name.Should().Be("HB9GXP-H");
+        capturedNode.IsTx.Should().BeFalse();
+        tracker.ConnectedNodes.Single(n => n.Name == "HB9GXP-H").IsTx.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TxStop_WithoutPriorTxStart_ShouldNotRaiseEvent()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var txStopEventCount = 0;
+
+        tracker.OnNodeTxStopped += _ => txStopEventCount++;
+
+        var joinEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node joined: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(joinEntry);
+
+        var txStopEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker stop: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+
+        // Act
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txStopEntry);
+
+        // Assert
+        txStopEventCount.Should().Be(0);
+        tracker.ConnectedNodes.Single(n => n.Name == "HB9GXP-H").IsTx.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TxStart_OnAbsentNode_ShouldNotRaiseEvent()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var txStartEventCount = 0;
+
+        tracker.OnNodeTxStarted += _ => txStartEventCount++;
+
+        var txEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker start: UNKNOWN-NODE",
+            SvxLinkLogLevel.Info
+        );
+
+        // Act
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txEntry);
+
+        // Assert
+        txStartEventCount.Should().Be(0);
+        tracker.ConnectedNodes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Reset_ShouldClearTxState()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+
+        var joinEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node joined: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(joinEntry);
+
+        var txEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker start: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txEntry);
+        tracker.ConnectedNodes.Single(n => n.Name == "HB9GXP-H").IsTx.Should().BeTrue();
+
+        // Act
+        tracker.Reset();
+
+        // Assert
+        tracker.ConnectedNodes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void NodeLeft_ShouldClearTxState()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+
+        // Ajouter un nœud puis le mettre en TX
+        var joinEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node joined: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(joinEntry);
+
+        var txEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Talker start: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(txEntry);
+        tracker.ConnectedNodes.Single(n => n.Name == "HB9GXP-H").IsTx.Should().BeTrue();
+
+        var leaveEntry = new SvxLinkLogEntry(
+            DateTime.Now,
+            "ReflectorLogic: Node left: HB9GXP-H",
+            SvxLinkLogLevel.Info
+        );
+
+        // Act
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(leaveEntry);
+
+        // Assert - le nœud est retiré (et donc son état TX aussi)
+        tracker.ConnectedNodes.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ConnectedNodes_ShouldBeThreadSafe()
     {
         // Arrange

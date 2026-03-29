@@ -251,8 +251,8 @@
             <div class="node-list">
                 @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
                 {
-                    <div class="node-chip">
-                        <span class="material-symbols-outlined" style="font-size:16px;">radio_button_checked</span>
+                    <div class="node-chip @(node.IsTx ? "node-chip--tx" : "")">
+                        <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
                         @node.Name
                     </div>
                 }
@@ -303,6 +303,16 @@
     .node-chip .material-symbols-outlined {
         color: var(--accent);
     }
+    
+    .node-chip--tx {
+        background: rgba(251, 146, 60, 0.15);
+        border-color: rgba(251, 146, 60, 0.4);
+        color: var(--text-primary);
+    }
+    
+    .node-chip--tx .material-symbols-outlined {
+        color: #fb923c;
+    }
 </style>
 
 @code {
@@ -330,6 +340,8 @@
         ConnectedNodesService.OnNodeJoined += OnNodeJoined;
         ConnectedNodesService.OnNodeLeft += OnNodeLeft;
         ConnectedNodesService.OnNodesInitialized += OnNodesInitialized;
+        ConnectedNodesService.OnNodeTxStarted += OnNodeTxStarted;
+        ConnectedNodesService.OnNodeTxStopped += OnNodeTxStopped;
     }
 
     private void StartDaemonPolling()
@@ -390,12 +402,40 @@
         });
     }
 
+    private void OnNodeTxStarted(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            var index = _connectedNodes.FindIndex(n => n.Name == node.Name);
+            if (index >= 0)
+            {
+                _connectedNodes[index] = node;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodeTxStopped(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            var index = _connectedNodes.FindIndex(n => n.Name == node.Name);
+            if (index >= 0)
+            {
+                _connectedNodes[index] = node;
+            }
+            StateHasChanged();
+        });
+    }
+
     public void Dispose()
     {
         // Désabonnement des événements de nœuds connectés
         ConnectedNodesService.OnNodeJoined -= OnNodeJoined;
         ConnectedNodesService.OnNodeLeft -= OnNodeLeft;
         ConnectedNodesService.OnNodesInitialized -= OnNodesInitialized;
+        ConnectedNodesService.OnNodeTxStarted -= OnNodeTxStarted;
+        ConnectedNodesService.OnNodeTxStopped -= OnNodeTxStopped;
         
         _cts?.Cancel();
         _cts?.Dispose();
