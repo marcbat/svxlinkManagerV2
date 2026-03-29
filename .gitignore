@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # SQLite locale Docker (ne jamais versionner les données runtime)
 data/
+
+# Configuration SVXLink locale (spécifique à l'environnement)
+svxlink-config/
