@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
 
@@ -6,25 +8,31 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.DeleteReflector;
 
 /// <summary>
 /// Commande pour supprimer (soft delete) un Reflector.
-/// Bloquée si le reflector est actif.
 /// </summary>
 /// <param name="Id">Identifiant du reflector à supprimer</param>
-public record DeleteReflectorCommand(Guid Id);
+public record DeleteReflectorCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande DeleteReflectorCommand
 /// </summary>
-public static class DeleteReflectorCommandHandler
+public class DeleteReflectorCommandHandler : IRequestHandler<DeleteReflectorCommand, Validation<Error, Unit>>
 {
-    public static async Task<Validation<Error, Unit>> Handle(
+    private readonly IReflectorRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+
+    public DeleteReflectorCommandHandler(IReflectorRepository repository, IActiveSessionTracker tracker)
+    {
+        _repository = repository;
+        _tracker = tracker;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
         DeleteReflectorCommand command,
-        IReflectorRepository repository,
-        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        if (tracker.IsReflectorActive(command.Id))
+        if (_tracker.IsReflectorActive(command.Id))
             return Error.Validation("REFLECTOR_ACTIVE", "Impossible de supprimer un reflector actif").ToFailure<Unit>();
 
-        return await repository.DeleteAsync(command.Id, cancellationToken);
+        return await _repository.DeleteAsync(command.Id, cancellationToken);
     }
 }

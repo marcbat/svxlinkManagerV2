@@ -1,5 +1,5 @@
 using LanguageExt;
-using Marten;
+using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Common;
@@ -8,15 +8,15 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Repository pour la gestion des Salons avec Event Sourcing
+/// Repository pour la gestion des Salons avec EF Core
 /// </summary>
 public class SalonRepository : ISalonRepository
 {
-    private readonly IDocumentSession _session;
+    private readonly SvxlinkDbContext _context;
 
-    public SalonRepository(IDocumentSession session)
+    public SalonRepository(SvxlinkDbContext context)
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<Validation<Error, Unit>> SaveAsync(
@@ -29,20 +29,16 @@ public class SalonRepository : ISalonRepository
                 return Error.Validation("INVALID_AGGREGATE_ID", "L'identifiant de l'aggregate est vide")
                     .ToFailure<Unit>();
 
-            // Récupérer les événements non commités
-            var events = aggregate.DomainEvents.ToArray();
-            if (events.Length == 0)
-                return unit.ToSuccess();
-
-            // Append les événements au stream
-            _session.Events.Append(aggregate.Id, events);
-            
-            // Sauvegarder les changements
-            await _session.SaveChangesAsync(cancellationToken);
-            
-            // Vider les événements non commités
+            var existing = await _context.Salons.FindAsync(new object[] { aggregate.Id }, cancellationToken);
+            if (existing == null)
+                _context.Salons.Add(aggregate);
+            else
+            {
+                _context.Entry(existing).State = EntityState.Detached;
+                _context.Salons.Update(aggregate);
+            }
+            await _context.SaveChangesAsync(cancellationToken);
             aggregate.ClearDomainEvents();
-
             return unit.ToSuccess();
         }
         catch (Exception ex)
@@ -62,10 +58,9 @@ public class SalonRepository : ISalonRepository
                 return Error.Validation("INVALID_ID", "L'identifiant est vide")
                     .ToFailure<SalonAggregate>();
 
-            // Recharger l'aggregate depuis le stream d'événements
-            var aggregate = await _session.Events.AggregateStreamAsync<SalonAggregate>(id, token: cancellationToken);
+            var aggregate = await _context.Salons.FindAsync(new object[] { id }, cancellationToken);
 
-            if (aggregate == null || aggregate.Id == Guid.Empty)
+            if (aggregate == null || aggregate.IsDeleted)
                 return Error.NotFound("Salon", id)
                     .ToFailure<SalonAggregate>();
 
@@ -83,29 +78,29 @@ public class SalonRepository : ISalonRepository
     {
         try
         {
-            // Récupérer toutes les projections de salons non supprimés
-            var projections = await _session.Query<Projections.SalonProjection>()
-                .Where(p => !p.IsDeleted)
+            return await _context.Salons
+                .AsNoTracking()
+                .Where(s => !s.IsDeleted)
                 .ToListAsync(cancellationToken);
-
-            // Rehydrater les aggregates depuis leurs streams
-            var aggregates = new List<SalonAggregate>();
-            foreach (var projection in projections)
-            {
-                var aggregate = await _session.Events.AggregateStreamAsync<SalonAggregate>(
-                    projection.Id, 
-                    token: cancellationToken);
-                
-                if (aggregate != null && aggregate.Id != Guid.Empty)
-                    aggregates.Add(aggregate);
-            }
-
-            return aggregates.AsReadOnly();
         }
-        catch (Exception)
+        catch
         {
-            // En cas d'erreur, retourner une liste vide
-            return System.Array.Empty<SalonAggregate>();
+            return [];
+        }
+    }
+
+    public async Task<SalonAggregate?> GetDefaultAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _context.Salons
+                .Where(s => s.IsDefault && !s.IsDeleted)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -113,9 +108,7 @@ public class SalonRepository : ISalonRepository
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        // Charger l'aggregate
         var aggregateResult = await GetByIdAsync(id, cancellationToken);
-
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -125,39 +118,10 @@ public class SalonRepository : ISalonRepository
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
-        // Appeler la méthode Delete de l'aggregate
         var deleteResult = aggregate.Delete();
-
         if (deleteResult.IsFail)
             return deleteResult;
 
-        // Sauvegarder l'aggregate avec l'événement de suppression
         return await SaveAsync(aggregate, cancellationToken);
-    }
-
-    public async Task<SalonAggregate?> GetDefaultAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            // Récupérer la projection du salon par défaut
-            var projection = await _session.Query<Projections.SalonProjection>()
-                .Where(p => p.IsDefault && !p.IsDeleted)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (projection == null)
-                return null;
-
-            // Rehydrater l'aggregate depuis son stream
-            var aggregate = await _session.Events.AggregateStreamAsync<SalonAggregate>(
-                projection.Id,
-                token: cancellationToken);
-
-            return aggregate?.Id != Guid.Empty ? aggregate : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 }

@@ -33,7 +33,7 @@ public class GetAllSalonsQueryTests
         var query = new GetAllSalonsQuery();
 
         // Act
-        var result = await GetAllSalonsQueryHandler.Handle(query, _repository, CancellationToken.None);
+        var result = await new GetAllSalonsQueryHandler(_repository).Handle(query, CancellationToken.None);
 
         // Assert
         result.Should().HaveCount(2);
@@ -53,7 +53,7 @@ public class GetAllSalonsQueryTests
         var query = new GetAllSalonsQuery();
 
         // Act
-        var result = await GetAllSalonsQueryHandler.Handle(query, _repository, CancellationToken.None);
+        var result = await new GetAllSalonsQueryHandler(_repository).Handle(query, CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();

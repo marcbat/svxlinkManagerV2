@@ -4,9 +4,8 @@
 @using SvxlinkManagerV2.Application.Features.SA818.UpdateSA818Configuration
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject ToastService ToastService
 
 <div class="page-header">
@@ -472,7 +471,7 @@ else
     {
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, SA818ConfigurationDto>>(
+            var result = await Mediator.Send<Validation<Error, SA818ConfigurationDto>>(
                 new GetSA818ConfigurationQuery());
 
             result.Match(
@@ -520,7 +519,7 @@ else
                 LowPass:   _model.LowPass
             );
 
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 Succ: _ =>

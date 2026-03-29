@@ -1,25 +1,24 @@
 using LanguageExt;
-using Marten;
+using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Common;
-using SvxlinkManagerV2.Infrastructure.Persistence.Projections;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Repository pour la gestion du SA818 avec Event Sourcing.
+/// Repository pour la gestion du SA818 avec EF Core.
 /// Le SA818 possède un ID fixe (un seul device physique).
 /// </summary>
 public class SA818Repository : ISA818Repository
 {
-    private readonly IDocumentSession _session;
+    private readonly SvxlinkDbContext _context;
 
-    public SA818Repository(IDocumentSession session)
+    public SA818Repository(SvxlinkDbContext context)
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<Validation<Error, Unit>> SaveAsync(
@@ -29,24 +28,20 @@ public class SA818Repository : ISA818Repository
         try
         {
             if (aggregate.Id != SA818Aggregate.FixedId)
-                return Error.Validation("INVALID_AGGREGATE_ID", 
+                return Error.Validation("INVALID_AGGREGATE_ID",
                     $"L'identifiant du SA818 doit être {SA818Aggregate.FixedId}")
                     .ToFailure<Unit>();
 
-            // Récupérer les événements non commités
-            var events = aggregate.DomainEvents.ToArray();
-            if (events.Length == 0)
-                return unit.ToSuccess();
-
-            // Append les événements au stream (utilise l'ID fixe)
-            _session.Events.Append(aggregate.Id, events);
-            
-            // Sauvegarder les changements
-            await _session.SaveChangesAsync(cancellationToken);
-            
-            // Vider les événements non commités
+            var existing = await _context.SA818.FindAsync(new object[] { aggregate.Id }, cancellationToken);
+            if (existing == null)
+                _context.SA818.Add(aggregate);
+            else
+            {
+                _context.Entry(existing).State = EntityState.Detached;
+                _context.SA818.Update(aggregate);
+            }
+            await _context.SaveChangesAsync(cancellationToken);
             aggregate.ClearDomainEvents();
-
             return unit.ToSuccess();
         }
         catch (Exception ex)
@@ -61,24 +56,10 @@ public class SA818Repository : ISA818Repository
     {
         try
         {
-            // Vérifier d'abord si des événements existent dans le stream
-            var events = await _session.Events.FetchStreamAsync(
-                SA818Aggregate.FixedId, 
-                token: cancellationToken);
-            
-            if (events == null || events.Count == 0)
-                return Error.NotFound("SA818", SA818Aggregate.FixedId)
-                    .ToFailure<SA818Aggregate>();
-
-            // Recharger l'aggregate depuis le stream d'événements (ID fixe)
-            var aggregate = await _session.Events.AggregateStreamAsync<SA818Aggregate>(
-                SA818Aggregate.FixedId, 
-                token: cancellationToken);
-
+            var aggregate = await _context.SA818.FindAsync(new object[] { SA818Aggregate.FixedId }, cancellationToken);
             if (aggregate == null)
                 return Error.NotFound("SA818", SA818Aggregate.FixedId)
                     .ToFailure<SA818Aggregate>();
-
             return aggregate.ToSuccess();
         }
         catch (Exception ex)
@@ -93,51 +74,24 @@ public class SA818Repository : ISA818Repository
     {
         try
         {
-            // Récupérer la projection unique du SA818 (ID fixe)
-            var projection = await _session.Query<SA818Projection>()
-                .Where(p => p.Id == SA818Aggregate.FixedId)
-                .SingleOrDefaultAsync(cancellationToken);
-
-            if (projection == null)
+            var aggregate = await _context.SA818.FindAsync(new object[] { SA818Aggregate.FixedId }, cancellationToken);
+            if (aggregate == null)
                 return null;
 
-            // Mapper la projection vers le DTO
             return new SA818ConfigurationDto
             {
-                Id = projection.Id,
-                Volume = projection.Volume,
-                Squelch = projection.Squelch,
-                Bandwidth = projection.Bandwidth,
-                PreEmph = projection.PreEmph,
-                HighPass = projection.HighPass,
-                LowPass = projection.LowPass,
-                UpdatedAt = projection.UpdatedAt
+                Id = aggregate.Id,
+                Volume = aggregate.Volume,
+                Squelch = aggregate.Squelch,
+                Bandwidth = aggregate.Bandwidth,
+                PreEmph = aggregate.PreEmph,
+                HighPass = aggregate.HighPass,
+                LowPass = aggregate.LowPass,
+                UpdatedAt = DateTime.UtcNow
             };
         }
         catch
         {
-            // En cas d'erreur, retourner null plutôt que de propager l'exception
-            // Le SA818 sera considéré comme non initialisé
-            return null;
-        }
-    }
-
-    public async Task<SA818Projection?> GetProjectionAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            // Récupérer la projection unique du SA818 (ID fixe)
-            var projection = await _session.Query<SA818Projection>()
-                .Where(p => p.Id == SA818Aggregate.FixedId)
-                .SingleOrDefaultAsync(cancellationToken);
-
-            return projection;
-        }
-        catch
-        {
-            // En cas d'erreur, retourner null plutôt que de propager l'exception
-            // Le SA818 sera considéré comme non initialisé
             return null;
         }
     }

@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
@@ -10,33 +12,42 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector;
 /// Commande pour activer le Reflector (démarre le daemon svxreflector).
 /// </summary>
 /// <param name="Id">Identifiant unique du reflector à activer</param>
-public record ActivateReflectorCommand(Guid Id);
+public record ActivateReflectorCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande ActivateReflectorCommand.
-/// Orchestre l'écriture du fichier svxreflector.conf et le démarrage du daemon.
 /// </summary>
-public static class ActivateReflectorCommandHandler
+public class ActivateReflectorCommandHandler : IRequestHandler<ActivateReflectorCommand, Validation<Error, Unit>>
 {
     private const string ReflectorConfigPath = "/etc/svxlink/svxreflector.conf";
 
-    /// <summary>
-    /// Active le Reflector : écrit la configuration, démarre le daemon
-    /// et met à jour le tracker d'état runtime.
-    /// </summary>
-    public static async Task<Validation<Error, Unit>> Handle(
-        ActivateReflectorCommand command,
+    private readonly IReflectorRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+    private readonly IReflectorConfigurationService _configurationService;
+    private readonly IReflectorDaemonService _daemonService;
+    private readonly ILogger<ActivateReflectorCommandHandler> _logger;
+
+    public ActivateReflectorCommandHandler(
         IReflectorRepository repository,
         IActiveSessionTracker tracker,
         IReflectorConfigurationService configurationService,
         IReflectorDaemonService daemonService,
-        ILogger logger,
+        ILogger<ActivateReflectorCommandHandler> logger)
+    {
+        _repository = repository;
+        _tracker = tracker;
+        _configurationService = configurationService;
+        _daemonService = daemonService;
+        _logger = logger;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
+        ActivateReflectorCommand command,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Activation du Reflector {ReflectorId}", command.Id);
+        _logger.LogInformation("Activation du Reflector {ReflectorId}", command.Id);
 
-        // Étape 1 : Charger l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        var aggregateResult = await _repository.GetByIdAsync(command.Id, cancellationToken);
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -49,22 +60,19 @@ public static class ActivateReflectorCommandHandler
         if (aggregate.IsDeleted)
             return Error.Validation("REFLECTOR_DELETED", "Le reflector est supprimé").ToFailure<Unit>();
 
-        // Étape 2 : Écrire le fichier svxreflector.conf
-        logger.LogInformation("Ecriture du fichier {Path}", ReflectorConfigPath);
-        var configResult = await configurationService.WriteConfigAsync(aggregate, ReflectorConfigPath, cancellationToken);
+        _logger.LogInformation("Ecriture du fichier {Path}", ReflectorConfigPath);
+        var configResult = await _configurationService.WriteConfigAsync(aggregate, ReflectorConfigPath, cancellationToken);
         if (configResult.IsFail)
             return Error.Validation("REFLECTOR_CONFIG_ERROR", "Impossible d'écrire le fichier svxreflector.conf").ToFailure<Unit>();
 
-        // Étape 3 : Démarrer le daemon svxreflector
-        logger.LogInformation("Démarrage du daemon svxreflector");
-        var daemonResult = await daemonService.RestartAsync(cancellationToken);
+        _logger.LogInformation("Démarrage du daemon svxreflector");
+        var daemonResult = await _daemonService.RestartAsync(cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("REFLECTOR_DAEMON_ERROR", "Impossible de démarrer le daemon svxreflector").ToFailure<Unit>();
 
-        // Étape 4 : Mettre à jour le tracker d'état runtime
-        tracker.SetActiveReflector(command.Id);
+        _tracker.SetActiveReflector(command.Id);
 
-        logger.LogInformation("Reflector {ReflectorName} ({ReflectorId}) activé avec succès", aggregate.Name, command.Id);
+        _logger.LogInformation("Reflector {ReflectorName} ({ReflectorId}) activé avec succès", aggregate.Name, command.Id);
         return unit.ToSuccess();
     }
 }

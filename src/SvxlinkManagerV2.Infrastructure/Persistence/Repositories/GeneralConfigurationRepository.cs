@@ -1,5 +1,5 @@
 using LanguageExt;
-using Marten;
+using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Common;
@@ -8,16 +8,16 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Repository pour la gestion de la configuration générale avec Event Sourcing.
+/// Repository pour la gestion de la configuration générale avec EF Core.
 /// Il n'existe qu'une seule instance (ID fixe).
 /// </summary>
 public class GeneralConfigurationRepository : IGeneralConfigurationRepository
 {
-    private readonly IDocumentSession _session;
+    private readonly SvxlinkDbContext _context;
 
-    public GeneralConfigurationRepository(IDocumentSession session)
+    public GeneralConfigurationRepository(SvxlinkDbContext context)
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<Validation<Error, Unit>> SaveAsync(
@@ -26,15 +26,18 @@ public class GeneralConfigurationRepository : IGeneralConfigurationRepository
     {
         try
         {
-            var events = aggregate.DomainEvents.ToArray();
-            if (events.Length == 0)
-                return unit.ToSuccess();
+            var existing = await _context.GeneralConfigurations
+                .FindAsync(new object[] { aggregate.Id }, cancellationToken);
 
-            _session.Events.Append(aggregate.Id, events);
-            await _session.SaveChangesAsync(cancellationToken);
-
+            if (existing == null)
+                _context.GeneralConfigurations.Add(aggregate);
+            else
+            {
+                _context.Entry(existing).State = EntityState.Detached;
+                _context.GeneralConfigurations.Update(aggregate);
+            }
+            await _context.SaveChangesAsync(cancellationToken);
             aggregate.ClearDomainEvents();
-
             return unit.ToSuccess();
         }
         catch (Exception ex)
@@ -50,16 +53,8 @@ public class GeneralConfigurationRepository : IGeneralConfigurationRepository
     {
         try
         {
-            var events = await _session.Events.FetchStreamAsync(
-                GeneralConfigurationAggregate.FixedId,
-                token: cancellationToken);
-
-            if (events == null || events.Count == 0)
-                return null;
-
-            return await _session.Events.AggregateStreamAsync<GeneralConfigurationAggregate>(
-                GeneralConfigurationAggregate.FixedId,
-                token: cancellationToken);
+            return await _context.GeneralConfigurations
+                .FindAsync(new object[] { GeneralConfigurationAggregate.FixedId }, cancellationToken);
         }
         catch
         {

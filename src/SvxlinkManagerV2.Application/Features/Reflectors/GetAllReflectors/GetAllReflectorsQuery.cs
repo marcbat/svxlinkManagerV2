@@ -1,3 +1,4 @@
+using MediatR;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
 
@@ -6,21 +7,24 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.GetAllReflectors;
 /// <summary>
 /// Query pour récupérer tous les Reflectors
 /// </summary>
-public record GetAllReflectorsQuery();
+public record GetAllReflectorsQuery() : IRequest<IReadOnlyList<ReflectorAggregate>>;
 
 /// <summary>
 /// Handler pour la query GetAllReflectorsQuery
 /// </summary>
-public static class GetAllReflectorsQueryHandler
+public class GetAllReflectorsQueryHandler : IRequestHandler<GetAllReflectorsQuery, IReadOnlyList<ReflectorAggregate>>
 {
-    /// <summary>
-    /// Retourne tous les Reflectors non supprimés
-    /// </summary>
-    public static async Task<IReadOnlyList<ReflectorAggregate>> Handle(
+    private readonly IReflectorRepository _repository;
+
+    public GetAllReflectorsQueryHandler(IReflectorRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<ReflectorAggregate>> Handle(
         GetAllReflectorsQuery query,
-        IReflectorRepository repository,
         CancellationToken cancellationToken)
     {
-        return await repository.GetAllAsync(cancellationToken);
+        return await _repository.GetAllAsync(cancellationToken);
     }
 }

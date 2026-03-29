@@ -1,5 +1,5 @@
 # Stage 1: Build .NET Application
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dotnet-builder
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
 
 WORKDIR /src
 
@@ -23,7 +23,7 @@ RUN dotnet build -c Release -o /app/build
 RUN dotnet publish -c Release -o /app/publish
 
 # Stage 2: Final runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 
 # Set timezone
 ENV TZ=Europe/Paris

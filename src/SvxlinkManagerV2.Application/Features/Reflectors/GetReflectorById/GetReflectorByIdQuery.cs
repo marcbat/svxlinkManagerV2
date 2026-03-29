@@ -1,4 +1,5 @@
 using LanguageExt;
+using MediatR;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
 using SvxlinkManagerV2.Domain.Common;
@@ -9,21 +10,24 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.GetReflectorById;
 /// Query pour récupérer un Reflector par son identifiant
 /// </summary>
 /// <param name="Id">Identifiant unique du reflector</param>
-public record GetReflectorByIdQuery(Guid Id);
+public record GetReflectorByIdQuery(Guid Id) : IRequest<Validation<Error, ReflectorAggregate>>;
 
 /// <summary>
 /// Handler pour la query GetReflectorByIdQuery
 /// </summary>
-public static class GetReflectorByIdQueryHandler
+public class GetReflectorByIdQueryHandler : IRequestHandler<GetReflectorByIdQuery, Validation<Error, ReflectorAggregate>>
 {
-    /// <summary>
-    /// Retourne le Reflector correspondant à l'identifiant, ou une erreur NotFound
-    /// </summary>
-    public static async Task<Validation<Error, ReflectorAggregate>> Handle(
+    private readonly IReflectorRepository _repository;
+
+    public GetReflectorByIdQueryHandler(IReflectorRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Validation<Error, ReflectorAggregate>> Handle(
         GetReflectorByIdQuery query,
-        IReflectorRepository repository,
         CancellationToken cancellationToken)
     {
-        return await repository.GetByIdAsync(query.Id, cancellationToken);
+        return await _repository.GetByIdAsync(query.Id, cancellationToken);
     }
 }

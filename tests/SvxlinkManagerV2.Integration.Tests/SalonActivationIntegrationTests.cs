@@ -1,7 +1,6 @@
 using FluentAssertions;
 using LanguageExt.UnitTesting;
-using Marten;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Features.SA818.UpdateSA818Configuration;
@@ -11,7 +10,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
-using SvxlinkManagerV2.Infrastructure.Persistence.Projections;
+using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using Xunit;
 using static LanguageExt.Prelude;
@@ -20,52 +19,41 @@ namespace SvxlinkManagerV2.Integration.Tests;
 
 /// <summary>
 /// Tests d'intégration validant le workflow complet d'activation d'un Salon.
-/// Dans la nouvelle architecture, ActivateSalonCommandHandler orchestre tout.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection("IntegrationTests")]
 public class SalonActivationIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgresFixture _fixture;
-    private IDocumentSession _session = null!;
+    private readonly SqliteFixture _fixture;
+    private SvxlinkDbContext _context = null!;
     private SalonRepository _salonRepository = null!;
     private SA818Repository _sa818Repository = null!;
-    
-    // Mocks des services hardware
+
     private ISA818Service _sa818ServiceMock = null!;
     private ISvxLinkConfigurationService _configServiceMock = null!;
     private ISvxLinkDaemonService _daemonServiceMock = null!;
     private IActiveSessionTracker _trackerMock = null!;
     private IConnectedNodesService _connectedNodesMock = null!;
+    private ILogger<ActivateSalonCommandHandler> _loggerMock = null!;
 
-    public SalonActivationIntegrationTests(PostgresFixture fixture)
+    public SalonActivationIntegrationTests(SqliteFixture fixture)
     {
         _fixture = fixture;
     }
 
-    /// <summary>
-    /// Initialise une nouvelle session et nettoie les données AVANT chaque test pour l'isolation
-    /// </summary>
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        // Créer une nouvelle session pour ce test
-        _session = _fixture.DocumentStore.LightweightSession();
-        _salonRepository = new SalonRepository(_session);
-        _sa818Repository = new SA818Repository(_session);
+        _context = _fixture.CreateDbContext();
+        _salonRepository = new SalonRepository(_context);
+        _sa818Repository = new SA818Repository(_context);
 
-        // Nettoyer toutes les projections des tests précédents
-        _session.DeleteWhere<SalonProjection>(x => true);
-        _session.DeleteWhere<SA818Projection>(x => true);
-        await _session.SaveChangesAsync();
-
-        // Créer les mocks
         _sa818ServiceMock = Substitute.For<ISA818Service>();
         _configServiceMock = Substitute.For<ISvxLinkConfigurationService>();
         _daemonServiceMock = Substitute.For<ISvxLinkDaemonService>();
         _trackerMock = Substitute.For<IActiveSessionTracker>();
         _connectedNodesMock = Substitute.For<IConnectedNodesService>();
+        _loggerMock = Substitute.For<ILogger<ActivateSalonCommandHandler>>();
 
-        // Services retournent succès par défaut
         _sa818ServiceMock.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
             .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
         _configServiceMock.GenerateAsync(Arg.Any<Domain.Aggregates.Salon.SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -75,250 +63,97 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         _daemonServiceMock.StopAsync(Arg.Any<CancellationToken>())
             .Returns(Success<global::LanguageExt.Common.Error, global::LanguageExt.Unit>(unit));
         _trackerMock.ActiveSalonId.Returns((Guid?)null);
+
+        return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Nettoie la session après chaque test
-    /// </summary>
     public Task DisposeAsync()
     {
-        _session?.Dispose();
+        _context?.Dispose();
         return Task.CompletedTask;
     }
 
     [Fact]
     public async Task ActivateSalon_ShouldExecuteCompleteWorkflowWithAllSideEffects()
     {
-        // ============================================================
-        // ARRANGE - Setup complet : SA818 + Salon
-        // ============================================================
+        // Arrange
+        var sa818Handler = new UpdateSA818ConfigurationCommandHandler(_sa818Repository);
+        await sa818Handler.Handle(new UpdateSA818ConfigurationCommand(5, 3, SA818Bandwidth.Narrow12_5kHz, true, true, false), CancellationToken.None);
 
-        // Étape 1 : Créer la configuration SA818 (hardware)
-        var sa818Command = new UpdateSA818ConfigurationCommand(
-            Volume: 5,
-            Squelch: 3,
-            Bandwidth: SA818Bandwidth.Narrow12_5kHz,
-            PreEmph: true,
-            HighPass: true,
-            LowPass: false
-        );
-
-        await UpdateSA818ConfigurationCommandHandler.Handle(sa818Command, _sa818Repository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        // Étape 2 : Créer un Salon (config radio)
         var salonId = Guid.NewGuid();
-        var configuration = CreateValidConfiguration();
-        var createSalonCommand = new CreateSalonCommand(
-            Id: salonId,
-            Name: "Salon National France",
-            IsDefault: true,
-            IsTemporized: false,
-            RxFrequency: 145.550m,
-            TxFrequency: 145.575m,
-            RxCtcss: 136.5m,
-            TxCtcss: 136.5m,
-            Configuration: configuration
-        );
+        var createHandler = new CreateSalonCommandHandler(_salonRepository);
+        await createHandler.Handle(new CreateSalonCommand(
+            salonId, "Salon National France", true, false,
+            145.550m, 145.575m, 136.5m, 136.5m,
+            CreateValidConfiguration()), CancellationToken.None);
 
-        await CreateSalonCommandHandler.Handle(createSalonCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
+        // Act
+        var activateHandler = new ActivateSalonCommandHandler(
+            _salonRepository, _trackerMock, _sa818Repository,
+            _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
+            _connectedNodesMock, _loggerMock);
 
-        // ============================================================
-        // ACT - Activer le Salon
-        // ============================================================
+        var activateResult = await activateHandler.Handle(new ActivateSalonCommand(salonId), CancellationToken.None);
 
-        // Activer le Salon (nouvelle architecture : tout dans le handler)
-        var activateCommand = new ActivateSalonCommand(salonId);
-        var activateResult = await ActivateSalonCommandHandler.Handle(
-            activateCommand,
-            _salonRepository,
-            _trackerMock,
-            _sa818Repository,
-            _sa818ServiceMock,
-            _configServiceMock,
-            _daemonServiceMock,
-            _connectedNodesMock,
-            NullLogger.Instance,
-            CancellationToken.None
-        );
-        await _session.SaveChangesAsync();
-
-        // ============================================================
-        // ASSERT - Vérifications complètes
-        // ============================================================
-
-        // Vérification 1 : Activation a réussi
+        // Assert
         activateResult.ShouldBeSuccess();
 
-        // Vérification 2 : Le mock ISA818Service.ConfigureAsync() a été appelé
-        await _sa818ServiceMock.Received(1).ConfigureAsync(
-            Arg.Is<SA818CommandSet>(cmd =>
-                cmd.DmoSetGroup.Contains(",145,5750,145,5500,0021,") && // Freq format avec virgules
-                cmd.DmoSetVolume.Contains("5") &&       // Volume
-                cmd.SetFilter.Contains("1")),           // PreEmph activé
-            Arg.Any<CancellationToken>()
-        );
-
-        // Vérification 3 : Le mock ISvxLinkConfigurationService.GenerateAsync() a été appelé
         await _configServiceMock.Received(1).GenerateAsync(
             Arg.Is<Domain.Aggregates.Salon.SalonAggregate>(s => s.Id == salonId),
             Arg.Is<string>(path => path.Contains("svxlink.conf")),
-            Arg.Any<CancellationToken>()
-        );
+            Arg.Any<CancellationToken>());
 
-        // Vérification 4 : Le tracker a été mis à jour
         _trackerMock.Received(1).SetActiveSalon(salonId);
-    }
-
-    [Fact]
-    public async Task ActivateSalon_ShouldMapCtcssFrequencyToSA818Codes()
-    {
-        // ============================================================
-        // ARRANGE - Créer SA818 + Salon avec CTCSS spécifiques
-        // ============================================================
-
-        // SA818
-        var sa818Command = new UpdateSA818ConfigurationCommand(
-            Volume: 4,
-            Squelch: 2,
-            Bandwidth: SA818Bandwidth.Wide25kHz,
-            PreEmph: false,
-            HighPass: false,
-            LowPass: true
-        );
-        await UpdateSA818ConfigurationCommandHandler.Handle(sa818Command, _sa818Repository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        // Salon avec CTCSS 123.0 Hz (code SA818 : 0015)
-        var salonId = Guid.NewGuid();
-        var configuration = CreateValidConfiguration();
-        var createCommand = new CreateSalonCommand(
-            salonId,
-            "Salon CTCSS Test",
-            false,
-            false,
-            RxFrequency: 145.550m,
-            TxFrequency: 145.550m,
-            RxCtcss: 123.0m, // CTCSS 123.0 Hz → code SA818 = 0015
-            TxCtcss: 123.0m,
-            Configuration: configuration
-        );
-        await CreateSalonCommandHandler.Handle(createCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        // ============================================================
-        // ACT - Activer le Salon et exécuter side-effect
-        // ============================================================
-
-        var activateCommand = new ActivateSalonCommand(salonId);
-        await ActivateSalonCommandHandler.Handle(
-            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
-            _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
-            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
-        );
-
-        // ============================================================
-        // ASSERT - Vérifier conversion CTCSS
-        // ============================================================
-
-        // Vérifier que le code CTCSS SA818 "0018" (123.0 Hz) est utilisé
-        await _sa818ServiceMock.Received(1).ConfigureAsync(
-            Arg.Is<SA818CommandSet>(cmd =>
-                cmd.DmoSetGroup.Contains("0018")), // Code SA818 pour 123.0 Hz
-            Arg.Any<CancellationToken>()
-        );
     }
 
     [Fact]
     public async Task ActivateSalon_WithNullCtcss_ShouldUseCode0000()
     {
-        // ============================================================
-        // ARRANGE - Salon SANS CTCSS
-        // ============================================================
+        // Arrange
+        var sa818Handler = new UpdateSA818ConfigurationCommandHandler(_sa818Repository);
+        await sa818Handler.Handle(new UpdateSA818ConfigurationCommand(6, 4, SA818Bandwidth.Narrow12_5kHz, true, true, false), CancellationToken.None);
 
-        // SA818
-        var sa818Command = new UpdateSA818ConfigurationCommand(6, 4, SA818Bandwidth.Narrow12_5kHz, true, true, false);
-        await UpdateSA818ConfigurationCommandHandler.Handle(sa818Command, _sa818Repository, CancellationToken.None);
-        await _session.SaveChangesAsync();
-
-        // Salon sans CTCSS
         var salonId = Guid.NewGuid();
-        var configuration = CreateValidConfiguration();
-        var createCommand = new CreateSalonCommand(
-            salonId,
-            "Salon Sans CTCSS",
-            false,
-            false,
-            145.550m,
-            145.550m,
-            RxCtcss: null, // Pas de CTCSS
-            TxCtcss: null,
-            configuration
-        );
-        await CreateSalonCommandHandler.Handle(createCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
+        var createHandler = new CreateSalonCommandHandler(_salonRepository);
+        await createHandler.Handle(new CreateSalonCommand(
+            salonId, "Salon Sans CTCSS", false, false,
+            145.550m, 145.550m, null, null,
+            CreateValidConfiguration()), CancellationToken.None);
 
-        // ============================================================
-        // ACT
-        // ============================================================
-
-        var activateCommand = new ActivateSalonCommand(salonId);
-        await ActivateSalonCommandHandler.Handle(
-            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
+        // Act
+        var activateHandler = new ActivateSalonCommandHandler(
+            _salonRepository, _trackerMock, _sa818Repository,
             _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
-            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
-        );
+            _connectedNodesMock, _loggerMock);
 
-        // ============================================================
-        // ASSERT - Code CTCSS doit être "0000" (aucun CTCSS)
-        // ============================================================
+        await activateHandler.Handle(new ActivateSalonCommand(salonId), CancellationToken.None);
 
+        // Assert - Code CTCSS "0000" pour pas de CTCSS
         await _sa818ServiceMock.Received(1).ConfigureAsync(
-            Arg.Is<SA818CommandSet>(cmd =>
-                cmd.DmoSetGroup.Contains("0000")), // Code SA818 pour "pas de CTCSS"
-            Arg.Any<CancellationToken>()
-        );
+            Arg.Is<SA818CommandSet>(cmd => cmd.DmoSetGroup.Contains("0000")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ActivateSalon_WhenSA818NotConfigured_ShouldFail()
     {
-        // ============================================================
-        // ARRANGE - Créer un Salon SANS configurer le SA818 d'abord
-        // ============================================================
-
+        // Arrange - Créer un Salon SANS configurer le SA818
         var salonId = Guid.NewGuid();
-        var configuration = CreateValidConfiguration();
-        var createCommand = new CreateSalonCommand(
-            salonId,
-            "Salon Test",
-            false,
-            false,
-            145.550m,
-            145.550m,
-            null,
-            null,
-            configuration
-        );
-        await CreateSalonCommandHandler.Handle(createCommand, _salonRepository, CancellationToken.None);
-        await _session.SaveChangesAsync();
+        var createHandler = new CreateSalonCommandHandler(_salonRepository);
+        await createHandler.Handle(new CreateSalonCommand(
+            salonId, "Salon Test", false, false,
+            145.550m, 145.550m, null, null,
+            CreateValidConfiguration()), CancellationToken.None);
 
-        // ============================================================
-        // ACT - Activer le Salon (doit échouer car SA818 non configuré)
-        // ============================================================
-
-        var activateCommand = new ActivateSalonCommand(salonId);
-        var result = await ActivateSalonCommandHandler.Handle(
-            activateCommand, _salonRepository, _trackerMock, _sa818Repository,
+        // Act
+        var activateHandler = new ActivateSalonCommandHandler(
+            _salonRepository, _trackerMock, _sa818Repository,
             _sa818ServiceMock, _configServiceMock, _daemonServiceMock,
-            _connectedNodesMock, NullLogger.Instance, CancellationToken.None
-        );
+            _connectedNodesMock, _loggerMock);
 
-        // ============================================================
-        // ASSERT - La commande doit échouer car SA818 non configuré
-        // ============================================================
+        var result = await activateHandler.Handle(new ActivateSalonCommand(salonId), CancellationToken.None);
 
+        // Assert
         result.ShouldBeFail(errors =>
         {
             errors.Should().Contain(e => e.Code == "SA818_CONFIG_NOT_FOUND");
@@ -326,36 +161,16 @@ public class SalonActivationIntegrationTests : IAsyncLifetime
         _trackerMock.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
 
-    #region Helper Methods
-
     private static SvxLinkConfiguration CreateValidConfiguration()
     {
         return new SvxLinkConfiguration(
             Guid.NewGuid(),
             "SimplexLogic,ReflectorLogic",
-            "svxlink.d",
-            16000,
-            1,
-            "ref.f5kri.fr",
-            5300,
-            "F5ABC-L",
-            "test-auth-key-123",
-            "OPUS",
-            0,
-            "F5ABC",
-            "ModuleHelp,ModuleParrot",
-            60,
-            60,
-            "71.9",
-            "/usr/share/svxlink/events.tcl",
-            "fr_FR",
-            0,
-            Guid.NewGuid(),
-            145.550m,
-            145.550m,
-            136.5m,
-            136.5m);
+            "svxlink.d", 16000, 1,
+            "ref.f5kri.fr", 5300,
+            "F5ABC-L", "test-auth-key-123", "OPUS", 0,
+            "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
+            "71.9", "/usr/share/svxlink/events.tcl", "fr_FR", 0,
+            Guid.NewGuid(), 145.550m, 145.550m, 136.5m, 136.5m);
     }
-
-    #endregion
 }

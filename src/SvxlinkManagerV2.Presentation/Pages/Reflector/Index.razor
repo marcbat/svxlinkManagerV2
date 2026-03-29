@@ -7,9 +7,8 @@
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Reflector
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject IReflectorDaemonService DaemonService
 @inject ToastService ToastService
 
@@ -174,12 +173,12 @@ else
         try
         {
             // Charger le reflector existant (il devrait y en avoir un seul)
-            var reflectors = await Bus.InvokeAsync<IReadOnlyList<ReflectorAggregate>>(new GetAllReflectorsQuery());
+            var reflectors = await Mediator.Send<IReadOnlyList<ReflectorAggregate>>(new GetAllReflectorsQuery());
 
             if (reflectors.Count == 0)
             {
                 // Créer le reflector par défaut au premier démarrage
-                var createResult = await Bus.InvokeAsync<Validation<Error, Guid>>(
+                var createResult = await Mediator.Send<Validation<Error, Guid>>(
                     new CreateReflectorCommand(Guid.NewGuid(), "SvxReflector", DefaultConfig));
 
                 createResult.IfFail(errors =>
@@ -188,7 +187,7 @@ else
                 });
 
                 // Recharger après création
-                reflectors = await Bus.InvokeAsync<IReadOnlyList<ReflectorAggregate>>(new GetAllReflectorsQuery());
+                reflectors = await Mediator.Send<IReadOnlyList<ReflectorAggregate>>(new GetAllReflectorsQuery());
             }
 
             _reflector = reflectors.FirstOrDefault();
@@ -214,7 +213,7 @@ else
 
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(
+            var result = await Mediator.Send<Validation<Error, Unit>>(
                 new UpdateReflectorConfigurationCommand(_reflector.Id, _reflector.Name, _configText));
 
             result.Match(
@@ -246,7 +245,7 @@ else
 
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(
+            var result = await Mediator.Send<Validation<Error, Unit>>(
                 new ActivateReflectorCommand(_reflector.Id));
 
             result.Match(
@@ -278,7 +277,7 @@ else
 
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(
+            var result = await Mediator.Send<Validation<Error, Unit>>(
                 new DeactivateReflectorCommand(_reflector.Id));
 
             result.Match(

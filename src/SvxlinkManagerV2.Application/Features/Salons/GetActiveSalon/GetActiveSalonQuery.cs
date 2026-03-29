@@ -1,35 +1,37 @@
-using LanguageExt;
+using MediatR;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
-using SvxlinkManagerV2.Domain.Common;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 
 /// <summary>
 /// Query pour récupérer le Salon actuellement actif
 /// </summary>
-public record GetActiveSalonQuery();
+public record GetActiveSalonQuery() : IRequest<SalonAggregate?>;
 
 /// <summary>
 /// Handler pour la query GetActiveSalonQuery
 /// </summary>
-public static class GetActiveSalonQueryHandler
+public class GetActiveSalonQueryHandler : IRequestHandler<GetActiveSalonQuery, SalonAggregate?>
 {
-    /// <summary>
-    /// Récupère le Salon actif en utilisant le tracker d'état runtime.
-    /// Retourne null si aucun salon n'est actif.
-    /// </summary>
-    public static async Task<SalonAggregate?> Handle(
+    private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+
+    public GetActiveSalonQueryHandler(ISalonRepository repository, IActiveSessionTracker tracker)
+    {
+        _repository = repository;
+        _tracker = tracker;
+    }
+
+    public async Task<SalonAggregate?> Handle(
         GetActiveSalonQuery query,
-        ISalonRepository repository,
-        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        var activeSalonId = tracker.ActiveSalonId;
+        var activeSalonId = _tracker.ActiveSalonId;
         if (!activeSalonId.HasValue)
             return null;
 
-        var result = await repository.GetByIdAsync(activeSalonId.Value, cancellationToken);
+        var result = await _repository.GetByIdAsync(activeSalonId.Value, cancellationToken);
         return result.Match(
             Succ: a => a.IsDeleted ? null : a,
             Fail: _ => null);

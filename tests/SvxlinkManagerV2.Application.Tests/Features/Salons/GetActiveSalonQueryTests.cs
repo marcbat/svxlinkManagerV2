@@ -37,7 +37,7 @@ public class GetActiveSalonQueryTests
         var query = new GetActiveSalonQuery();
 
         // Act
-        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, _tracker, CancellationToken.None);
+        var result = await new GetActiveSalonQueryHandler(_repository, _tracker).Handle(query, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -56,7 +56,7 @@ public class GetActiveSalonQueryTests
         var query = new GetActiveSalonQuery();
 
         // Act
-        var result = await GetActiveSalonQueryHandler.Handle(query, _repository, _tracker, CancellationToken.None);
+        var result = await new GetActiveSalonQueryHandler(_repository, _tracker).Handle(query, CancellationToken.None);
 
         // Assert
         result.Should().BeNull();

@@ -1,3 +1,4 @@
+using MediatR;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Sound;
 
@@ -6,21 +7,24 @@ namespace SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds;
 /// <summary>
 /// Query pour récupérer tous les Sounds
 /// </summary>
-public record GetAllSoundsQuery();
+public record GetAllSoundsQuery() : IRequest<IReadOnlyList<SoundAggregate>>;
 
 /// <summary>
 /// Handler pour la query GetAllSoundsQuery
 /// </summary>
-public static class GetAllSoundsQueryHandler
+public class GetAllSoundsQueryHandler : IRequestHandler<GetAllSoundsQuery, IReadOnlyList<SoundAggregate>>
 {
-    /// <summary>
-    /// Traite la query de récupération de tous les Sounds
-    /// </summary>
-    public static async Task<IReadOnlyList<SoundAggregate>> Handle(
+    private readonly ISoundRepository _repository;
+
+    public GetAllSoundsQueryHandler(ISoundRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<SoundAggregate>> Handle(
         GetAllSoundsQuery query,
-        ISoundRepository repository,
         CancellationToken cancellationToken)
     {
-        return await repository.GetAllAsync(cancellationToken);
+        return await _repository.GetAllAsync(cancellationToken);
     }
 }

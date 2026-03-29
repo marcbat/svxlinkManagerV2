@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
 
@@ -8,23 +10,25 @@ namespace SvxlinkManagerV2.Application.Features.Sounds.DeleteSound;
 /// Commande pour supprimer un Sound
 /// </summary>
 /// <param name="Id">Identifiant du Sound à supprimer</param>
-public record DeleteSoundCommand(Guid Id);
+public record DeleteSoundCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande DeleteSoundCommand
 /// </summary>
-public static class DeleteSoundCommandHandler
+public class DeleteSoundCommandHandler : IRequestHandler<DeleteSoundCommand, Validation<Error, Unit>>
 {
-    /// <summary>
-    /// Traite la commande de suppression d'un Sound
-    /// </summary>
-    public static async Task<Validation<Error, Unit>> Handle(
+    private readonly ISoundRepository _repository;
+
+    public DeleteSoundCommandHandler(ISoundRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
         DeleteSoundCommand command,
-        ISoundRepository repository,
         CancellationToken cancellationToken)
     {
-        // Charger l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        var aggregateResult = await _repository.GetByIdAsync(command.Id, cancellationToken);
 
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
@@ -35,13 +39,11 @@ public static class DeleteSoundCommandHandler
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
-        // Suppression logique
         var deleteResult = aggregate.Delete();
 
         if (deleteResult.IsFail)
             return deleteResult;
 
-        // Sauvegarde
-        return await repository.SaveAsync(aggregate, cancellationToken);
+        return await _repository.SaveAsync(aggregate, cancellationToken);
     }
 }

@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 using SvxlinkManagerV2.Domain.Common;
@@ -14,23 +16,30 @@ public record UpdateSalonConfigurationCommand(
     decimal TxFrequency,
     decimal? RxCtcss,
     decimal? TxCtcss,
-    SvxLinkConfiguration Configuration);
+    SvxLinkConfiguration Configuration) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande UpdateSalonConfigurationCommand
 /// </summary>
-public static class UpdateSalonConfigurationCommandHandler
+public class UpdateSalonConfigurationCommandHandler : IRequestHandler<UpdateSalonConfigurationCommand, Validation<Error, Unit>>
 {
-    public static async Task<Validation<Error, Unit>> Handle(
+    private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+
+    public UpdateSalonConfigurationCommandHandler(ISalonRepository repository, IActiveSessionTracker tracker)
+    {
+        _repository = repository;
+        _tracker = tracker;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
         UpdateSalonConfigurationCommand command,
-        ISalonRepository repository,
-        IActiveSessionTracker tracker,
         CancellationToken cancellationToken)
     {
-        if (tracker.IsSalonActive(command.Id))
+        if (_tracker.IsSalonActive(command.Id))
             return Error.Validation("SALON_ACTIVE", "Impossible de modifier la configuration d'un salon actif").ToFailure<Unit>();
 
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        var aggregateResult = await _repository.GetByIdAsync(command.Id, cancellationToken);
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -52,6 +61,6 @@ public static class UpdateSalonConfigurationCommandHandler
         if (updateResult.IsFail)
             return updateResult;
 
-        return await repository.SaveAsync(aggregate, cancellationToken);
+        return await _repository.SaveAsync(aggregate, cancellationToken);
     }
 }

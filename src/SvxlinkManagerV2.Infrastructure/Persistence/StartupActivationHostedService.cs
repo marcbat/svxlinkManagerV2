@@ -1,17 +1,16 @@
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Interfaces;
-using Wolverine;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
 /// <summary>
 /// Service d'activation automatique au démarrage selon la configuration générale.
 /// S'exécute après SA818InitializerHostedService (enregistré après dans le DI).
-/// Active le réflecteur et/ou le salon par défaut selon les options configurées.
 /// </summary>
 public class StartupActivationHostedService : IHostedService
 {
@@ -43,30 +42,23 @@ public class StartupActivationHostedService : IHostedService
                 return;
             }
 
-            var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-            // Activation du réflecteur au démarrage
             if (generalConfig.StartReflectorOnStartup)
-            {
-                await TryActivateReflectorAsync(scope, bus, cancellationToken);
-            }
+                await TryActivateReflectorAsync(scope, mediator, cancellationToken);
 
-            // Activation du salon par défaut au démarrage
             if (generalConfig.StartDefaultSalonOnStartup)
-            {
-                await TryActivateDefaultSalonAsync(scope, bus, cancellationToken);
-            }
+                await TryActivateDefaultSalonAsync(scope, mediator, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "StartupActivationHostedService: Erreur lors de l'activation automatique au démarrage");
-            // Ne pas throw : on ne veut pas empêcher le démarrage de l'application
         }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private async Task TryActivateReflectorAsync(IServiceScope scope, IMessageBus bus, CancellationToken cancellationToken)
+    private async Task TryActivateReflectorAsync(IServiceScope scope, IMediator mediator, CancellationToken cancellationToken)
     {
         try
         {
@@ -84,8 +76,7 @@ public class StartupActivationHostedService : IHostedService
                 "StartupActivationHostedService: Activation automatique du réflecteur {Id}...",
                 activeReflector.Id);
 
-            var result = await bus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(
-                new ActivateReflectorCommand(activeReflector.Id), cancellationToken);
+            var result = await mediator.Send(new ActivateReflectorCommand(activeReflector.Id), cancellationToken);
 
             result.Match(
                 _ => _logger.LogInformation(
@@ -100,7 +91,7 @@ public class StartupActivationHostedService : IHostedService
         }
     }
 
-    private async Task TryActivateDefaultSalonAsync(IServiceScope scope, IMessageBus bus, CancellationToken cancellationToken)
+    private async Task TryActivateDefaultSalonAsync(IServiceScope scope, IMediator mediator, CancellationToken cancellationToken)
     {
         try
         {
@@ -117,8 +108,7 @@ public class StartupActivationHostedService : IHostedService
                 "StartupActivationHostedService: Activation automatique du salon par défaut {Id} ({Name})...",
                 defaultSalon.Id, defaultSalon.Name);
 
-            var result = await bus.InvokeAsync<LanguageExt.Validation<SvxlinkManagerV2.Domain.Common.Error, LanguageExt.Unit>>(
-                new ActivateSalonCommand(defaultSalon.Id), cancellationToken);
+            var result = await mediator.Send(new ActivateSalonCommand(defaultSalon.Id), cancellationToken);
 
             result.Match(
                 _ => _logger.LogInformation(
