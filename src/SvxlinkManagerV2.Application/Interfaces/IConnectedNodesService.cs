@@ -30,6 +30,16 @@ public interface IConnectedNodesService
     event Action<IReadOnlyList<ConnectedNodeInfo>>? OnNodesInitialized;
 
     /// <summary>
+    /// Événement déclenché quand un nœud commence à émettre (après un "Talker start" dans les logs).
+    /// </summary>
+    event Action<ConnectedNodeInfo>? OnNodeTxStarted;
+
+    /// <summary>
+    /// Événement déclenché quand un nœud arrête d'émettre (après un "Talker stop" dans les logs).
+    /// </summary>
+    event Action<ConnectedNodeInfo>? OnNodeTxStopped;
+
+    /// <summary>
     /// Vide la liste des nœuds connectés (appelé lors de la déconnexion du salon).
     /// Déclenche OnNodesInitialized avec une liste vide pour mettre à jour l'UI.
     /// </summary>

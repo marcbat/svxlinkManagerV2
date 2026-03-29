@@ -14,12 +14,15 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
     private readonly ILogger<ConnectedNodesTracker> _logger;
     private readonly ISvxLinkLogService _logService;
     private readonly HashSet<string> _nodes = new();
+    private readonly HashSet<string> _txNodes = new();
     private readonly object _lock = new();
     private bool _disposed;
 
     public event Action<ConnectedNodeInfo>? OnNodeJoined;
     public event Action<ConnectedNodeInfo>? OnNodeLeft;
     public event Action<IReadOnlyList<ConnectedNodeInfo>>? OnNodesInitialized;
+    public event Action<ConnectedNodeInfo>? OnNodeTxStarted;
+    public event Action<ConnectedNodeInfo>? OnNodeTxStopped;
 
     public IReadOnlyList<ConnectedNodeInfo> ConnectedNodes
     {
@@ -27,7 +30,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         {
             lock (_lock)
             {
-                return _nodes.Select(name => new ConnectedNodeInfo(name)).ToList().AsReadOnly();
+                return _nodes.Select(name => new ConnectedNodeInfo(name, _txNodes.Contains(name))).ToList().AsReadOnly();
             }
         }
     }
@@ -70,6 +73,22 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         if (message.Contains("Node left:", StringComparison.OrdinalIgnoreCase))
         {
             ProcessNodeLeftLine(message);
+            return;
+        }
+
+        // Pattern 4: "ReflectorLogic: Talker start: HB9GXP2-H"
+        // → Un nœud commence à émettre (TX)
+        if (message.Contains("Talker start:", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessTalkerStartLine(message);
+            return;
+        }
+
+        // Pattern 5: "ReflectorLogic: Talker stop: HB9GXP2-H"
+        // → Un nœud arrête d'émettre (TX)
+        if (message.Contains("Talker stop:", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessTalkerStopLine(message);
             return;
         }
     }
@@ -180,6 +199,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
             lock (_lock)
             {
                 wasRemoved = _nodes.Remove(nodeName);
+                _txNodes.Remove(nodeName);
             }
 
             if (wasRemoved)
@@ -198,11 +218,96 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         }
     }
 
+    private bool TryExtractNodeName(string message, string context, out string nodeName)
+    {
+        nodeName = string.Empty;
+        var parts = message.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length < 3)
+        {
+            _logger.LogWarning("Format inattendu pour '{Context}': {Message}", context, message);
+            return false;
+        }
+
+        nodeName = parts[2].Trim();
+        if (string.IsNullOrWhiteSpace(nodeName))
+        {
+            _logger.LogWarning("Nom de nœud vide dans '{Context}': {Message}", context, message);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ProcessTalkerStartLine(string message)
+    {
+        try
+        {
+            // Format: "ReflectorLogic: Talker start: HB9GXP2-H"
+            if (!TryExtractNodeName(message, "Talker start", out var nodeName))
+                return;
+
+            bool nodeExists;
+            lock (_lock)
+            {
+                nodeExists = _nodes.Contains(nodeName);
+                if (nodeExists)
+                {
+                    _txNodes.Add(nodeName);
+                }
+            }
+
+            if (nodeExists)
+            {
+                _logger.LogInformation("Nœud en émission (TX start) : {NodeName}", nodeName);
+                OnNodeTxStarted?.Invoke(new ConnectedNodeInfo(nodeName, true));
+            }
+            else
+            {
+                _logger.LogWarning("TX start reçu pour un nœud absent de la liste : {NodeName}", nodeName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors du parsing de 'Talker start': {Message}", message);
+        }
+    }
+
+    private void ProcessTalkerStopLine(string message)
+    {
+        try
+        {
+            // Format: "ReflectorLogic: Talker stop: HB9GXP2-H"
+            if (!TryExtractNodeName(message, "Talker stop", out var nodeName))
+                return;
+
+            bool wasTransmitting;
+            lock (_lock)
+            {
+                wasTransmitting = _txNodes.Remove(nodeName);
+            }
+
+            if (wasTransmitting)
+            {
+                _logger.LogInformation("Nœud arrête l'émission (TX stop) : {NodeName}", nodeName);
+                OnNodeTxStopped?.Invoke(new ConnectedNodeInfo(nodeName, false));
+            }
+            else
+            {
+                _logger.LogDebug("TX stop reçu pour un nœud non en émission : {NodeName}", nodeName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors du parsing de 'Talker stop': {Message}", message);
+        }
+    }
+
     public void Reset()
     {
         lock (_lock)
         {
             _nodes.Clear();
+            _txNodes.Clear();
         }
 
         _logger.LogInformation("ConnectedNodesTracker réinitialisé - liste des nœuds vidée");

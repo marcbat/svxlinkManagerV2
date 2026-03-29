@@ -4,4 +4,5 @@ namespace SvxlinkManagerV2.Application.Models;
 /// Représente un nœud connecté au réflecteur SVXLink.
 /// </summary>
 /// <param name="Name">Le callsign du nœud (ex: "HB9GXP-H")</param>
-public record ConnectedNodeInfo(string Name);
+/// <param name="IsTx">Indique si le nœud est actuellement en émission (TX). Faux par défaut.</param>
+public record ConnectedNodeInfo(string Name, bool IsTx = false);
