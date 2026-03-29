@@ -16,9 +16,9 @@ services:
     volumes:
       - ./svxlink-config:/etc/svxlink
       - ./logs:/app/logs
+      - ./data:/app/data
       - svxlink-spool:/var/spool/svxlink
       - svxlink-logs:/var/log/svxlink
-      - svxlinkmanager-data:/app/data
     depends_on:
       svxreflector:
         condition: service_started
@@ -61,6 +61,4 @@ volumes:
   svxlink-spool:
     driver: local
   svxlink-logs:
-    driver: local
-  svxlinkmanager-data:
     driver: local

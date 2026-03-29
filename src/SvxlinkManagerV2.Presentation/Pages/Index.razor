@@ -168,7 +168,7 @@
                         <option value="">— Choisir un salon —</option>
                         @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
                         {
-                            <option value="@salon.Id">@salon.Name@(salon.IsDefault ? " ★" : "")</option>
+                            <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
                         }
                     </select>
                     <button class="btn btn-primary btn-sm"
@@ -377,29 +377,70 @@
     private async Task LoadData()
     {
         _isLoading = true;
+        var loadErrors = new List<string>();
+
         try
         {
-            var activeSalonTask = Mediator.Send<SalonAggregate?>(new GetActiveSalonQuery());
-            var sa818Task       = Mediator.Send<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
-            var soundsTask      = Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
-            var salonsTask      = Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
-            var daemonTask      = DaemonService.IsRunningAsync();
+            try
+            {
+                _activeSalon = await Mediator.Send<SalonAggregate?>(new GetActiveSalonQuery());
+            }
+            catch (Exception ex)
+            {
+                _activeSalon = null;
+                loadErrors.Add($"salon actif: {ex.Message}");
+            }
 
-            await Task.WhenAll(activeSalonTask, sa818Task, soundsTask, salonsTask, daemonTask);
+            try
+            {
+                var sa818Result = await Mediator.Send<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
+                _sa818Dto = sa818Result.Match(Succ: dto => (SA818ConfigurationDto?)dto, Fail: _ => null);
+            }
+            catch (Exception ex)
+            {
+                _sa818Dto = null;
+                loadErrors.Add($"configuration SA818: {ex.Message}");
+            }
 
-            _activeSalon   = activeSalonTask.Result;
-            _sa818Dto      = sa818Task.Result.Match(Succ: dto => (SA818ConfigurationDto?)dto, Fail: _ => null);
-            _sounds        = soundsTask.Result ?? [];
-            _salons        = salonsTask.Result ?? [];
-            _daemonRunning = daemonTask.Result.Match(Succ: b => b, Fail: _ => false);
-        }
-        catch (Exception ex)
-        {
-            ToastService.ShowError($"Erreur lors du chargement : {ex.Message}");
+            try
+            {
+                _sounds = await Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
+            }
+            catch (Exception ex)
+            {
+                _sounds = [];
+                loadErrors.Add($"sons: {ex.Message}");
+            }
+
+            try
+            {
+                _salons = await Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery()) ?? [];
+            }
+            catch (Exception ex)
+            {
+                _salons = [];
+                loadErrors.Add($"salons: {ex.Message}");
+            }
+
+            try
+            {
+                var daemonResult = await DaemonService.IsRunningAsync();
+                _daemonRunning = daemonResult.Match(Succ: b => b, Fail: _ => false);
+            }
+            catch (Exception ex)
+            {
+                _daemonRunning = false;
+                loadErrors.Add($"état du daemon SVXLink: {ex.Message}");
+            }
         }
         finally
         {
             _isLoading = false;
+        }
+
+        if (loadErrors.Count > 0)
+        {
+            ToastService.ShowError($"Erreur partielle de chargement du dashboard : {string.Join(" | ", loadErrors)}");
         }
     }
 
