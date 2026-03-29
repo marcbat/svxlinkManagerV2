@@ -1,0 +1,158 @@
+name: Build Debian Package
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - feature/**
+      - release/**
+      - hotfix/**
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publier aussi une GitHub Release avec le .deb
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup GitVersion
+        uses: gittools/actions/gitversion/setup@v4.4.2
+        with:
+          versionSpec: 6.7.0
+
+      - name: Execute GitVersion
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.4.2
+        with:
+          useConfigFile: true
+          configFilePath: GitVersion.yml
+
+      - name: Calcul de version Debian
+        id: version
+        shell: pwsh
+        run: |
+          $majorMinorPatch = '${{ steps.gitversion.outputs.majorMinorPatch }}'
+          $semVer = '${{ steps.gitversion.outputs.semVer }}'
+          $refName = '${{ github.ref_name }}'
+          $refType = '${{ github.ref_type }}'
+          $commitsSinceVersionSource = '${{ steps.gitversion.outputs.commitsSinceVersionSource }}'
+
+          function Convert-ToDebLabel([string]$value) {
+              if ([string]::IsNullOrWhiteSpace($value)) {
+                  return 'ci'
+              }
+
+              $sanitized = $value.ToLowerInvariant()
+              $sanitized = $sanitized -replace '[^0-9a-z.+~]+', '.'
+              $sanitized = $sanitized.Trim('.')
+
+              if ([string]::IsNullOrWhiteSpace($sanitized)) {
+                  return 'ci'
+              }
+
+              return $sanitized
+          }
+
+          if ([string]::IsNullOrWhiteSpace($commitsSinceVersionSource)) {
+              $commitsSinceVersionSource = '0'
+          }
+
+          $isPreRelease = $true
+          if ($refType -eq 'tag' -or $refName -in @('main', 'master')) {
+              $debVersion = $majorMinorPatch
+              $isPreRelease = $false
+          }
+          elseif ($refName -eq 'develop') {
+              $debVersion = "$majorMinorPatch~alpha.$commitsSinceVersionSource"
+          }
+          elseif ($refName.StartsWith('release/')) {
+              $debVersion = "$majorMinorPatch~rc.$commitsSinceVersionSource"
+          }
+          elseif ($refName.StartsWith('hotfix/')) {
+              $debVersion = "$majorMinorPatch~hotfix.$commitsSinceVersionSource"
+          }
+          elseif ($refName.StartsWith('feature/')) {
+              $featureLabel = Convert-ToDebLabel($refName.Substring('feature/'.Length))
+              $debVersion = "$majorMinorPatch~$featureLabel.$commitsSinceVersionSource"
+          }
+          else {
+              $branchLabel = Convert-ToDebLabel($refName)
+              $debVersion = "$majorMinorPatch~$branchLabel.$commitsSinceVersionSource"
+          }
+
+          $releaseTag = 'v' + ($semVer -replace '[^0-9A-Za-z.-]', '.')
+
+          "deb_version=$debVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "release_tag=$releaseTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "semver=$semVer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "is_prerelease=$($isPreRelease.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          dotnet test tests/**/*.csproj -c Release --logger "trx;LogFileName=test-results.trx" --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ steps.version.outputs.deb_version }}
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Build .deb
+        shell: pwsh
+        run: |
+          ./build-deb.ps1 -PackageVersion '${{ steps.version.outputs.deb_version }}'
+
+      - name: Upload artefact .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ steps.version.outputs.deb_version }}
+          path: artifacts/deb/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Resume du build
+        shell: pwsh
+        run: |
+          @"
+          ## Build Debian
+
+          - GitVersion SemVer: `${{ steps.version.outputs.semver }}`
+          - Version Debian: `${{ steps.version.outputs.deb_version }}`
+          - Tag de release: `${{ steps.version.outputs.release_tag }}`
+          - Branche: `${{ github.ref_name }}`
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Publier une GitHub Release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: SvxlinkManagerV2 ${{ steps.version.outputs.semver }}
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
+          files: artifacts/deb/*.deb

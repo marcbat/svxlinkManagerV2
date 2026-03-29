@@ -187,6 +187,21 @@ dotnet test
 dotnet restore
 ```
 
+## 📦 Package Debian
+
+Le dépôt contient un script de packaging Debian pour Orange Pi / Armbian Focal armhf :
+
+```bash
+# Génération locale du package .deb
+pwsh ./build-deb.ps1 -PackageVersion 0.1.0-dev1
+```
+
+Une GitHub Action publie également le `.deb` dans les artefacts à chaque push sur les branches GitFlow (`develop`, `feature/*`, `release/*`, `hotfix/*`, `main`, `master`).
+
+- La version est calculée avec `GitVersion`
+- La version Debian inclut la branche et le nombre de commits pour les branches non finales
+- Une GitHub Release peut être publiée manuellement via `workflow_dispatch`
+
 ## 🎯 Principes Architecturaux
 
 ### Event Sourcing

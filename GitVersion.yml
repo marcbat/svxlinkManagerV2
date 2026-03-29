@@ -1,0 +1,42 @@
+next-version: 0.1.0
+mode: ContinuousDeployment
+
+branches:
+  main:
+    regex: ^main$
+    label: ''
+    increment: Patch
+    is-main-branch: true
+
+  master:
+    regex: ^master$
+    label: ''
+    increment: Patch
+    is-main-branch: true
+
+  develop:
+    regex: ^develop$
+    label: alpha
+    increment: Minor
+
+  feature:
+    regex: ^feature[/-](?<BranchName>.+)
+    label: '{BranchName}'
+    increment: Inherit
+
+  release:
+    regex: ^release[/-](?<BranchName>.+)
+    label: rc
+    increment: Patch
+    is-release-branch: true
+
+  hotfix:
+    regex: ^hotfix[/-](?<BranchName>.+)
+    label: hotfix
+    increment: Patch
+    is-release-branch: true
+
+  pull-request:
+    regex: ^pull[/-](?<BranchName>.+)
+    label: pr
+    increment: Inherit
