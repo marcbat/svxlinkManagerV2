@@ -6,12 +6,10 @@
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
-@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Application.Models
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
-@using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -185,27 +183,6 @@
         }
     </div>
 
-    <!-- Card : Sons -->
-    <div class="card">
-        <div class="card-title">
-            <span class="material-symbols-outlined">library_music</span>
-            Sons
-        </div>
-        @if (_isLoading)
-        {
-            <div class="skeleton" style="height:24px;width:50%;margin-bottom:8px;"></div>
-            <div class="skeleton" style="height:16px;width:60%;"></div>
-        }
-        else
-        {
-            <div class="card-value">@_sounds.Count fichier@(_sounds.Count != 1 ? "s" : "")</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--warning)">storage</span>
-                Bibliothèque locale
-            </div>
-        }
-    </div>
-
 </div>
 
 <!-- ── Dashboard Bottom Grid ─────────────────────────────────── -->
@@ -348,7 +325,6 @@
 @code {
     private SalonAggregate?              _activeSalon;
     private SA818ConfigurationDto?       _sa818Dto;
-    private IReadOnlyList<SoundAggregate> _sounds  = [];
     private IReadOnlyList<SalonAggregate> _salons  = [];
     private List<ConnectedNodeInfo>      _connectedNodes = new();
     private bool _daemonRunning;
@@ -503,16 +479,6 @@
             {
                 _sa818Dto = null;
                 loadErrors.Add($"configuration SA818: {ex.Message}");
-            }
-
-            try
-            {
-                _sounds = await Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
-            }
-            catch (Exception ex)
-            {
-                _sounds = [];
-                loadErrors.Add($"sons: {ex.Message}");
             }
 
             try
