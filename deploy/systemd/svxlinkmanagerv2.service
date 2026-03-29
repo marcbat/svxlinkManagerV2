@@ -1,0 +1,20 @@
+[Unit]
+Description=SvxlinkManager V2
+After=network.target
+
+[Service]
+Type=simple
+TimeoutStartSec=300
+WorkingDirectory=/opt/svxlinkmanagerv2
+ExecStart=/usr/share/dotnet/dotnet /opt/svxlinkmanagerv2/SvxlinkManagerV2.Presentation.dll
+SyslogIdentifier=svxlinkmanagerv2
+Restart=always
+RestartSec=10
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:80
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=DOTNET_NOLOGO=true
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

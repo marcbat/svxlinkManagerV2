@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+APP_DIR="/opt/svxlinkmanagerv2"
+SERVICE_NAME="svxlinkmanagerv2"
+
+mkdir -p "$APP_DIR/data"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "Erreur: dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
+  exit 1
+fi
+
+if ! dotnet --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 8\.'; then
+  echo "Erreur: .NET 8 runtime est requis. Runtimes detectes:"
+  dotnet --list-runtimes 2>/dev/null || true
+  exit 1
+fi
+
+chmod +x "$APP_DIR/SvxlinkManagerV2.Presentation" 2>/dev/null || true
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload || true
+  systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
+  systemctl restart "$SERVICE_NAME" || true
+fi
