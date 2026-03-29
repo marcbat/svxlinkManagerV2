@@ -61,6 +61,8 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
             reloaded.IsTemporized.Should().BeFalse();
             reloaded.Configuration.Host.Should().Be(config.Host);
             reloaded.Configuration.Port.Should().Be(config.Port);
+            reloaded.Configuration.Callsign.Should().Be(config.Callsign);
+            reloaded.Configuration.AuthKey.Should().Be(config.AuthKey);
         });
     }
 
