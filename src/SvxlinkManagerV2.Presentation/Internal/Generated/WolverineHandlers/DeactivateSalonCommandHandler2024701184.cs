@@ -9,17 +9,17 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class DeactivateSalonCommandHandler2024701184 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
-        private readonly SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService _connectedNodesService;
         private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon.DeactivateSalonCommand> _loggerForMessage;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService _connectedNodesService;
         private readonly SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService _svxLinkDaemonService;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
 
-        public DeactivateSalonCommandHandler2024701184(SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService connectedNodesService, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon.DeactivateSalonCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService svxLinkDaemonService)
+        public DeactivateSalonCommandHandler2024701184(Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon.DeactivateSalonCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService connectedNodesService, SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService svxLinkDaemonService, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker)
         {
-            _activeSessionTracker = activeSessionTracker;
-            _connectedNodesService = connectedNodesService;
             _loggerForMessage = loggerForMessage;
+            _connectedNodesService = connectedNodesService;
             _svxLinkDaemonService = svxLinkDaemonService;
+            _activeSessionTracker = activeSessionTracker;
         }
 
 

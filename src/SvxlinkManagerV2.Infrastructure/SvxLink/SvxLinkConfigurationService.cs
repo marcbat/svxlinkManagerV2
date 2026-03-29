@@ -122,7 +122,9 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     {
         var config = salon.Configuration;
         
-        iniData["GLOBAL"]["LOGICS"] = config.Logics;
+        // SimplexLogic doit toujours être présent pour que le RX/TX local fonctionne.
+        // La valeur persistée en base peut être obsolète (migration depuis ancienne version).
+        iniData["GLOBAL"]["LOGICS"] = "SimplexLogic,ReflectorLogic";
         iniData["GLOBAL"]["LINKS"] = "LinkToReflector";
         iniData["GLOBAL"]["CFG_DIR"] = config.CfgDir;
         iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = config.CardSampleRate.ToString();
@@ -181,7 +183,9 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = config.LongIdentInterval.ToString();
         iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
         iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
-        iniData["SimplexLogic"]["EVENT_HANDLER"] = config.EventHandler;
+        // Chemin absolu requis — SVXLink résout le handler relatif au répertoire de travail, pas au SHARE_DIR
+        // events.tcl est le point d'entrée principal qui source tous les handlers de events.d/ (dont SimplexLogic.tcl)
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
 

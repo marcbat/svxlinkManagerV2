@@ -9,15 +9,15 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class DeactivateReflectorCommandHandler143047839 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
         private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector.DeactivateReflectorCommand> _loggerForMessage;
         private readonly SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService _reflectorDaemonService;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
 
-        public DeactivateReflectorCommandHandler143047839(SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector.DeactivateReflectorCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService reflectorDaemonService)
+        public DeactivateReflectorCommandHandler143047839(Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector.DeactivateReflectorCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService reflectorDaemonService, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker)
         {
-            _activeSessionTracker = activeSessionTracker;
             _loggerForMessage = loggerForMessage;
             _reflectorDaemonService = reflectorDaemonService;
+            _activeSessionTracker = activeSessionTracker;
         }
 
 

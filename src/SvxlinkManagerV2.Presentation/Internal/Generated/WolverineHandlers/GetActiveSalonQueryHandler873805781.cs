@@ -9,13 +9,13 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class GetActiveSalonQueryHandler873805781 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
 
-        public GetActiveSalonQueryHandler873805781(SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public GetActiveSalonQueryHandler873805781(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker)
         {
-            _activeSessionTracker = activeSessionTracker;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _activeSessionTracker = activeSessionTracker;
         }
 
 

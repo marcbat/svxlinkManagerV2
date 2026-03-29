@@ -10,19 +10,19 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class ActivateReflectorCommandHandler1322134719 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
-        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector.ActivateReflectorCommand> _loggerForMessage;
-        private readonly SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService _reflectorDaemonService;
         private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Reflector.ReflectorConfigurationService> _logger;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService _reflectorDaemonService;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
+        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector.ActivateReflectorCommand> _loggerForMessage;
 
-        public ActivateReflectorCommandHandler1322134719(SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector.ActivateReflectorCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService reflectorDaemonService, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Reflector.ReflectorConfigurationService> logger)
+        public ActivateReflectorCommandHandler1322134719(Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Reflector.ReflectorConfigurationService> logger, SvxlinkManagerV2.Application.Interfaces.IReflectorDaemonService reflectorDaemonService, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector.ActivateReflectorCommand> loggerForMessage)
         {
-            _activeSessionTracker = activeSessionTracker;
-            _outboxedSessionFactory = outboxedSessionFactory;
-            _loggerForMessage = loggerForMessage;
-            _reflectorDaemonService = reflectorDaemonService;
             _logger = logger;
+            _reflectorDaemonService = reflectorDaemonService;
+            _outboxedSessionFactory = outboxedSessionFactory;
+            _activeSessionTracker = activeSessionTracker;
+            _loggerForMessage = loggerForMessage;
         }
 
 

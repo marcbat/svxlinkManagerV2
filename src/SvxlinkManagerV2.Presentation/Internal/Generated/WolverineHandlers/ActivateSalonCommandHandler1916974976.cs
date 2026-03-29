@@ -10,23 +10,23 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class ActivateSalonCommandHandler1916974976 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.SvxLink.SvxLinkConfigurationService> _logger2;
         private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.ActivateSalon.ActivateSalonCommand> _loggerForMessage;
-        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
-        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Hardware.SA818MockService> _logger1;
         private readonly SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService _connectedNodesService;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService _svxLinkDaemonService;
+        private readonly SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker _activeSessionTracker;
+        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.SvxLink.SvxLinkConfigurationService> _logger2;
+        private readonly Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Hardware.SA818MockService> _logger1;
 
-        public ActivateSalonCommandHandler1916974976(Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.SvxLink.SvxLinkConfigurationService> __logger2, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.ActivateSalon.ActivateSalonCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Hardware.SA818MockService> __logger1, SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService connectedNodesService, SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService svxLinkDaemonService)
+        public ActivateSalonCommandHandler1916974976(Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Application.Features.Salons.ActivateSalon.ActivateSalonCommand> loggerForMessage, SvxlinkManagerV2.Application.Interfaces.IConnectedNodesService connectedNodesService, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, SvxlinkManagerV2.Application.Interfaces.ISvxLinkDaemonService svxLinkDaemonService, SvxlinkManagerV2.Application.Interfaces.IActiveSessionTracker activeSessionTracker, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.SvxLink.SvxLinkConfigurationService> __logger2, Microsoft.Extensions.Logging.ILogger<SvxlinkManagerV2.Infrastructure.Hardware.SA818MockService> __logger1)
         {
-            _logger2 = __logger2;
             _loggerForMessage = loggerForMessage;
-            _activeSessionTracker = activeSessionTracker;
-            _outboxedSessionFactory = outboxedSessionFactory;
-            _logger1 = __logger1;
             _connectedNodesService = connectedNodesService;
+            _outboxedSessionFactory = outboxedSessionFactory;
             _svxLinkDaemonService = svxLinkDaemonService;
+            _activeSessionTracker = activeSessionTracker;
+            _logger2 = __logger2;
+            _logger1 = __logger1;
         }
 
 
