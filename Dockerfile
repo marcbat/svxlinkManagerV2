@@ -38,6 +38,15 @@ RUN apt-get update && apt-get install -qq -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Configure ALSA null device for headless operation (pas de hardware audio en Docker)
+RUN echo 'pcm.null { type null }' > /etc/asound.conf && \
+    echo 'ctl.null { type null }' >> /etc/asound.conf && \
+    echo 'pcm.default { type null }' >> /etc/asound.conf && \
+    echo 'ctl.default { type null }' >> /etc/asound.conf
+
+# Create required SVXLink runtime directories
+RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d
+
 # Copy .NET application
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
