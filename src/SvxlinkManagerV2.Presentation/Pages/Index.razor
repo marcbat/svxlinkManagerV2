@@ -13,9 +13,8 @@
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject ISvxLinkDaemonService DaemonService
 @inject IConnectedNodesService ConnectedNodesService
 @inject ToastService ToastService
@@ -380,10 +379,10 @@
         _isLoading = true;
         try
         {
-            var activeSalonTask = Bus.InvokeAsync<SalonAggregate?>(new GetActiveSalonQuery());
-            var sa818Task       = Bus.InvokeAsync<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
-            var soundsTask      = Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
-            var salonsTask      = Bus.InvokeAsync<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
+            var activeSalonTask = Mediator.Send<SalonAggregate?>(new GetActiveSalonQuery());
+            var sa818Task       = Mediator.Send<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
+            var soundsTask      = Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
+            var salonsTask      = Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery());
             var daemonTask      = DaemonService.IsRunningAsync();
 
             await Task.WhenAll(activeSalonTask, sa818Task, soundsTask, salonsTask, daemonTask);
@@ -410,7 +409,7 @@
         _isActivating = true;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
             result.Match(
                 Succ: _ =>
                 {
@@ -442,7 +441,7 @@
         _isDeactivating = true;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
             result.Match(
                 Succ: _ =>
                 {

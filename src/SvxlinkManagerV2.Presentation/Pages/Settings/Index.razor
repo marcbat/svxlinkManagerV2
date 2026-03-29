@@ -3,9 +3,8 @@
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
 @using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject ToastService ToastService
 
 <div class="page-header">
@@ -183,7 +182,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var config = await Bus.InvokeAsync<GeneralConfigurationAggregate?>(new GetGeneralConfigurationQuery());
+        var config = await Mediator.Send<GeneralConfigurationAggregate?>(new GetGeneralConfigurationQuery());
         if (config is not null)
         {
             _model.StartReflectorOnStartup = config.StartReflectorOnStartup;
@@ -203,7 +202,7 @@ else
                 _model.StartReflectorOnStartup,
                 _model.StartDefaultSalonOnStartup);
 
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 _ => ToastService.ShowSuccess("Paramètres enregistrés avec succès."),

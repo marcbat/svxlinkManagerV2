@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
@@ -10,38 +12,47 @@ namespace SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon;
 /// Commande pour désactiver un Salon (déconnexion du reflector).
 /// </summary>
 /// <param name="Id">Identifiant unique du salon à désactiver</param>
-public record DeactivateSalonCommand(Guid Id);
+public record DeactivateSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande DeactivateSalonCommand
 /// </summary>
-public static class DeactivateSalonCommandHandler
+public class DeactivateSalonCommandHandler : IRequestHandler<DeactivateSalonCommand, Validation<Error, Unit>>
 {
-    /// <summary>
-    /// Désactive le Salon : arrête le daemon SVXLink, vide les nœuds connectés
-    /// et met à jour le tracker d'état runtime.
-    /// </summary>
-    public static async Task<Validation<Error, Unit>> Handle(
-        DeactivateSalonCommand command,
+    private readonly IActiveSessionTracker _tracker;
+    private readonly ISvxLinkDaemonService _daemonService;
+    private readonly IConnectedNodesService _connectedNodesService;
+    private readonly ILogger<DeactivateSalonCommandHandler> _logger;
+
+    public DeactivateSalonCommandHandler(
         IActiveSessionTracker tracker,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
-        ILogger logger,
+        ILogger<DeactivateSalonCommandHandler> logger)
+    {
+        _tracker = tracker;
+        _daemonService = daemonService;
+        _connectedNodesService = connectedNodesService;
+        _logger = logger;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
+        DeactivateSalonCommand command,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Désactivation du Salon {SalonId}", command.Id);
+        _logger.LogInformation("Désactivation du Salon {SalonId}", command.Id);
 
-        if (!tracker.IsSalonActive(command.Id))
+        if (!_tracker.IsSalonActive(command.Id))
             return Error.Validation("SALON_NOT_ACTIVE", "Ce salon n'est pas actuellement actif").ToFailure<Unit>();
 
-        var stopResult = await daemonService.StopAsync(cancellationToken);
+        var stopResult = await _daemonService.StopAsync(cancellationToken);
         if (stopResult.IsFail)
             return Error.Validation("SVXLINK_STOP_ERROR", "Impossible d'arrêter le daemon SVXLink").ToFailure<Unit>();
 
-        connectedNodesService.Reset();
-        tracker.SetActiveSalon(null);
+        _connectedNodesService.Reset();
+        _tracker.SetActiveSalon(null);
 
-        logger.LogInformation("Salon {SalonId} désactivé avec succès", command.Id);
+        _logger.LogInformation("Salon {SalonId} désactivé avec succès", command.Id);
         return unit.ToSuccess();
     }
 }

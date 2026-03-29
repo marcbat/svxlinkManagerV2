@@ -6,9 +6,8 @@
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
 @using Microsoft.AspNetCore.Components.Forms
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -511,7 +510,7 @@ else
         _isLoading = true;
         try
         {
-            var result = await Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
+            var result = await Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
             _sounds = result.Where(s => !s.IsDeleted).OrderBy(s => s.Name).ToList();
         }
         catch
@@ -567,7 +566,7 @@ else
             fileContent = ms.ToArray();
 
             var command = new CreateSoundCommand(Guid.NewGuid(), _uploadName.Trim(), fileContent);
-            var result  = await Bus.InvokeAsync<Validation<Error, Guid>>(command);
+            var result  = await Mediator.Send<Validation<Error, Guid>>(command);
 
             result.Match(
                 Succ: _ =>
@@ -612,7 +611,7 @@ else
             var fileContent = ms.ToArray();
 
             var command = new UpdateSoundCommand(soundId, FileContent: fileContent);
-            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result  = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Fichier audio remplacé."); return Unit.Default; },
@@ -656,7 +655,7 @@ else
         try
         {
             var command = new UpdateSoundCommand(id, Name: _renameValue.Trim());
-            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result  = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Son renommé."); return Unit.Default; },
@@ -698,7 +697,7 @@ else
         try
         {
             var command = new DeleteSoundCommand(id);
-            var result  = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result  = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Son supprimé."); return Unit.Default; },

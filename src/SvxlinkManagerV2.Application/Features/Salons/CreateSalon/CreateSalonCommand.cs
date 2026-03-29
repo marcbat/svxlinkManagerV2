@@ -1,4 +1,5 @@
 using LanguageExt;
+using MediatR;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
@@ -9,15 +10,6 @@ namespace SvxlinkManagerV2.Application.Features.Salons.CreateSalon;
 /// <summary>
 /// Commande pour créer un nouveau Salon
 /// </summary>
-/// <param name="Id">Identifiant unique du salon</param>
-/// <param name="Name">Nom du salon</param>
-/// <param name="IsDefault">Si c'est le salon par défaut</param>
-/// <param name="IsTemporized">Si le salon est temporisé</param>
-/// <param name="RxFrequency">Fréquence de réception en MHz (ex: 145.550)</param>
-/// <param name="TxFrequency">Fréquence de transmission en MHz (ex: 145.550)</param>
-/// <param name="RxCtcss">Tonalité CTCSS de réception en Hz (ex: 136.5). Null = aucun CTCSS</param>
-/// <param name="TxCtcss">Tonalité CTCSS de transmission en Hz (ex: 136.5). Null = aucun CTCSS</param>
-/// <param name="Configuration">Configuration SVXLink complète</param>
 public record CreateSalonCommand(
     Guid Id,
     string Name,
@@ -27,22 +19,24 @@ public record CreateSalonCommand(
     decimal TxFrequency,
     decimal? RxCtcss,
     decimal? TxCtcss,
-    SvxLinkConfiguration Configuration);
+    SvxLinkConfiguration Configuration) : IRequest<Validation<Error, Guid>>;
 
 /// <summary>
 /// Handler pour la commande CreateSalonCommand
 /// </summary>
-public static class CreateSalonCommandHandler
+public class CreateSalonCommandHandler : IRequestHandler<CreateSalonCommand, Validation<Error, Guid>>
 {
-    /// <summary>
-    /// Traite la commande de création d'un Salon
-    /// </summary>
-    public static async Task<Validation<Error, Guid>> Handle(
+    private readonly ISalonRepository _repository;
+
+    public CreateSalonCommandHandler(ISalonRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Validation<Error, Guid>> Handle(
         CreateSalonCommand command,
-        ISalonRepository repository,
         CancellationToken cancellationToken)
     {
-        // Construction de la configuration complète avec les fréquences radio
         var configurationWithRadio = command.Configuration with
         {
             RxFrequency = command.RxFrequency,
@@ -51,7 +45,6 @@ public static class CreateSalonCommandHandler
             TxCtcss = command.TxCtcss
         };
 
-        // Création de l'aggregate avec validations
         var aggregateResult = SalonAggregate.Create(
             command.Id,
             command.Name,
@@ -59,7 +52,6 @@ public static class CreateSalonCommandHandler
             command.IsTemporized,
             configurationWithRadio);
 
-        // Si la création échoue, retourner les erreurs
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -69,10 +61,9 @@ public static class CreateSalonCommandHandler
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
 
-        // Règle métier : si le nouveau salon est par défaut, unsetter l'ancien salon par défaut
         if (command.IsDefault)
         {
-            var currentDefault = await repository.GetDefaultAsync(cancellationToken);
+            var currentDefault = await _repository.GetDefaultAsync(cancellationToken);
             if (currentDefault != null)
             {
                 var unsetResult = currentDefault.UnsetDefault();
@@ -81,7 +72,7 @@ public static class CreateSalonCommandHandler
                         Succ: _ => throw new InvalidOperationException(),
                         Fail: errors => Validation<Error, Guid>.Fail(errors));
 
-                var saveOldResult = await repository.SaveAsync(currentDefault, cancellationToken);
+                var saveOldResult = await _repository.SaveAsync(currentDefault, cancellationToken);
                 if (saveOldResult.IsFail)
                     return saveOldResult.Match(
                         Succ: _ => throw new InvalidOperationException(),
@@ -89,9 +80,8 @@ public static class CreateSalonCommandHandler
             }
         }
 
-        var saveResult = await repository.SaveAsync(aggregate, cancellationToken);
+        var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
 
-        // Retour de l'ID si succès
         return saveResult.Match(
             Succ: _ => Validation<Error, Guid>.Success(aggregate.Id),
             Fail: errors => Validation<Error, Guid>.Fail(errors));

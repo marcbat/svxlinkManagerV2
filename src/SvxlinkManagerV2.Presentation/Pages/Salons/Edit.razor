@@ -7,9 +7,8 @@
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject NavigationManager Nav
 @inject ToastService ToastService
 @inject IActiveSessionTracker Tracker
@@ -514,8 +513,8 @@ else if (_salon is not null)
         _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
 
         // Chargement en parallèle : salon + sons
-        var salonTask  = Bus.InvokeAsync<Validation<Error, SalonAggregate>>(new GetSalonByIdQuery(Id));
-        var soundsTask = Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
+        var salonTask  = Mediator.Send<Validation<Error, SalonAggregate>>(new GetSalonByIdQuery(Id));
+        var soundsTask = Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
 
         await Task.WhenAll(salonTask, soundsTask);
 
@@ -610,7 +609,7 @@ else if (_salon is not null)
                 Configuration: newConfig
             );
 
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(command);
+            var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
             result.Match(
                 Succ: _ =>

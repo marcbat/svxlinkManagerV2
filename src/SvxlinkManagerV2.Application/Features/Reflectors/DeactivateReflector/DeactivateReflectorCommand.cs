@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
@@ -10,37 +12,43 @@ namespace SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector;
 /// Commande pour désactiver le Reflector (arrête le daemon svxreflector).
 /// </summary>
 /// <param name="Id">Identifiant unique du reflector à désactiver</param>
-public record DeactivateReflectorCommand(Guid Id);
+public record DeactivateReflectorCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande DeactivateReflectorCommand.
-/// Arrête le daemon svxreflector et met à jour le tracker d'état runtime.
 /// </summary>
-public static class DeactivateReflectorCommandHandler
+public class DeactivateReflectorCommandHandler : IRequestHandler<DeactivateReflectorCommand, Validation<Error, Unit>>
 {
-    /// <summary>
-    /// Désactive le Reflector : arrête le daemon svxreflector
-    /// et met à jour le tracker d'état runtime.
-    /// </summary>
-    public static async Task<Validation<Error, Unit>> Handle(
-        DeactivateReflectorCommand command,
+    private readonly IActiveSessionTracker _tracker;
+    private readonly IReflectorDaemonService _daemonService;
+    private readonly ILogger<DeactivateReflectorCommandHandler> _logger;
+
+    public DeactivateReflectorCommandHandler(
         IActiveSessionTracker tracker,
         IReflectorDaemonService daemonService,
-        ILogger logger,
+        ILogger<DeactivateReflectorCommandHandler> logger)
+    {
+        _tracker = tracker;
+        _daemonService = daemonService;
+        _logger = logger;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
+        DeactivateReflectorCommand command,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Désactivation du Reflector {ReflectorId}", command.Id);
+        _logger.LogInformation("Désactivation du Reflector {ReflectorId}", command.Id);
 
-        if (!tracker.IsReflectorActive(command.Id))
+        if (!_tracker.IsReflectorActive(command.Id))
             return Error.Validation("REFLECTOR_NOT_ACTIVE", "Ce reflector n'est pas actuellement actif").ToFailure<Unit>();
 
-        var result = await daemonService.StopAsync(cancellationToken);
+        var result = await _daemonService.StopAsync(cancellationToken);
         if (result.IsFail)
             return Error.Validation("REFLECTOR_STOP_ERROR", "Impossible d'arrêter le daemon svxreflector").ToFailure<Unit>();
 
-        tracker.SetActiveReflector(null);
+        _tracker.SetActiveReflector(null);
 
-        logger.LogInformation("Reflector {ReflectorId} désactivé avec succès", command.Id);
+        _logger.LogInformation("Reflector {ReflectorId} désactivé avec succès", command.Id);
         return unit.ToSuccess();
     }
 }

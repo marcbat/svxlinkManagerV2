@@ -42,7 +42,7 @@ public class CreateSalonCommandTests
             .Returns(unit.ToSuccess());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess(id =>
@@ -97,7 +97,7 @@ public class CreateSalonCommandTests
             invalidConfig);
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -128,7 +128,7 @@ public class CreateSalonCommandTests
             .Returns(repositoryError.ToFailure<Unit>());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -153,7 +153,7 @@ public class CreateSalonCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -180,7 +180,7 @@ public class CreateSalonCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -207,7 +207,7 @@ public class CreateSalonCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -234,7 +234,7 @@ public class CreateSalonCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -264,7 +264,7 @@ public class CreateSalonCommandTests
             .Returns(unit.ToSuccess());
 
         // Act
-        var result = await CreateSalonCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new CreateSalonCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();

@@ -4,9 +4,8 @@
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject NavigationManager Nav
 @inject ToastService ToastService
 
@@ -446,7 +445,7 @@
         _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
         try
         {
-            _sounds = await Bus.InvokeAsync<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
+            _sounds = await Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
         }
         catch
         {
@@ -502,7 +501,7 @@
                 Configuration: config
             );
 
-            var result = await Bus.InvokeAsync<Validation<Error, Guid>>(command);
+            var result = await Mediator.Send<Validation<Error, Guid>>(command);
 
             result.Match(
                 Succ: _ =>

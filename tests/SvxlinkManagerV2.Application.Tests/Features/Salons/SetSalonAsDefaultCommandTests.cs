@@ -40,7 +40,7 @@ public class SetSalonAsDefaultCommandTests
             .Returns(unit.ToSuccess());
 
         // Act
-        var result = await SetSalonAsDefaultCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new SetSalonAsDefaultCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -68,7 +68,7 @@ public class SetSalonAsDefaultCommandTests
             .Returns(unit.ToSuccess());
 
         // Act
-        var result = await SetSalonAsDefaultCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new SetSalonAsDefaultCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -93,7 +93,7 @@ public class SetSalonAsDefaultCommandTests
             .Returns(salon.ToSuccess());
 
         // Act
-        var result = await SetSalonAsDefaultCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new SetSalonAsDefaultCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -114,7 +114,7 @@ public class SetSalonAsDefaultCommandTests
             .Returns(Error.NotFound("Salon", salonId).ToFailure<SalonAggregate>());
 
         // Act
-        var result = await SetSalonAsDefaultCommandHandler.Handle(command, _repository, CancellationToken.None);
+        var result = await new SetSalonAsDefaultCommandHandler(_repository).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>

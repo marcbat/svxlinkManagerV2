@@ -1,5 +1,5 @@
 using LanguageExt;
-using Marten;
+using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
 using SvxlinkManagerV2.Domain.Common;
@@ -8,15 +8,15 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Repository pour la gestion du Reflector avec Event Sourcing
+/// Repository pour la gestion du Reflector avec EF Core
 /// </summary>
 public class ReflectorRepository : IReflectorRepository
 {
-    private readonly IDocumentSession _session;
+    private readonly SvxlinkDbContext _context;
 
-    public ReflectorRepository(IDocumentSession session)
+    public ReflectorRepository(SvxlinkDbContext context)
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<Validation<Error, Unit>> SaveAsync(
@@ -29,14 +29,16 @@ public class ReflectorRepository : IReflectorRepository
                 return Error.Validation("INVALID_AGGREGATE_ID", "L'identifiant de l'aggregate est vide")
                     .ToFailure<Unit>();
 
-            var events = aggregate.DomainEvents.ToArray();
-            if (events.Length == 0)
-                return unit.ToSuccess();
-
-            _session.Events.Append(aggregate.Id, events);
-            await _session.SaveChangesAsync(cancellationToken);
+            var existing = await _context.Reflectors.FindAsync(new object[] { aggregate.Id }, cancellationToken);
+            if (existing == null)
+                _context.Reflectors.Add(aggregate);
+            else
+            {
+                _context.Entry(existing).State = EntityState.Detached;
+                _context.Reflectors.Update(aggregate);
+            }
+            await _context.SaveChangesAsync(cancellationToken);
             aggregate.ClearDomainEvents();
-
             return unit.ToSuccess();
         }
         catch (Exception ex)
@@ -56,9 +58,9 @@ public class ReflectorRepository : IReflectorRepository
                 return Error.Validation("INVALID_ID", "L'identifiant est vide")
                     .ToFailure<ReflectorAggregate>();
 
-            var aggregate = await _session.Events.AggregateStreamAsync<ReflectorAggregate>(id, token: cancellationToken);
+            var aggregate = await _context.Reflectors.FindAsync(new object[] { id }, cancellationToken);
 
-            if (aggregate == null || aggregate.Id == Guid.Empty)
+            if (aggregate == null || aggregate.IsDeleted)
                 return Error.NotFound("Reflector", id)
                     .ToFailure<ReflectorAggregate>();
 
@@ -76,26 +78,13 @@ public class ReflectorRepository : IReflectorRepository
     {
         try
         {
-            var projections = await _session.Query<Projections.ReflectorProjection>()
-                .Where(p => !p.IsDeleted)
+            return await _context.Reflectors
+                .Where(r => !r.IsDeleted)
                 .ToListAsync(cancellationToken);
-
-            var aggregates = new List<ReflectorAggregate>();
-            foreach (var projection in projections)
-            {
-                var aggregate = await _session.Events.AggregateStreamAsync<ReflectorAggregate>(
-                    projection.Id,
-                    token: cancellationToken);
-
-                if (aggregate != null && aggregate.Id != Guid.Empty)
-                    aggregates.Add(aggregate);
-            }
-
-            return aggregates.AsReadOnly();
         }
-        catch (Exception)
+        catch
         {
-            return System.Array.Empty<ReflectorAggregate>();
+            return [];
         }
     }
 
@@ -104,7 +93,6 @@ public class ReflectorRepository : IReflectorRepository
         CancellationToken cancellationToken = default)
     {
         var aggregateResult = await GetByIdAsync(id, cancellationToken);
-
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -115,7 +103,6 @@ public class ReflectorRepository : IReflectorRepository
             Fail: _ => throw new InvalidOperationException());
 
         var deleteResult = aggregate.Delete();
-
         if (deleteResult.IsFail)
             return deleteResult;
 

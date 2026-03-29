@@ -47,7 +47,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -76,7 +76,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -106,7 +106,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -136,7 +136,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -166,7 +166,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -194,7 +194,7 @@ public class UpdateSalonConfigurationCommandTests
             CreateValidConfiguration());
 
         // Act
-        var result = await UpdateSalonConfigurationCommandHandler.Handle(command, _repository, _tracker, CancellationToken.None);
+        var result = await new UpdateSalonConfigurationCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>

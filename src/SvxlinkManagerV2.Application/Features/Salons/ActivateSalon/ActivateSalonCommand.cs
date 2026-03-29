@@ -1,4 +1,6 @@
 using LanguageExt;
+using MediatR;
+using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -10,26 +12,28 @@ namespace SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 
 /// <summary>
 /// Commande pour activer un Salon (connexion au reflector).
-/// Orchestre la configuration SA818, la génération svxlink.conf et le redémarrage du daemon.
 /// </summary>
 /// <param name="Id">Identifiant unique du salon à activer</param>
-public record ActivateSalonCommand(Guid Id);
+public record ActivateSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande ActivateSalonCommand.
-/// Règle métier : un seul salon peut être actif à la fois (géré par IActiveSessionTracker).
+/// Orchestre la configuration SA818, la génération svxlink.conf et le redémarrage du daemon.
 /// </summary>
-public static class ActivateSalonCommandHandler
+public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand, Validation<Error, Unit>>
 {
     private const string SvxLinkConfPath = "/etc/svxlink/svxlink.conf";
 
-    /// <summary>
-    /// Active le Salon en effectuant toutes les opérations nécessaires :
-    /// auto-désactivation de l'ancien salon actif, configuration SA818, génération svxlink.conf,
-    /// redémarrage du daemon SVXLink et mise à jour du tracker d'état runtime.
-    /// </summary>
-    public static async Task<Validation<Error, Unit>> Handle(
-        ActivateSalonCommand command,
+    private readonly ISalonRepository _repository;
+    private readonly IActiveSessionTracker _tracker;
+    private readonly ISA818Repository _sa818Repository;
+    private readonly ISA818Service _sa818Service;
+    private readonly ISvxLinkConfigurationService _configurationService;
+    private readonly ISvxLinkDaemonService _daemonService;
+    private readonly IConnectedNodesService _connectedNodesService;
+    private readonly ILogger<ActivateSalonCommandHandler> _logger;
+
+    public ActivateSalonCommandHandler(
         ISalonRepository repository,
         IActiveSessionTracker tracker,
         ISA818Repository sa818Repository,
@@ -37,13 +41,25 @@ public static class ActivateSalonCommandHandler
         ISvxLinkConfigurationService configurationService,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
-        ILogger logger,
+        ILogger<ActivateSalonCommandHandler> logger)
+    {
+        _repository = repository;
+        _tracker = tracker;
+        _sa818Repository = sa818Repository;
+        _sa818Service = sa818Service;
+        _configurationService = configurationService;
+        _daemonService = daemonService;
+        _connectedNodesService = connectedNodesService;
+        _logger = logger;
+    }
+
+    public async Task<Validation<Error, Unit>> Handle(
+        ActivateSalonCommand command,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Activation du Salon {SalonId}", command.Id);
+        _logger.LogInformation("Activation du Salon {SalonId}", command.Id);
 
-        // Étape 1 : Charger l'aggregate
-        var aggregateResult = await repository.GetByIdAsync(command.Id, cancellationToken);
+        var aggregateResult = await _repository.GetByIdAsync(command.Id, cancellationToken);
         if (aggregateResult.IsFail)
             return aggregateResult.Match(
                 Succ: _ => throw new InvalidOperationException(),
@@ -56,57 +72,47 @@ public static class ActivateSalonCommandHandler
         if (aggregate.IsDeleted)
             return Error.Validation("SALON_DELETED", "Le salon est supprimé").ToFailure<Unit>();
 
-        // Étape 2 : Si un autre salon est actif, l'arrêter d'abord
-        var currentActiveSalonId = tracker.ActiveSalonId;
+        var currentActiveSalonId = _tracker.ActiveSalonId;
         if (currentActiveSalonId.HasValue && currentActiveSalonId.Value != command.Id)
         {
-            logger.LogInformation(
+            _logger.LogInformation(
                 "Auto-désactivation du salon actif {OldSalonId} avant activation de {NewSalonId}",
                 currentActiveSalonId.Value, command.Id);
 
-            var stopResult = await daemonService.StopAsync(cancellationToken);
+            var stopResult = await _daemonService.StopAsync(cancellationToken);
             if (stopResult.IsFail)
                 return Error.Validation("SVXLINK_STOP_ERROR", "Impossible d'arrêter le daemon SVXLink").ToFailure<Unit>();
 
-            connectedNodesService.Reset();
-            tracker.SetActiveSalon(null);
+            _connectedNodesService.Reset();
+            _tracker.SetActiveSalon(null);
         }
 
-        // Étape 3 : Charger la configuration SA818
-        var sa818Config = await sa818Repository.GetConfigurationAsync(cancellationToken);
+        var sa818Config = await _sa818Repository.GetConfigurationAsync(cancellationToken);
         if (sa818Config == null)
             return Error.Validation("SA818_CONFIG_NOT_FOUND", "Configuration SA818 introuvable").ToFailure<Unit>();
 
-        // Étape 4 : Configurer le module SA818
-        logger.LogInformation("Configuration du module SA818 pour le Salon {SalonName}", aggregate.Name);
-        var commandSet = BuildSA818Commands(aggregate, sa818Config, logger);
-        var sa818Result = await sa818Service.ConfigureAsync(commandSet, cancellationToken);
+        _logger.LogInformation("Configuration du module SA818 pour le Salon {SalonName}", aggregate.Name);
+        var commandSet = BuildSA818Commands(aggregate, sa818Config, _logger);
+        var sa818Result = await _sa818Service.ConfigureAsync(commandSet, cancellationToken);
         if (sa818Result.IsFail)
             return Error.Validation("SA818_CONFIGURE_ERROR", "Impossible de configurer le module SA818").ToFailure<Unit>();
 
-        // Étape 5 : Générer le fichier svxlink.conf
-        logger.LogInformation("Génération du fichier {Path}", SvxLinkConfPath);
-        var configResult = await configurationService.GenerateAsync(aggregate, SvxLinkConfPath, cancellationToken);
+        _logger.LogInformation("Génération du fichier {Path}", SvxLinkConfPath);
+        var configResult = await _configurationService.GenerateAsync(aggregate, SvxLinkConfPath, cancellationToken);
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf").ToFailure<Unit>();
 
-        // Étape 6 : Redémarrer le daemon SVXLink
-        logger.LogInformation("Redémarrage du daemon SVXLink");
-        var daemonResult = await daemonService.RestartAsync(cancellationToken);
+        _logger.LogInformation("Redémarrage du daemon SVXLink");
+        var daemonResult = await _daemonService.RestartAsync(cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de redémarrer le daemon SVXLink").ToFailure<Unit>();
 
-        // Étape 7 : Mettre à jour le tracker d'état runtime
-        tracker.SetActiveSalon(command.Id);
+        _tracker.SetActiveSalon(command.Id);
 
-        logger.LogInformation("Salon {SalonName} ({SalonId}) activé avec succès", aggregate.Name, command.Id);
+        _logger.LogInformation("Salon {SalonName} ({SalonId}) activé avec succès", aggregate.Name, command.Id);
         return unit.ToSuccess();
     }
 
-    /// <summary>
-    /// Construit les commandes AT pour le module SA818 en fusionnant
-    /// les paramètres du Salon (fréquences/CTCSS) et du SA818 (volume/squelch/filtres).
-    /// </summary>
     private static SA818CommandSet BuildSA818Commands(
         Domain.Aggregates.Salon.SalonAggregate salon,
         SA818ConfigurationDto sa818Config,

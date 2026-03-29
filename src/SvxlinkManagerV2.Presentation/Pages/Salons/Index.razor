@@ -7,9 +7,8 @@
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Common
-@using Wolverine
 
-@inject IMessageBus Bus
+@inject IMediator Mediator
 @inject NavigationManager Nav
 @inject ToastService ToastService
 @inject IActiveSessionTracker Tracker
@@ -393,7 +392,7 @@ else
         _isLoading = true;
         try
         {
-            _salons = await Bus.InvokeAsync<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery()) ?? [];
+            _salons = await Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery()) ?? [];
         }
         catch (Exception ex)
         {
@@ -411,7 +410,7 @@ else
         _busySalonId = id;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new ActivateSalonCommand(id));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(id));
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Salon activé avec succès."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
@@ -435,7 +434,7 @@ else
         _busySalonId = id;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new DeactivateSalonCommand(id));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeactivateSalonCommand(id));
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Salon désactivé."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
@@ -459,7 +458,7 @@ else
         _busySalonId = id;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new SetSalonAsDefaultCommand(id));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new SetSalonAsDefaultCommand(id));
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Salon défini comme salon par défaut."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
@@ -486,7 +485,7 @@ else
         _confirmDeleteId = null;
         try
         {
-            var result = await Bus.InvokeAsync<Validation<Error, Unit>>(new DeleteSalonCommand(id));
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeleteSalonCommand(id));
             result.Match(
                 Succ: _ => { ToastService.ShowSuccess("Salon supprimé."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }

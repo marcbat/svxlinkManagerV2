@@ -10,7 +10,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__PostgreSQL=Host=postgresql;Database=svxlinkmanager;Username=svxlink;Password=${POSTGRES_PASSWORD:-changeme}
+      - ConnectionStrings__SQLite=Data Source=/app/data/svxlinkmanager.db
       - SA818__UseMock=true
       - SvxLink__UseMockDaemon=false
     volumes:
@@ -18,9 +18,8 @@ services:
       - ./logs:/app/logs
       - svxlink-spool:/var/spool/svxlink
       - svxlink-logs:/var/log/svxlink
+      - svxlinkmanager-data:/app/data
     depends_on:
-      postgresql:
-        condition: service_healthy
       svxreflector:
         condition: service_started
     networks:
@@ -54,37 +53,14 @@ services:
       - svxlink-network
     restart: unless-stopped
 
-  # PostgreSQL Database
-  postgresql:
-    image: postgres:16-alpine
-    container_name: svxlinkmanager-postgresql
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-svxlinkmanager}
-      - POSTGRES_USER=${POSTGRES_USER:-svxlink}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U svxlink -d svxlinkmanager"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - svxlink-network
-    restart: unless-stopped
-
 networks:
   svxlink-network:
     driver: bridge
 
 volumes:
-  postgres-data:
-    driver: local
   svxlink-spool:
     driver: local
   svxlink-logs:
+    driver: local
+  svxlinkmanager-data:
     driver: local

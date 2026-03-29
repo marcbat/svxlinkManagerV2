@@ -28,7 +28,7 @@ public class ActivateSalonCommandTests
     private readonly ISvxLinkConfigurationService _configurationService;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
-    private readonly ILogger _logger;
+    private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandTests()
     {
@@ -39,7 +39,7 @@ public class ActivateSalonCommandTests
         _configurationService = Substitute.For<ISvxLinkConfigurationService>();
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
-        _logger = Substitute.For<ILogger>();
+        _logger = Substitute.For<ILogger<ActivateSalonCommandHandler>>();
     }
 
     [Fact]
@@ -185,18 +185,13 @@ public class ActivateSalonCommandTests
         _tracker.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
 
-    private Task<Validation<Error, Unit>> CallHandle(ActivateSalonCommand command) =>
-        ActivateSalonCommandHandler.Handle(
-            command,
-            _repository,
-            _tracker,
-            _sa818Repository,
-            _sa818Service,
-            _configurationService,
-            _daemonService,
-            _connectedNodesService,
-            _logger,
-            CancellationToken.None);
+    private Task<Validation<Error, Unit>> CallHandle(ActivateSalonCommand command)
+    {
+        var handler = new ActivateSalonCommandHandler(
+            _repository, _tracker, _sa818Repository, _sa818Service,
+            _configurationService, _daemonService, _connectedNodesService, _logger);
+        return handler.Handle(command, CancellationToken.None);
+    }
 
     private static SalonAggregate CreateValidAggregate(Guid id)
     {
