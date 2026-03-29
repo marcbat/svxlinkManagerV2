@@ -160,7 +160,14 @@ jobs:
           $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Publier une GitHub Release
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: |
+          (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
+          (github.event_name == 'push' && (
+            github.ref_name == 'main' ||
+            github.ref_name == 'master' ||
+            github.ref_name == 'develop' ||
+            startsWith(github.ref_name, 'release/')
+          ))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.release_tag }}

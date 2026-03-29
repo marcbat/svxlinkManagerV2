@@ -200,7 +200,8 @@ Une GitHub Action publie également le `.deb` dans les artefacts à chaque push 
 
 - La version est calculée avec `GitVersion`
 - La version Debian inclut la branche et le nombre de commits pour les branches non finales
-- Une GitHub Release peut être publiée manuellement via `workflow_dispatch`
+- Une GitHub Release est publiée automatiquement sur `main`, `master`, `develop` et `release/*`
+- Une GitHub Release peut aussi être publiée manuellement via `workflow_dispatch` (autres branches)
 
 ## 🎯 Principes Architecturaux
 
