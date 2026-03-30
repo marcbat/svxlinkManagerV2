@@ -1,0 +1,134 @@
+@namespace SvxlinkManagerV2.Presentation.Pages.Wifi
+@using SvxlinkManagerV2.Application.Features.Wifi
+@using SvxlinkManagerV2.Domain.Wifi
+
+@* Ligne représentant un réseau WiFi avec ses actions contextuelles *@
+
+<div class="wifi-row @(Network.InUse ? "wifi-row--active" : "")">
+    <div class="wifi-row-signal">
+        <SignalStrengthBars Signal="@Network.Signal" Bars="@Network.Bars" />
+    </div>
+
+    <div class="wifi-row-ssid">
+        <span class="wifi-row-name">@Network.Ssid</span>
+        @if (Network.InUse)
+        {
+            <span class="wifi-badge wifi-badge--connected">Connecté</span>
+        }
+        else if (Network.HasSavedProfile)
+        {
+            <span class="wifi-badge wifi-badge--saved">Sauvegardé</span>
+        }
+    </div>
+
+    <div class="wifi-row-meta">
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">@(Network.Security == "--" ? "lock_open" : "lock")</span>
+        <span>@(Network.Security == "--" ? "Ouvert" : Network.Security)</span>
+        <span class="wifi-row-sep">·</span>
+        <span>Canal @Network.Channel</span>
+        <span class="wifi-row-sep">·</span>
+        <span>@Network.Signal%</span>
+    </div>
+
+    <div class="wifi-row-actions">
+        @if (Network.InUse)
+        {
+            <button class="btn btn-danger btn-sm"
+                    @onclick="() => OnDisconnect.InvokeAsync(Network)"
+                    disabled="@IsLoading">
+                @if (IsLoading)
+                {
+                    <span class="spinner-sm"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">wifi_off</span>
+                }
+                Déconnecter
+            </button>
+        }
+        else if (Network.HasSavedProfile && Network.ConnectionUuid != null)
+        {
+            @if (_showDeleteConfirm)
+            {
+                <span class="material-symbols-outlined" style="color:var(--danger);font-size:18px;vertical-align:middle">warning</span>
+                <span style="font-size:13px;color:var(--text-muted)">Supprimer ce profil ?</span>
+                <button class="btn btn-danger btn-sm"
+                        @onclick="ConfirmDelete"
+                        disabled="@IsLoading">
+                    Confirmer
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        @onclick="() => _showDeleteConfirm = false">
+                    Annuler
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-primary btn-sm"
+                        @onclick="() => OnActivate.InvokeAsync(Network)"
+                        disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">wifi</span>
+                    }
+                    Connecter
+                </button>
+                <button class="btn btn-danger btn-sm"
+                        @onclick="() => _showDeleteConfirm = true"
+                        disabled="@IsLoading">
+                    <span class="material-symbols-outlined">delete</span>
+                    Supprimer
+                </button>
+            }
+        }
+        else
+        {
+            <button class="btn btn-primary btn-sm"
+                    @onclick="() => _showPasswordForm = !_showPasswordForm"
+                    disabled="@IsLoading">
+                <span class="material-symbols-outlined">wifi_password</span>
+                Connecter
+            </button>
+        }
+    </div>
+</div>
+
+@* Formulaire de mot de passe expansible, affiché sous la ligne *@
+@if (_showPasswordForm)
+{
+    <div class="wifi-row-password">
+        <WifiPasswordDialog
+            Ssid="@Network.Ssid"
+            OnConnect="HandlePasswordConnect"
+            OnCancel="() => _showPasswordForm = false" />
+    </div>
+}
+
+@code {
+    [Parameter] public WifiNetwork Network { get; set; } = null!;
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnDisconnect { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnActivate { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnDelete { get; set; }
+    [Parameter] public EventCallback<(WifiNetwork Network, string Password)> OnConnectNew { get; set; }
+
+    private bool _showPasswordForm;
+    private bool _showDeleteConfirm;
+
+    private async Task HandlePasswordConnect(string password)
+    {
+        _showPasswordForm = false;
+        await OnConnectNew.InvokeAsync((Network, password));
+    }
+
+    private async Task ConfirmDelete()
+    {
+        _showDeleteConfirm = false;
+        await OnDelete.InvokeAsync(Network);
+    }
+}
