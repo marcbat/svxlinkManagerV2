@@ -36,6 +36,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     public async Task<Validation<Error, Unit>> GenerateAsync(
         SalonAggregate salon,
         string outputPath,
+        string? announceFilePath = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -59,7 +60,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             UpdateGlobalSection(iniData, salon);
             UpdateLinkSection(iniData);
             UpdateReflectorLogicSection(iniData, salon);
-            UpdateSimplexLogicSection(iniData, salon);
+            UpdateSimplexLogicSection(iniData, salon, announceFilePath);
             UpdateReceiverSection(iniData, salon);
             UpdateTransmitterSection(iniData, salon);
 
@@ -170,7 +171,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// <summary>
     /// Met à jour la section [SimplexLogic] avec les paramètres locaux.
     /// </summary>
-    private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
+    private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon, string? announceFilePath = null)
     {
         var config = salon.Configuration;
 
@@ -188,6 +189,22 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
+
+        // Annonce SVXLink : SHORT_ANNOUNCE_* et LONG_ANNOUNCE_*
+        if (!string.IsNullOrEmpty(announceFilePath))
+        {
+            iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"] = "1";
+            iniData["SimplexLogic"]["SHORT_ANNOUNCE_FILE"] = announceFilePath;
+            iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"] = "1";
+            iniData["SimplexLogic"]["LONG_ANNOUNCE_FILE"] = announceFilePath;
+            _logger.LogDebug("Annonce SVXLink configurée: {AnnouncePath}", announceFilePath);
+        }
+        else
+        {
+            iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"] = "0";
+            iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"] = "0";
+            _logger.LogDebug("Aucune annonce SVXLink configurée");
+        }
 
         // REPORT_CTCSS est optionnel
         if (!string.IsNullOrEmpty(config.ReportCtcss))

@@ -236,6 +236,44 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_WithAnnouncePath_ShouldSetAnnounceEnabled()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_announce.conf");
+        const string announcePath = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/announce.wav";
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath, announcePath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"].Should().Be("1");
+        iniData["SimplexLogic"]["SHORT_ANNOUNCE_FILE"].Should().Be(announcePath);
+        iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"].Should().Be("1");
+        iniData["SimplexLogic"]["LONG_ANNOUNCE_FILE"].Should().Be(announcePath);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithoutAnnouncePath_ShouldSetAnnounceDisabled()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_no_announce.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath, null);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"].Should().Be("0");
+        iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"].Should().Be("0");
+    }
+
+
+    [Fact]
     public async Task ValidateAsync_WithValidFile_ShouldReturnSuccess()
     {
         // Arrange
