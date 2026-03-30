@@ -1,0 +1,114 @@
+@namespace SvxlinkManagerV2.Presentation.Pages.Wifi
+@using SvxlinkManagerV2.Application.Features.Wifi
+@using SvxlinkManagerV2.Domain.Wifi
+
+@* Carte représentant un réseau WiFi avec ses actions contextuelles *@
+
+<div class="wifi-card @(Network.InUse ? "wifi-card--active" : "")">
+    <div class="wifi-card-info">
+        <div class="wifi-card-signal">
+            <SignalStrengthBars Signal="@Network.Signal" Bars="@Network.Bars" />
+        </div>
+        <div class="wifi-card-details">
+            <div class="wifi-card-ssid">
+                @Network.Ssid
+                @if (Network.InUse)
+                {
+                    <span class="wifi-badge wifi-badge--connected">Connecté</span>
+                }
+                else if (Network.HasSavedProfile)
+                {
+                    <span class="wifi-badge wifi-badge--saved">Sauvegardé</span>
+                }
+            </div>
+            <div class="wifi-card-meta">
+                <span class="material-symbols-outlined" style="font-size:14px">@(Network.Security == "--" ? "lock_open" : "lock")</span>
+                <span>@(Network.Security == "--" ? "Ouvert" : Network.Security)</span>
+                <span class="wifi-card-separator">·</span>
+                <span>Canal @Network.Channel</span>
+                <span class="wifi-card-separator">·</span>
+                <span>@Network.Signal%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="wifi-card-actions">
+        @if (Network.InUse)
+        {
+            @* Réseau actif : uniquement déconnecter *@
+            <button class="btn btn-danger btn-sm"
+                    @onclick="() => OnDisconnect.InvokeAsync(Network)"
+                    disabled="@IsLoading">
+                @if (IsLoading)
+                {
+                    <span class="spinner-sm"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">wifi_off</span>
+                }
+                Déconnecter
+            </button>
+        }
+        else if (Network.HasSavedProfile && Network.ConnectionUuid != null)
+        {
+            @* Réseau sauvegardé : connecter ou supprimer le profil *@
+            <button class="btn btn-primary btn-sm"
+                    @onclick="() => OnActivate.InvokeAsync(Network)"
+                    disabled="@IsLoading">
+                @if (IsLoading)
+                {
+                    <span class="spinner-sm"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">wifi</span>
+                }
+                Connecter
+            </button>
+            <button class="btn btn-outline-danger btn-sm"
+                    @onclick="() => OnDelete.InvokeAsync(Network)"
+                    disabled="@IsLoading">
+                <span class="material-symbols-outlined">delete</span>
+                Supprimer
+            </button>
+        }
+        else
+        {
+            @* Nouveau réseau : afficher le formulaire de mot de passe *@
+            @if (_showPasswordForm)
+            {
+                <WifiPasswordDialog
+                    Ssid="@Network.Ssid"
+                    OnConnect="HandlePasswordConnect"
+                    OnCancel="() => _showPasswordForm = false" />
+            }
+            else
+            {
+                <button class="btn btn-primary btn-sm"
+                        @onclick="() => _showPasswordForm = true"
+                        disabled="@IsLoading">
+                    <span class="material-symbols-outlined">wifi_password</span>
+                    Connecter
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public WifiNetwork Network { get; set; } = null!;
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnDisconnect { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnActivate { get; set; }
+    [Parameter] public EventCallback<WifiNetwork> OnDelete { get; set; }
+    [Parameter] public EventCallback<(WifiNetwork Network, string Password)> OnConnectNew { get; set; }
+
+    private bool _showPasswordForm;
+
+    private async Task HandlePasswordConnect(string password)
+    {
+        _showPasswordForm = false;
+        await OnConnectNew.InvokeAsync((Network, password));
+    }
+}

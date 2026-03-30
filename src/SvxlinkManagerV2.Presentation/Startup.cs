@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
+using SvxlinkManagerV2.Infrastructure.Network;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.Reflector;
@@ -58,6 +59,13 @@ namespace SvxlinkManagerV2.Presentation
                 services.AddScoped<ISA818Service, SA818MockService>();
             else
                 services.AddScoped<ISA818Service, SA818Service>();
+
+            // WiFi service (réel ou mock)
+            var useWifiMock = Configuration.GetValue<bool>("Wifi:UseMock", false);
+            if (useWifiMock)
+                services.AddScoped<IWifiService, WifiMockService>();
+            else
+                services.AddScoped<IWifiService, WifiService>();
 
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
