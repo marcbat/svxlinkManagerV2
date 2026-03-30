@@ -490,3 +490,63 @@ a { color: inherit; text-decoration: none; }
 }
 
 .empty-state p { font-size: 14px; }
+
+/* ── WiFi ────────────────────────────────────────────────────── */
+.wifi-status-banner { padding: 16px 20px; }
+.wifi-status-content { display: flex; align-items: center; gap: 14px; }
+.wifi-status-icon { font-size: 32px; }
+.wifi-status-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.wifi-status-text strong { font-size: 15px; }
+.wifi-status-signal { color: var(--text-muted); }
+.wifi-status-banner--connected { border-left: 4px solid #4ade80; }
+.wifi-status-banner--disconnected { border-left: 4px solid var(--text-muted); }
+
+/* Signal bars */
+.signal-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
+.signal-bars .bar { width: 5px; background: var(--border-card); border-radius: 1px; }
+.signal-bars .bar-1 { height: 4px; }
+.signal-bars .bar-2 { height: 7px; }
+.signal-bars .bar-3 { height: 11px; }
+.signal-bars .bar-4 { height: 16px; }
+.signal-bars .bar.active { background: var(--accent); }
+
+/* WiFi row list */
+.wifi-network-list { display: flex; flex-direction: column; }
+
+.wifi-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-card);
+}
+.wifi-row:last-of-type { border-bottom: none; }
+.wifi-row--active { background: rgba(99, 102, 241, 0.06); border-radius: var(--radius-sm); padding-left: 8px; padding-right: 8px; }
+
+.wifi-row-signal { flex-shrink: 0; width: 44px; display: flex; justify-content: center; }
+
+.wifi-row-ssid { flex: 1; display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; min-width: 0; }
+.wifi-row-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.wifi-row-meta { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+.wifi-row-sep { opacity: 0.4; }
+
+.wifi-row-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+
+/* WiFi badges */
+.wifi-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.wifi-badge--connected { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.wifi-badge--saved { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+
+/* WiFi password form (inline expansion below a row) */
+.wifi-row-password {
+    padding: 10px 12px 14px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+}
+.wifi-password-dialog { display: flex; flex-direction: column; gap: 10px; }
+.wifi-password-header { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-muted); }
+.wifi-password-body { display: flex; flex-direction: column; gap: 10px; }
+.wifi-password-actions { display: flex; justify-content: flex-end; gap: 8px; }

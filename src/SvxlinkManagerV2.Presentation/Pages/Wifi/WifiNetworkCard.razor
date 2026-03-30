@@ -2,40 +2,37 @@
 @using SvxlinkManagerV2.Application.Features.Wifi
 @using SvxlinkManagerV2.Domain.Wifi
 
-@* Carte représentant un réseau WiFi avec ses actions contextuelles *@
+@* Ligne représentant un réseau WiFi avec ses actions contextuelles *@
 
-<div class="wifi-card @(Network.InUse ? "wifi-card--active" : "")">
-    <div class="wifi-card-info">
-        <div class="wifi-card-signal">
-            <SignalStrengthBars Signal="@Network.Signal" Bars="@Network.Bars" />
-        </div>
-        <div class="wifi-card-details">
-            <div class="wifi-card-ssid">
-                @Network.Ssid
-                @if (Network.InUse)
-                {
-                    <span class="wifi-badge wifi-badge--connected">Connecté</span>
-                }
-                else if (Network.HasSavedProfile)
-                {
-                    <span class="wifi-badge wifi-badge--saved">Sauvegardé</span>
-                }
-            </div>
-            <div class="wifi-card-meta">
-                <span class="material-symbols-outlined" style="font-size:14px">@(Network.Security == "--" ? "lock_open" : "lock")</span>
-                <span>@(Network.Security == "--" ? "Ouvert" : Network.Security)</span>
-                <span class="wifi-card-separator">·</span>
-                <span>Canal @Network.Channel</span>
-                <span class="wifi-card-separator">·</span>
-                <span>@Network.Signal%</span>
-            </div>
-        </div>
+<div class="wifi-row @(Network.InUse ? "wifi-row--active" : "")">
+    <div class="wifi-row-signal">
+        <SignalStrengthBars Signal="@Network.Signal" Bars="@Network.Bars" />
     </div>
 
-    <div class="wifi-card-actions">
+    <div class="wifi-row-ssid">
+        <span class="wifi-row-name">@Network.Ssid</span>
         @if (Network.InUse)
         {
-            @* Réseau actif : uniquement déconnecter *@
+            <span class="wifi-badge wifi-badge--connected">Connecté</span>
+        }
+        else if (Network.HasSavedProfile)
+        {
+            <span class="wifi-badge wifi-badge--saved">Sauvegardé</span>
+        }
+    </div>
+
+    <div class="wifi-row-meta">
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">@(Network.Security == "--" ? "lock_open" : "lock")</span>
+        <span>@(Network.Security == "--" ? "Ouvert" : Network.Security)</span>
+        <span class="wifi-row-sep">·</span>
+        <span>Canal @Network.Channel</span>
+        <span class="wifi-row-sep">·</span>
+        <span>@Network.Signal%</span>
+    </div>
+
+    <div class="wifi-row-actions">
+        @if (Network.InUse)
+        {
             <button class="btn btn-danger btn-sm"
                     @onclick="() => OnDisconnect.InvokeAsync(Network)"
                     disabled="@IsLoading">
@@ -52,7 +49,6 @@
         }
         else if (Network.HasSavedProfile && Network.ConnectionUuid != null)
         {
-            @* Réseau sauvegardé : connecter ou supprimer le profil *@
             <button class="btn btn-primary btn-sm"
                     @onclick="() => OnActivate.InvokeAsync(Network)"
                     disabled="@IsLoading">
@@ -75,26 +71,26 @@
         }
         else
         {
-            @* Nouveau réseau : afficher le formulaire de mot de passe *@
-            @if (_showPasswordForm)
-            {
-                <WifiPasswordDialog
-                    Ssid="@Network.Ssid"
-                    OnConnect="HandlePasswordConnect"
-                    OnCancel="() => _showPasswordForm = false" />
-            }
-            else
-            {
-                <button class="btn btn-primary btn-sm"
-                        @onclick="() => _showPasswordForm = true"
-                        disabled="@IsLoading">
-                    <span class="material-symbols-outlined">wifi_password</span>
-                    Connecter
-                </button>
-            }
+            <button class="btn btn-primary btn-sm"
+                    @onclick="() => _showPasswordForm = !_showPasswordForm"
+                    disabled="@IsLoading">
+                <span class="material-symbols-outlined">wifi_password</span>
+                Connecter
+            </button>
         }
     </div>
 </div>
+
+@* Formulaire de mot de passe expansible, affiché sous la ligne *@
+@if (_showPasswordForm)
+{
+    <div class="wifi-row-password">
+        <WifiPasswordDialog
+            Ssid="@Network.Ssid"
+            OnConnect="HandlePasswordConnect"
+            OnCancel="() => _showPasswordForm = false" />
+    </div>
+}
 
 @code {
     [Parameter] public WifiNetwork Network { get; set; } = null!;
