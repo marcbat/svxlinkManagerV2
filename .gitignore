@@ -485,3 +485,4 @@ $RECYCLE.BIN/
 
 # SQLite locale Docker (ne jamais versionner les données runtime)
 data/
+src/SvxlinkManagerV2.Presentation/svxlinkmanager-dev.db
