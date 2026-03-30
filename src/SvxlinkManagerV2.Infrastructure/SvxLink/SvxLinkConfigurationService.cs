@@ -190,20 +190,13 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
 
-        // Annonce SVXLink : SHORT_ANNOUNCE_* et LONG_ANNOUNCE_*
+        // Annonce one-shot au démarrage du daemon (changement de salon).
+        // STARTUP_ANNOUNCEMENTS joue le(s) fichier(s) une seule fois au lancement de SVXLink,
+        // sans impacter les identifications périodiques natives (SHORT_IDENT / LONG_IDENT).
         if (!string.IsNullOrEmpty(announceFilePath))
         {
-            iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"] = "1";
-            iniData["SimplexLogic"]["SHORT_ANNOUNCE_FILE"] = announceFilePath;
-            iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"] = "1";
-            iniData["SimplexLogic"]["LONG_ANNOUNCE_FILE"] = announceFilePath;
-            _logger.LogDebug("Annonce SVXLink configurée: {AnnouncePath}", announceFilePath);
-        }
-        else
-        {
-            iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"] = "0";
-            iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"] = "0";
-            _logger.LogDebug("Aucune annonce SVXLink configurée");
+            iniData["SimplexLogic"]["STARTUP_ANNOUNCEMENTS"] = announceFilePath;
+            _logger.LogDebug("Annonce one-shot configurée: {AnnouncePath}", announceFilePath);
         }
 
         // REPORT_CTCSS est optionnel

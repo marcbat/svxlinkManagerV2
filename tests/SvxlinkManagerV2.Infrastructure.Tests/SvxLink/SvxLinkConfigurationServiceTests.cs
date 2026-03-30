@@ -236,7 +236,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateAsync_WithAnnouncePath_ShouldSetAnnounceEnabled()
+    public async Task GenerateAsync_WithAnnouncePath_ShouldSetStartupAnnouncements()
     {
         // Arrange
         var salon = CreateTestSalon();
@@ -246,17 +246,17 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         // Act
         await _service.GenerateAsync(salon, outputPath, announcePath);
 
-        // Assert
+        // Assert — STARTUP_ANNOUNCEMENTS joue le WAV une seule fois au démarrage du daemon (one-shot)
         var iniData = IniFile.Parse(outputPath);
 
-        iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"].Should().Be("1");
-        iniData["SimplexLogic"]["SHORT_ANNOUNCE_FILE"].Should().Be(announcePath);
-        iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"].Should().Be("1");
-        iniData["SimplexLogic"]["LONG_ANNOUNCE_FILE"].Should().Be(announcePath);
+        iniData["SimplexLogic"]["STARTUP_ANNOUNCEMENTS"].Should().Be(announcePath);
+        // Vérifier l'absence des paramètres d'annonce périodique (hors périmètre)
+        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_FILE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_FILE").Should().BeFalse();
     }
 
     [Fact]
-    public async Task GenerateAsync_WithoutAnnouncePath_ShouldSetAnnounceDisabled()
+    public async Task GenerateAsync_WithoutAnnouncePath_ShouldNotSetStartupAnnouncements()
     {
         // Arrange
         var salon = CreateTestSalon();
@@ -265,11 +265,12 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         // Act
         await _service.GenerateAsync(salon, outputPath, null);
 
-        // Assert
+        // Assert — pas de STARTUP_ANNOUNCEMENTS sans son configuré
         var iniData = IniFile.Parse(outputPath);
 
-        iniData["SimplexLogic"]["SHORT_ANNOUNCE_ENABLE"].Should().Be("0");
-        iniData["SimplexLogic"]["LONG_ANNOUNCE_ENABLE"].Should().Be("0");
+        iniData["SimplexLogic"].ContainsKey("STARTUP_ANNOUNCEMENTS").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_FILE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_FILE").Should().BeFalse();
     }
 
 
