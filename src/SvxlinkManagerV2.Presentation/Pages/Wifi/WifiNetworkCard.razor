@@ -49,25 +49,42 @@
         }
         else if (Network.HasSavedProfile && Network.ConnectionUuid != null)
         {
-            <button class="btn btn-primary btn-sm"
-                    @onclick="() => OnActivate.InvokeAsync(Network)"
-                    disabled="@IsLoading">
-                @if (IsLoading)
-                {
-                    <span class="spinner-sm"></span>
-                }
-                else
-                {
-                    <span class="material-symbols-outlined">wifi</span>
-                }
-                Connecter
-            </button>
-            <button class="btn btn-outline-danger btn-sm"
-                    @onclick="() => OnDelete.InvokeAsync(Network)"
-                    disabled="@IsLoading">
-                <span class="material-symbols-outlined">delete</span>
-                Supprimer
-            </button>
+            @if (_showDeleteConfirm)
+            {
+                <span class="material-symbols-outlined" style="color:var(--danger);font-size:18px;vertical-align:middle">warning</span>
+                <span style="font-size:13px;color:var(--text-muted)">Supprimer ce profil ?</span>
+                <button class="btn btn-danger btn-sm"
+                        @onclick="ConfirmDelete"
+                        disabled="@IsLoading">
+                    Confirmer
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        @onclick="() => _showDeleteConfirm = false">
+                    Annuler
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-primary btn-sm"
+                        @onclick="() => OnActivate.InvokeAsync(Network)"
+                        disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">wifi</span>
+                    }
+                    Connecter
+                </button>
+                <button class="btn btn-danger btn-sm"
+                        @onclick="() => _showDeleteConfirm = true"
+                        disabled="@IsLoading">
+                    <span class="material-symbols-outlined">delete</span>
+                    Supprimer
+                </button>
+            }
         }
         else
         {
@@ -101,10 +118,17 @@
     [Parameter] public EventCallback<(WifiNetwork Network, string Password)> OnConnectNew { get; set; }
 
     private bool _showPasswordForm;
+    private bool _showDeleteConfirm;
 
     private async Task HandlePasswordConnect(string password)
     {
         _showPasswordForm = false;
         await OnConnectNew.InvokeAsync((Network, password));
+    }
+
+    private async Task ConfirmDelete()
+    {
+        _showDeleteConfirm = false;
+        await OnDelete.InvokeAsync(Network);
     }
 }
