@@ -46,6 +46,7 @@ if (-not $SkipPublish) {
         -c $Configuration `
         -r $Rid `
         --no-self-contained `
+        -p:InformationalVersion=$PackageVersion `
         -o $publishDir
 
     if ($LASTEXITCODE -ne 0) {

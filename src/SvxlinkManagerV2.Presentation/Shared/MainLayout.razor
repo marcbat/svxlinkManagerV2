@@ -62,7 +62,7 @@
                 </NavLink>
             </li>
         </ul>
-        <div class="sidebar-version">v2.0</div>
+        <div class="sidebar-version">v@_appVersion</div>
     </nav>
 
     <main class="main-content">
@@ -71,3 +71,10 @@
 </div>
 
 <ToastContainer />
+
+@code {
+    private string _appVersion =
+        System.Reflection.Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion ?? "?";
+}
