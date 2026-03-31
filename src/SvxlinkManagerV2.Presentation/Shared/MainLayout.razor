@@ -73,8 +73,16 @@
 <ToastContainer />
 
 @code {
-    private string _appVersion =
-        System.Reflection.Assembly.GetEntryAssembly()
-            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion ?? "?";
+    private string _appVersion = "?";
+
+    protected override void OnInitialized()
+    {
+        var asm = System.Reflection.Assembly.GetEntryAssembly();
+        if (asm is not null)
+        {
+            var attr = (System.Reflection.AssemblyInformationalVersionAttribute?)
+                Attribute.GetCustomAttribute(asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+            _appVersion = attr?.InformationalVersion ?? "?";
+        }
+    }
 }
