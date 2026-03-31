@@ -236,43 +236,25 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateAsync_WithAnnouncePath_ShouldSetStartupAnnouncements()
+    public async Task GenerateAsync_ShouldNotSetAnyAnnounceParameters()
     {
-        // Arrange
-        var salon = CreateTestSalon();
-        var outputPath = GetTestOutputPath("svxlink_announce.conf");
-        const string announcePath = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/announce.wav";
-
-        // Act
-        await _service.GenerateAsync(salon, outputPath, announcePath);
-
-        // Assert — STARTUP_ANNOUNCEMENTS joue le WAV une seule fois au démarrage du daemon (one-shot)
-        var iniData = IniFile.Parse(outputPath);
-
-        iniData["SimplexLogic"]["STARTUP_ANNOUNCEMENTS"].Should().Be(announcePath);
-        // Vérifier l'absence des paramètres d'annonce périodique (hors périmètre)
-        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_FILE").Should().BeFalse();
-        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_FILE").Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task GenerateAsync_WithoutAnnouncePath_ShouldNotSetStartupAnnouncements()
-    {
-        // Arrange
+        // Arrange — l'annonce one-shot est gérée par Logic.tcl (proc startup {}),
+        // aucun paramètre d'annonce n'est écrit dans svxlink.conf (non supporté SVXLink 19.09.2)
         var salon = CreateTestSalon();
         var outputPath = GetTestOutputPath("svxlink_no_announce.conf");
 
         // Act
-        await _service.GenerateAsync(salon, outputPath, null);
+        await _service.GenerateAsync(salon, outputPath);
 
-        // Assert — pas de STARTUP_ANNOUNCEMENTS sans son configuré
+        // Assert — aucun paramètre ANNOUNCE_* ne doit apparaître dans le fichier généré
         var iniData = IniFile.Parse(outputPath);
 
         iniData["SimplexLogic"].ContainsKey("STARTUP_ANNOUNCEMENTS").Should().BeFalse();
         iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_FILE").Should().BeFalse();
         iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_FILE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_ENABLE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_ENABLE").Should().BeFalse();
     }
-
 
     [Fact]
     public async Task ValidateAsync_WithValidFile_ShouldReturnSuccess()

@@ -37,7 +37,7 @@ public class SoundFileDeploymentServiceTests : IDisposable
         // Assert
         result.ShouldBeSuccess(path =>
         {
-            path.Should().Be(Path.Combine(_testDeployDirectory, "announce.wav"));
+            path.Should().Be(Path.Combine(_testDeployDirectory, "Name.wav"));
         });
     }
 
@@ -132,7 +132,7 @@ public class SoundFileDeploymentServiceTests : IDisposable
     public async Task CleanupAsync_WhenFileDoesNotExist_ShouldSucceedGracefully()
     {
         // Arrange — aucun fichier déployé
-        var deployPath = Path.Combine(_testDeployDirectory, "announce.wav");
+        var deployPath = Path.Combine(_testDeployDirectory, "Name.wav");
         File.Exists(deployPath).Should().BeFalse();
 
         // Act

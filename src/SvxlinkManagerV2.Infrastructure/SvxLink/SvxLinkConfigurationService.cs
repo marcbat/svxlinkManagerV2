@@ -36,7 +36,6 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     public async Task<Validation<Error, Unit>> GenerateAsync(
         SalonAggregate salon,
         string outputPath,
-        string? announceFilePath = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -60,7 +59,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             UpdateGlobalSection(iniData, salon);
             UpdateLinkSection(iniData);
             UpdateReflectorLogicSection(iniData, salon);
-            UpdateSimplexLogicSection(iniData, salon, announceFilePath);
+            UpdateSimplexLogicSection(iniData, salon);
             UpdateReceiverSection(iniData, salon);
             UpdateTransmitterSection(iniData, salon);
 
@@ -170,8 +169,10 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [SimplexLogic] avec les paramètres locaux.
+    /// L'annonce one-shot est gérée par Logic.tcl (proc startup {}) — aucun paramètre d'annonce
+    /// n'est ajouté ici car ils ne sont pas supportés dans SVXLink 19.09.2.
     /// </summary>
-    private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon, string? announceFilePath = null)
+    private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
 
@@ -189,15 +190,6 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
-
-        // Annonce one-shot au démarrage du daemon (changement de salon).
-        // STARTUP_ANNOUNCEMENTS joue le(s) fichier(s) une seule fois au lancement de SVXLink,
-        // sans impacter les identifications périodiques natives (SHORT_IDENT / LONG_IDENT).
-        if (!string.IsNullOrEmpty(announceFilePath))
-        {
-            iniData["SimplexLogic"]["STARTUP_ANNOUNCEMENTS"] = announceFilePath;
-            _logger.LogDebug("Annonce one-shot configurée: {AnnouncePath}", announceFilePath);
-        }
 
         // REPORT_CTCSS est optionnel
         if (!string.IsNullOrEmpty(config.ReportCtcss))

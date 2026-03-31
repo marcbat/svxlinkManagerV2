@@ -66,7 +66,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundDeploymentService.CleanupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -97,7 +97,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundDeploymentService.CleanupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -115,21 +115,20 @@ public class ActivateSalonCommandTests
                 s.Configuration.Callsign == "F5ABC-L" &&
                 s.Configuration.AuthKey == "test-auth-key"),
             Arg.Any<string>(),
-            Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WithSoundId_ShouldDeploySoundAndPassPathToConfigService()
+    public async Task Handle_WithSoundId_ShouldDeploySound()
     {
-        // Arrange
+        // Arrange — l'annonce one-shot est gérée par Logic.tcl, pas par un paramètre de GenerateAsync
         var salonId = Guid.NewGuid();
         var soundId = Guid.NewGuid();
         var salon = CreateValidAggregate(salonId, soundId: soundId);
         var sound = SoundTestHelpers.CreateValidAggregate(soundId, "annonce-test");
         var command = new ActivateSalonCommand(salonId);
         var sa818Config = CreateValidSA818Config();
-        const string expectedPath = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/announce.wav";
+        const string deployedPath = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/Name.wav";
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(salon.ToSuccess());
@@ -141,8 +140,8 @@ public class ActivateSalonCommandTests
         _soundRepository.GetByIdAsync(soundId, Arg.Any<CancellationToken>())
             .Returns(sound.ToSuccess());
         _soundDeploymentService.DeployAsync(sound, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, string>>(expectedPath));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, string>>(deployedPath));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -150,18 +149,17 @@ public class ActivateSalonCommandTests
         // Act
         var result = await CallHandle(command);
 
-        // Assert
+        // Assert — DeployAsync appelé, GenerateAsync sans paramètre d'annonce
         result.ShouldBeSuccess();
         await _soundDeploymentService.Received(1).DeployAsync(sound, Arg.Any<CancellationToken>());
         await _configurationService.Received(1).GenerateAsync(
             Arg.Any<SalonAggregate>(),
             Arg.Any<string>(),
-            Arg.Is<string?>(p => p == expectedPath),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WithoutSoundId_ShouldCallCleanupAndPassNullToConfigService()
+    public async Task Handle_WithoutSoundId_ShouldCallCleanupAndGenerateConfig()
     {
         // Arrange
         var salonId = Guid.NewGuid();
@@ -178,7 +176,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundDeploymentService.CleanupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -186,14 +184,13 @@ public class ActivateSalonCommandTests
         // Act
         var result = await CallHandle(command);
 
-        // Assert
+        // Assert — CleanupAsync appelé pour supprimer Name.wav résiduel
         result.ShouldBeSuccess();
         await _soundDeploymentService.Received(1).CleanupAsync(Arg.Any<CancellationToken>());
         await _soundDeploymentService.DidNotReceive().DeployAsync(Arg.Any<SoundAggregate>(), Arg.Any<CancellationToken>());
         await _configurationService.Received(1).GenerateAsync(
             Arg.Any<SalonAggregate>(),
             Arg.Any<string>(),
-            Arg.Is<string?>(p => p == null),
             Arg.Any<CancellationToken>());
     }
 
@@ -216,7 +213,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundRepository.GetByIdAsync(soundId, Arg.Any<CancellationToken>())
             .Returns(Error.NotFound("Sound", soundId).ToFailure<SoundAggregate>());
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -230,7 +227,6 @@ public class ActivateSalonCommandTests
         await _configurationService.Received(1).GenerateAsync(
             Arg.Any<SalonAggregate>(),
             Arg.Any<string>(),
-            Arg.Is<string?>(p => p == null),
             Arg.Any<CancellationToken>());
         _tracker.Received(1).SetActiveSalon(salonId);
     }
@@ -278,7 +274,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundDeploymentService.CleanupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
@@ -337,7 +333,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _soundDeploymentService.CleanupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(global::LanguageExt.Common.Error.New("SVXLINK_RESTART_ERROR")));

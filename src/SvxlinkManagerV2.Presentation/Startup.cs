@@ -65,6 +65,8 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddScoped<ISoundFileDeploymentService, SoundFileDeploymentService>();
+            services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
+            services.AddHostedService<LogicTclInitializerHostedService>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();

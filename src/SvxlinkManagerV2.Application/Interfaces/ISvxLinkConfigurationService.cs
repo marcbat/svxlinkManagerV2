@@ -15,13 +15,11 @@ public interface ISvxLinkConfigurationService
     /// </summary>
     /// <param name="salon">Aggregate Salon contenant la configuration complète</param>
     /// <param name="outputPath">Chemin complet du fichier de sortie (ex: /etc/svxlink/svxlink.conf)</param>
-    /// <param name="announceFilePath">Chemin du fichier WAV d'annonce déployé (null = pas d'annonce)</param>
     /// <param name="cancellationToken">Token d'annulation</param>
     /// <returns>Validation indiquant le succès ou l'erreur</returns>
     Task<Validation<Error, Unit>> GenerateAsync(
         SalonAggregate salon, 
         string outputPath,
-        string? announceFilePath = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

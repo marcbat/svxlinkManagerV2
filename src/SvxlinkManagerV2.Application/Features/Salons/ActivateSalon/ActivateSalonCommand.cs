@@ -104,7 +104,6 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             return Error.Validation("SA818_CONFIGURE_ERROR", "Impossible de configurer le module SA818").ToFailure<Unit>();
 
         // Déploiement du fichier son (optionnel — résilience si son supprimé)
-        string? announceFilePath = null;
         var soundId = aggregate.Configuration.SoundId;
         if (soundId.HasValue)
         {
@@ -118,11 +117,12 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
                         _logger.LogWarning(
                             "Le son {SoundId} est supprimé, activation continue sans annonce",
                             soundId.Value);
+                        await _soundDeploymentService.CleanupAsync(cancellationToken);
                         return;
                     }
                     var deployResult = await _soundDeploymentService.DeployAsync(sound, cancellationToken);
                     deployResult.Match(
-                        Succ: path => { announceFilePath = path; return unit; },
+                        Succ: _ => unit,
                         Fail: errors =>
                         {
                             _logger.LogWarning(
@@ -146,7 +146,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         }
 
         _logger.LogInformation("Génération du fichier {Path}", SvxLinkConfPath);
-        var configResult = await _configurationService.GenerateAsync(aggregate, SvxLinkConfPath, announceFilePath, cancellationToken);
+        var configResult = await _configurationService.GenerateAsync(aggregate, SvxLinkConfPath, cancellationToken);
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf").ToFailure<Unit>();
 

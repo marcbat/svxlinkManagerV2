@@ -18,7 +18,7 @@ public class SoundFileDeploymentService : ISoundFileDeploymentService
     private readonly string _deployDirectory;
 
     private const string DefaultDeployDirectory = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager";
-    private const string AnnounceFileName = "announce.wav";
+    private const string AnnounceFileName = "Name.wav";
 
     // Constructeur pour l'injection de dépendances
     public SoundFileDeploymentService(ILogger<SoundFileDeploymentService> logger)
