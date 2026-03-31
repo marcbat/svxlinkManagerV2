@@ -83,21 +83,26 @@ jobs:
               $isPreRelease = $false
           }
           elseif ($refName -eq 'develop') {
-              $debVersion = "$majorMinorPatch~alpha.$commitsSinceVersionSource"
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z]+\.', '')
+              $debVersion = "$majorMinorPatch~alpha.$preReleaseNumber"
           }
           elseif ($refName.StartsWith('release/')) {
-              $debVersion = "$majorMinorPatch~rc.$commitsSinceVersionSource"
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z]+\.', '')
+              $debVersion = "$majorMinorPatch~rc.$preReleaseNumber"
           }
           elseif ($refName.StartsWith('hotfix/')) {
-              $debVersion = "$majorMinorPatch~hotfix.$commitsSinceVersionSource"
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z]+\.', '')
+              $debVersion = "$majorMinorPatch~hotfix.$preReleaseNumber"
           }
           elseif ($refName.StartsWith('feature/')) {
               $featureLabel = Convert-ToDebLabel($refName.Substring('feature/'.Length))
-              $debVersion = "$majorMinorPatch~$featureLabel.$commitsSinceVersionSource"
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z.]+\.', '')
+              $debVersion = "$majorMinorPatch~$featureLabel.$preReleaseNumber"
           }
           else {
               $branchLabel = Convert-ToDebLabel($refName)
-              $debVersion = "$majorMinorPatch~$branchLabel.$commitsSinceVersionSource"
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z.]+\.', '')
+              $debVersion = "$majorMinorPatch~$branchLabel.$preReleaseNumber"
           }
 
           $releaseTag = 'v' + ($semVer -replace '[^0-9A-Za-z.-]', '.')
