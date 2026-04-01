@@ -50,6 +50,9 @@ namespace SvxlinkManagerV2.Presentation
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
 
+            // Seeding des salons originaux
+            services.AddHostedService<SalonSeederHostedService>();
+
             // Activation automatique au démarrage
             services.AddHostedService<StartupActivationHostedService>();
 
@@ -94,13 +97,6 @@ namespace SvxlinkManagerV2.Presentation
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            // Créer la base de données SQLite au démarrage
-            using (var scope = app.ApplicationServices.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<SvxlinkDbContext>();
-                context.Database.EnsureCreated();
-            }
-
             if (env.IsDevelopment())
                 app.UseDeveloperExceptionPage();
             else
