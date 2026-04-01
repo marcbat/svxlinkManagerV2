@@ -50,6 +50,9 @@ namespace SvxlinkManagerV2.Presentation
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
 
+            // Seeding des salons originaux
+            services.AddHostedService<SalonSeederHostedService>();
+
             // Activation automatique au démarrage
             services.AddHostedService<StartupActivationHostedService>();
 
