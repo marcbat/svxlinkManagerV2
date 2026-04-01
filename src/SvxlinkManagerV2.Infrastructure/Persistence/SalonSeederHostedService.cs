@@ -72,8 +72,8 @@ public class SalonSeederHostedService : IHostedService
                     DefaultLang: "fr_FR",
                     RgrSoundDelay: 0,
                     SoundId: null,
-                    RxFrequency: 145.500m,
-                    TxFrequency: 145.500m,
+                    RxFrequency: 145.550m,
+                    TxFrequency: 145.550m,
                     RxCtcss: null,
                     TxCtcss: null);
 
