@@ -19,7 +19,7 @@ public interface ISvxLinkConfigurationService
     /// <returns>Validation indiquant le succès ou l'erreur</returns>
     Task<Validation<Error, Unit>> GenerateAsync(
         SalonAggregate salon, 
-        string outputPath, 
+        string outputPath,
         CancellationToken cancellationToken = default);
 
     /// <summary>

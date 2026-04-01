@@ -169,6 +169,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [SimplexLogic] avec les paramètres locaux.
+    /// L'annonce one-shot est gérée par Logic.tcl (proc startup {}) — aucun paramètre d'annonce
+    /// n'est ajouté ici car ils ne sont pas supportés dans SVXLink 19.09.2.
     /// </summary>
     private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
     {

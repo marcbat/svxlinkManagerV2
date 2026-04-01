@@ -236,6 +236,27 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_ShouldNotSetAnyAnnounceParameters()
+    {
+        // Arrange — l'annonce one-shot est gérée par Logic.tcl (proc startup {}),
+        // aucun paramètre d'annonce n'est écrit dans svxlink.conf (non supporté SVXLink 19.09.2)
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_no_announce.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert — aucun paramètre ANNOUNCE_* ne doit apparaître dans le fichier généré
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["SimplexLogic"].ContainsKey("STARTUP_ANNOUNCEMENTS").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_FILE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_FILE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("SHORT_ANNOUNCE_ENABLE").Should().BeFalse();
+        iniData["SimplexLogic"].ContainsKey("LONG_ANNOUNCE_ENABLE").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ValidateAsync_WithValidFile_ShouldReturnSuccess()
     {
         // Arrange
