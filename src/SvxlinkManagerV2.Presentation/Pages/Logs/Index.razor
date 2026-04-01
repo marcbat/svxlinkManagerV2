@@ -1,0 +1,449 @@
+@page "/logs"
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Application.Interfaces
+@inject ISvxLinkLogService LogService
+@inject ISvxLinkDaemonService DaemonService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="page-header">
+    <div class="page-title-group">
+        <h1>
+            <span class="material-symbols-outlined">terminal</span>
+            Logs SVXLink
+        </h1>
+        @if (_daemonRunning)
+        {
+            <span class="badge badge-success">
+                <span class="material-symbols-outlined">radio_button_checked</span>
+                Actif
+            </span>
+        }
+        else
+        {
+            <span class="badge badge-muted">
+                <span class="material-symbols-outlined">radio_button_unchecked</span>
+                Arrêté
+            </span>
+        }
+    </div>
+    <button class="btn btn-danger btn-sm" @onclick="ClearLogs">
+        <span class="material-symbols-outlined">delete</span>
+        Effacer
+    </button>
+</div>
+
+<div class="log-controls">
+    <div class="log-search">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input type="text"
+               class="form-control"
+               placeholder="Filtrer les logs..."
+               @bind="_searchTerm"
+               @bind:event="oninput" />
+        @if (!string.IsNullOrEmpty(_searchTerm))
+        {
+            <button class="search-clear" @onclick="() => _searchTerm = string.Empty">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        }
+    </div>
+
+    <div class="log-limit">
+        <label class="form-label">Limite</label>
+        <input type="number"
+               class="form-control form-control-sm"
+               min="100"
+               max="10000"
+               step="100"
+               value="@_maxLines"
+               @onchange="OnMaxLinesChanged" />
+    </div>
+</div>
+
+<div class="log-viewer" @ref="_logContainer">
+    @if (!FilteredLogs.Any())
+    {
+        <div class="log-empty">
+            <span class="material-symbols-outlined">description</span>
+            <span>Aucun log disponible</span>
+        </div>
+    }
+    else
+    {
+        @foreach (var log in FilteredLogs)
+        {
+            <div class="log-line @GetLevelClass(log.Level)">
+                <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                <span class="log-message">@log.Message</span>
+            </div>
+        }
+    }
+</div>
+
+<div class="log-footer">
+    <span class="log-counter">
+        @FilteredLogs.Count / @_allLogs.Count lignes
+        @if (!string.IsNullOrEmpty(_searchTerm))
+        {
+            <span class="log-filter-hint">(filtrées)</span>
+        }
+    </span>
+
+    <button class="btn-autoscroll @(_autoScroll ? "active" : "")" @onclick="ToggleAutoScroll">
+        <span class="material-symbols-outlined">
+            @(_autoScroll ? "vertical_align_bottom" : "pause")
+        </span>
+        @(_autoScroll ? "Auto-scroll" : "Pause")
+    </button>
+</div>
+
+@code {
+    private List<SvxLinkLogEntry> _allLogs = new();
+    private string _searchTerm = string.Empty;
+    private int _maxLines = 1000;
+    private bool _daemonRunning;
+    private bool _autoScroll = true;
+    private ElementReference _logContainer;
+    private DotNetObjectReference<Index>? _dotNetRef;
+
+    private List<SvxLinkLogEntry> FilteredLogs =>
+        string.IsNullOrEmpty(_searchTerm)
+            ? _allLogs
+            : _allLogs.Where(l => l.Message.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allLogs = LogService.GetLogs().ToList();
+        _maxLines = LogService.MaxLines;
+        LogService.OnLogReceived += OnLogReceived;
+
+        var result = await DaemonService.IsRunningAsync();
+        _daemonRunning = result.Match(Succ: v => v, Fail: _ => false);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("logViewerInterop.init", _logContainer, _dotNetRef);
+        }
+
+        if (_autoScroll)
+        {
+            await JS.InvokeVoidAsync("logViewerInterop.scrollToBottom", _logContainer);
+        }
+    }
+
+    [JSInvokable]
+    public void OnUserScrolled(bool isAtBottom)
+    {
+        if (_autoScroll && !isAtBottom)
+        {
+            _autoScroll = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnLogReceived(SvxLinkLogEntry entry)
+    {
+        InvokeAsync(() =>
+        {
+            _allLogs = LogService.GetLogs().ToList();
+            StateHasChanged();
+        });
+    }
+
+    private void ClearLogs()
+    {
+        LogService.Clear();
+        _allLogs = new();
+    }
+
+    private void OnMaxLinesChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            _maxLines = Math.Max(100, Math.Min(value, 10000));
+            LogService.MaxLines = _maxLines;
+            _allLogs = LogService.GetLogs().ToList();
+        }
+    }
+
+    private async Task ToggleAutoScroll()
+    {
+        _autoScroll = !_autoScroll;
+        if (_autoScroll)
+        {
+            await JS.InvokeVoidAsync("logViewerInterop.scrollToBottom", _logContainer);
+        }
+    }
+
+    private static string GetLevelClass(SvxLinkLogLevel level) => level switch
+    {
+        SvxLinkLogLevel.Error => "log-level-error",
+        SvxLinkLogLevel.Warning => "log-level-warning",
+        _ => ""
+    };
+
+    public void Dispose()
+    {
+        LogService.OnLogReceived -= OnLogReceived;
+        _dotNetRef?.Dispose();
+    }
+}
+
+<script suppress-error="BL9992">
+    window.logViewerInterop = {
+        _handler: null,
+        init: function (element, dotNetRef) {
+            this._handler = function () {
+                const isAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 30;
+                dotNetRef.invokeMethodAsync('OnUserScrolled', isAtBottom);
+            };
+            element.addEventListener('scroll', this._handler);
+        },
+        scrollToBottom: function (element) {
+            if (element) {
+                element.scrollTop = element.scrollHeight;
+            }
+        }
+    };
+</script>
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .page-title-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+        .page-title-group h1 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.6rem;
+            margin: 0;
+        }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+        .badge .material-symbols-outlined {
+            font-size: 14px;
+        }
+
+    .badge-success {
+        background: rgba(0, 184, 148, .15);
+        color: var(--success);
+    }
+
+    .badge-muted {
+        background: rgba(160, 160, 192, .12);
+        color: var(--text-muted);
+    }
+
+    /* ── Controls bar ── */
+    .log-controls {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+        margin-bottom: 12px;
+    }
+
+    .log-search {
+        position: relative;
+        flex: 1;
+        max-width: 420px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 20px;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .log-search .form-control {
+        padding-left: 40px;
+        padding-right: 36px;
+    }
+
+    .search-clear {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 2px;
+        display: flex;
+    }
+
+        .search-clear:hover {
+            color: var(--text);
+        }
+
+        .search-clear .material-symbols-outlined {
+            font-size: 18px;
+        }
+
+    .log-limit {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+        .log-limit .form-label {
+            margin: 0;
+            white-space: nowrap;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .log-limit .form-control-sm {
+            width: 100px;
+            text-align: center;
+        }
+
+    /* ── Log viewer ── */
+    .log-viewer {
+        background: #0D0E1F;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.82rem;
+        line-height: 1.55;
+        overflow-y: auto;
+        height: calc(100vh - 300px);
+        min-height: 300px;
+        scroll-behavior: smooth;
+    }
+
+    .log-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted);
+        gap: 12px;
+        font-size: 0.95rem;
+    }
+
+        .log-empty .material-symbols-outlined {
+            font-size: 48px;
+            opacity: 0.4;
+        }
+
+    .log-line {
+        display: flex;
+        gap: 12px;
+        padding: 1px 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+        .log-line:hover {
+            background: rgba(108, 92, 231, 0.06);
+        }
+
+    .log-timestamp {
+        color: var(--text-muted);
+        flex-shrink: 0;
+        opacity: 0.7;
+        user-select: none;
+    }
+
+    .log-message {
+        color: var(--text);
+    }
+
+    .log-level-error .log-message {
+        color: var(--danger);
+    }
+
+    .log-level-error .log-timestamp {
+        color: var(--danger);
+        opacity: 0.6;
+    }
+
+    .log-level-warning .log-message {
+        color: var(--warning);
+    }
+
+    .log-level-warning .log-timestamp {
+        color: var(--warning);
+        opacity: 0.6;
+    }
+
+    /* ── Footer ── */
+    .log-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding: 0 4px;
+    }
+
+    .log-counter {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+
+    .log-filter-hint {
+        font-style: italic;
+        opacity: 0.7;
+    }
+
+    .btn-autoscroll {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(108, 92, 231, .1);
+        border: 1px solid rgba(108, 92, 231, .25);
+        color: var(--text-muted);
+        border-radius: var(--radius-sm);
+        padding: 4px 14px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-autoscroll .material-symbols-outlined {
+            font-size: 16px;
+        }
+
+        .btn-autoscroll:hover {
+            background: rgba(108, 92, 231, .2);
+            color: var(--text);
+        }
+
+        .btn-autoscroll.active {
+            background: rgba(0, 184, 148, .12);
+            border-color: rgba(0, 184, 148, .3);
+            color: var(--success);
+        }
+</style>
