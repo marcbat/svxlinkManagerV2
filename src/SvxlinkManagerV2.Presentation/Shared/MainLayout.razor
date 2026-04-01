@@ -1,62 +1,70 @@
 @inherits LayoutComponentBase
 
-<div class="app-layout">
+<div class="app-layout @( _isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
     <nav class="sidebar">
         <div class="sidebar-logo">
             <span class="material-symbols-outlined">settings_input_antenna</span>
             <span class="logo-text">SvxLink Manager V2</span>
+            <button type="button"
+                    class="sidebar-toggle"
+                    @onclick="ToggleSidebar"
+                    title="@(_isSidebarCollapsed ? "Agrandir le menu" : "Réduire le menu")"
+                    aria-label="@(_isSidebarCollapsed ? "Agrandir la barre latérale" : "Réduire la barre latérale")"
+                    aria-pressed="@_isSidebarCollapsed">
+                <span class="material-symbols-outlined">@(_isSidebarCollapsed ? "chevron_right" : "chevron_left")</span>
+            </button>
         </div>
         <ul class="sidebar-nav">
             <li>
-                <NavLink href="/" class="nav-item" Match="NavLinkMatch.All" ActiveClass="active">
+                <NavLink href="/" class="nav-item" title="Dashboard" Match="NavLinkMatch.All" ActiveClass="active">
                     <span class="material-symbols-outlined">dashboard</span>
                     <span>Dashboard</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/salons" class="nav-item" ActiveClass="active">
+                <NavLink href="/salons" class="nav-item" title="Salons" ActiveClass="active">
                     <span class="material-symbols-outlined">radio</span>
                     <span>Salons</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/sa818" class="nav-item" ActiveClass="active">
+                <NavLink href="/sa818" class="nav-item" title="SA818" ActiveClass="active">
                     <span class="material-symbols-outlined">settings_input_component</span>
                     <span>SA818</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/sons" class="nav-item" ActiveClass="active">
+                <NavLink href="/sons" class="nav-item" title="Sons" ActiveClass="active">
                     <span class="material-symbols-outlined">volume_up</span>
                     <span>Sons</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/logs" class="nav-item" ActiveClass="active">
+                <NavLink href="/logs" class="nav-item" title="Logs" ActiveClass="active">
                     <span class="material-symbols-outlined">terminal</span>
                     <span>Logs</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/reflector" class="nav-item" ActiveClass="active">
+                <NavLink href="/reflector" class="nav-item" title="Reflector" ActiveClass="active">
                     <span class="material-symbols-outlined">hub</span>
                     <span>Reflector</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/reflector/logs" class="nav-item" ActiveClass="active">
+                <NavLink href="/reflector/logs" class="nav-item" title="Logs Reflector" ActiveClass="active">
                     <span class="material-symbols-outlined">terminal</span>
                     <span>Logs Reflector</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/wifi" class="nav-item" ActiveClass="active">
+                <NavLink href="/wifi" class="nav-item" title="WiFi" ActiveClass="active">
                     <span class="material-symbols-outlined">wifi</span>
                     <span>WiFi</span>
                 </NavLink>
             </li>
             <li>
-                <NavLink href="/settings" class="nav-item" ActiveClass="active">
+                <NavLink href="/settings" class="nav-item" title="Paramètres" ActiveClass="active">
                     <span class="material-symbols-outlined">settings</span>
                     <span>Paramètres</span>
                 </NavLink>
@@ -74,6 +82,12 @@
 
 @code {
     private string _appVersion = "?";
+    private bool _isSidebarCollapsed;
+
+    private void ToggleSidebar()
+    {
+        _isSidebarCollapsed = !_isSidebarCollapsed;
+    }
 
     protected override void OnInitialized()
     {
