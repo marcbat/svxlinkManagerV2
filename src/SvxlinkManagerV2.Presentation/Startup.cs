@@ -97,13 +97,6 @@ namespace SvxlinkManagerV2.Presentation
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            // Créer la base de données SQLite au démarrage
-            using (var scope = app.ApplicationServices.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<SvxlinkDbContext>();
-                context.Database.EnsureCreated();
-            }
-
             if (env.IsDevelopment())
                 app.UseDeveloperExceptionPage();
             else
