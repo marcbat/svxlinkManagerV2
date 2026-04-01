@@ -28,6 +28,8 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
         _logService = logService;
     }
 
+    private const string DtmfCtrlPtyPath = "/tmp/dtmf_uhf";
+
     public void Dispose()
     {
         if (_disposed)
@@ -56,6 +58,26 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
         }
 
         _disposed = true;
+    }
+
+    public async Task<Validation<Error, Unit>> SendDtmfCommandAsync(
+        string sequence,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Envoi de la commande DTMF '{Sequence}' vers {Path}", sequence, DtmfCtrlPtyPath);
+
+        try
+        {
+            await File.WriteAllTextAsync(DtmfCtrlPtyPath, sequence, cancellationToken);
+            _logger.LogInformation("Commande DTMF '{Sequence}' envoyée avec succès", sequence);
+            return unit;
+        }
+        catch (Exception ex)
+        {
+            var error = Error.New($"Impossible d'envoyer la commande DTMF '{sequence}' vers {DtmfCtrlPtyPath}: {ex.Message}", ex);
+            _logger.LogError(ex, "Erreur lors de l'envoi de la commande DTMF vers {Path}", DtmfCtrlPtyPath);
+            return Validation<Error, Unit>.Fail(Seq1(error));
+        }
     }
 
     public async Task<Validation<Error, Unit>> StopAsync(CancellationToken cancellationToken = default)

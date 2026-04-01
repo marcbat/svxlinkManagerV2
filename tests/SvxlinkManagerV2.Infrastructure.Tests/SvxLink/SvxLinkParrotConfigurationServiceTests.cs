@@ -166,6 +166,23 @@ public class SvxLinkParrotConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_ShouldPreserveModuleParrotSection()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_parrot_module_section.conf");
+
+        // Act
+        await _service.GenerateAsync(outputPath);
+
+        // Assert — la section [ModuleParrot] du template doit être conservée avec FIFO_LEN et REPEAT_DELAY
+        var iniData = IniFile.Parse(outputPath);
+        iniData.ContainsSection("ModuleParrot").Should().BeTrue();
+        iniData["ModuleParrot"]["ID"].Should().Be("2");
+        iniData["ModuleParrot"]["FIFO_LEN"].Should().NotBeNullOrEmpty();
+        iniData["ModuleParrot"]["REPEAT_DELAY"].Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
     public async Task GenerateAsync_ShouldWriteAtomically()
     {
         // Arrange

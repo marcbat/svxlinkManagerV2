@@ -24,6 +24,14 @@ public interface ISvxLinkDaemonService
     Task<Validation<Error, Unit>> StopAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Envoie une commande DTMF au daemon SVXLink via le pseudo-terminal de contrôle.
+    /// </summary>
+    /// <param name="sequence">Séquence DTMF à envoyer (ex: "2#" pour activer le ModuleParrot)</param>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    /// <returns>Validation indiquant le succès ou l'erreur</returns>
+    Task<Validation<Error, Unit>> SendDtmfCommandAsync(string sequence, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Vérifie si le daemon SVXLink est actuellement en cours d'exécution.
     /// </summary>
     /// <param name="cancellationToken">Token d'annulation</param>

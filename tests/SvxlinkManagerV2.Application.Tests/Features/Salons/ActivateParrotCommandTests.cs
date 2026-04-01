@@ -12,7 +12,7 @@ namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 
 /// <summary>
 /// Tests unitaires pour ActivateParrotCommand et son handler.
-/// Le handler orchestre : arrêt du daemon si actif → génération config Parrot → restart daemon.
+/// Le handler orchestre : arrêt du daemon si actif → génération config Parrot → restart daemon → activation DTMF.
 /// Note : le SA818 n'est PAS reconfiguré en mode Perroquet.
 /// </summary>
 public class ActivateParrotCommandTests
@@ -42,6 +42,8 @@ public class ActivateParrotCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
         var result = await CallHandle();
@@ -50,6 +52,27 @@ public class ActivateParrotCommandTests
         result.ShouldBeSuccess();
         _tracker.Received(1).SetParrotActive(true);
         await _daemonService.DidNotReceive().StopAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenNothingIsActive_ShouldSendDtmfCommandToActivateModule()
+    {
+        // Arrange
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _tracker.IsParrotActive.Returns(false);
+        _parrotConfigurationService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+        // Act
+        var result = await CallHandle();
+
+        // Assert — DTMF "2#" envoyé pour activer ModuleParrot (ID=2 dans svxlink.conf)
+        result.ShouldBeSuccess();
+        await _daemonService.Received(1).SendDtmfCommandAsync("2#", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -64,6 +87,8 @@ public class ActivateParrotCommandTests
         _parrotConfigurationService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -89,6 +114,8 @@ public class ActivateParrotCommandTests
         _parrotConfigurationService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -167,6 +194,29 @@ public class ActivateParrotCommandTests
             errors.Should().Contain(e => e.Code == "SVXLINK_RESTART_ERROR");
         });
         _tracker.DidNotReceive().SetParrotActive(true);
+        await _daemonService.DidNotReceive().SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenDtmfFails_ShouldStillSucceed()
+    {
+        // Arrange — l'échec DTMF est non-bloquant (warning) : le module peut être activé manuellement
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _tracker.IsParrotActive.Returns(false);
+        _parrotConfigurationService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(
+                global::LanguageExt.Common.Error.New("DTMF_ERROR")));
+
+        // Act
+        var result = await CallHandle();
+
+        // Assert — succès malgré l'échec DTMF
+        result.ShouldBeSuccess();
+        _tracker.Received(1).SetParrotActive(true);
     }
 
     [Fact]
@@ -179,6 +229,8 @@ public class ActivateParrotCommandTests
         _parrotConfigurationService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.SendDtmfCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
