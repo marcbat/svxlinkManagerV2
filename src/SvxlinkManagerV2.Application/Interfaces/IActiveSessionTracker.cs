@@ -27,6 +27,16 @@ public interface IActiveSessionTracker
     void SetActiveReflector(Guid? id);
 
     /// <summary>
+    /// Indique si le mode Perroquet (Parrot) est actuellement actif.
+    /// </summary>
+    bool IsParrotActive { get; }
+
+    /// <summary>
+    /// Active ou désactive le mode Perroquet. Passer false pour désactiver.
+    /// </summary>
+    void SetParrotActive(bool active);
+
+    /// <summary>
     /// Indique si le Salon identifié est actuellement actif.
     /// </summary>
     bool IsSalonActive(Guid id);

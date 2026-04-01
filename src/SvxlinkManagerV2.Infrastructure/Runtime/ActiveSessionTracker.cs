@@ -11,6 +11,7 @@ public class ActiveSessionTracker : IActiveSessionTracker
     private readonly object _lock = new();
     private Guid? _activeSalonId;
     private Guid? _activeReflectorId;
+    private bool _isParrotActive;
 
     public Guid? ActiveSalonId
     {
@@ -30,6 +31,16 @@ public class ActiveSessionTracker : IActiveSessionTracker
     public void SetActiveReflector(Guid? id)
     {
         lock (_lock) _activeReflectorId = id;
+    }
+
+    public bool IsParrotActive
+    {
+        get { lock (_lock) return _isParrotActive; }
+    }
+
+    public void SetParrotActive(bool active)
+    {
+        lock (_lock) _isParrotActive = active;
     }
 
     public bool IsSalonActive(Guid id)

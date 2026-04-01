@@ -80,6 +80,24 @@ public class IniFile
     }
 
     /// <summary>
+    /// Supprime une section du fichier INI.
+    /// </summary>
+    /// <param name="section">Nom de la section à supprimer</param>
+    /// <returns>true si la section existait et a été supprimée, false sinon</returns>
+    public bool RemoveSection(string section)
+    {
+        return _sections.Remove(section);
+    }
+
+    /// <summary>
+    /// Vérifie si une section existe.
+    /// </summary>
+    public bool ContainsSection(string section)
+    {
+        return _sections.ContainsKey(section);
+    }
+
+    /// <summary>
     /// Accès aux sections via indexeur.
     /// </summary>
     public IniSection this[string section]

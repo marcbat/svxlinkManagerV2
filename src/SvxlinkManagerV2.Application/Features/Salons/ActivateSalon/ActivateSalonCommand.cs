@@ -79,11 +79,11 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             return Error.Validation("SALON_DELETED", "Le salon est supprimé").ToFailure<Unit>();
 
         var currentActiveSalonId = _tracker.ActiveSalonId;
-        if (currentActiveSalonId.HasValue && currentActiveSalonId.Value != command.Id)
+        if ((currentActiveSalonId.HasValue && currentActiveSalonId.Value != command.Id) || _tracker.IsParrotActive)
         {
             _logger.LogInformation(
-                "Auto-désactivation du salon actif {OldSalonId} avant activation de {NewSalonId}",
-                currentActiveSalonId.Value, command.Id);
+                "Auto-désactivation de l'état actif avant activation de {NewSalonId}",
+                command.Id);
 
             var stopResult = await _daemonService.StopAsync(cancellationToken);
             if (stopResult.IsFail)
@@ -91,6 +91,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
 
             _connectedNodesService.Reset();
             _tracker.SetActiveSalon(null);
+            _tracker.SetParrotActive(false);
         }
 
         var sa818Config = await _sa818Repository.GetConfigurationAsync(cancellationToken);

@@ -75,6 +75,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
+            services.AddScoped<ISvxLinkParrotConfigurationService, SvxLinkParrotConfigurationService>();
             services.AddScoped<ISoundFileDeploymentService, SoundFileDeploymentService>();
             services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
             services.AddHostedService<LogicTclInitializerHostedService>();

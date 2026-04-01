@@ -3,6 +3,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
 @using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.ActivateParrot
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
@@ -16,6 +17,7 @@
 @inject ISvxLinkDaemonService DaemonService
 @inject IReflectorDaemonService ReflectorDaemonService
 @inject IConnectedNodesService ConnectedNodesService
+@inject IActiveSessionTracker SessionTracker
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -55,6 +57,13 @@
         {
             <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
             <div class="skeleton" style="height:16px;width:50%;"></div>
+        }
+        else if (_isParrotActive)
+        {
+            <div class="card-value">Perroquet 🦜</div>
+            <div class="card-meta">
+                <span class="badge badge-success">Actif</span>
+            </div>
         }
         else if (_activeSalon is not null)
         {
@@ -201,6 +210,10 @@
                 <div class="action-group">
                     <select class="form-select" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
                         <option value="">— Choisir un salon —</option>
+                        @if (!_isParrotActive)
+                        {
+                            <option value="@Guid.Empty">Perroquet 🦜</option>
+                        }
                         @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
                         {
                             <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
@@ -333,6 +346,7 @@
     private Guid? _selectedSalonId;
     private bool _isActivating;
     private bool _isDeactivating;
+    private bool _isParrotActive;
 
     private PeriodicTimer? _statusTimer;
     private CancellationTokenSource? _cts;
@@ -516,6 +530,7 @@
         finally
         {
             _isLoading = false;
+            _isParrotActive = SessionTracker.IsParrotActive;
         }
 
         if (loadErrors.Count > 0)
@@ -530,11 +545,18 @@
         _isActivating = true;
         try
         {
-            var result = await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
+            var isParrot = _selectedSalonId.Value == Guid.Empty;
+
+            var result = isParrot
+                ? await Mediator.Send<Validation<Error, Unit>>(new ActivateParrotCommand())
+                : await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
+
             result.Match(
                 Succ: _ =>
                 {
-                    ToastService.ShowSuccess("Salon activé avec succès.");
+                    ToastService.ShowSuccess(isParrot
+                        ? "Mode Perroquet activé avec succès."
+                        : "Salon activé avec succès.");
                     _selectedSalonId = null;
                     return Unit.Default;
                 },
