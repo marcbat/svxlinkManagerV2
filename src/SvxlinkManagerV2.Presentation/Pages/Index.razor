@@ -42,145 +42,74 @@
     </div>
 </div>
 
-<!-- ── Stats Grid ────────────────────────────────────────────── -->
-<div class="stats-grid">
+<!-- ── Focus Dashboard (compact) ─────────────────────────────── -->
+<div class="dashboard-focus-grid">
 
-    <!-- Card : Salon Actif -->
-    <div class="card">
+    <div class="card dashboard-focus-card">
         <div class="card-title">
-            <span class="material-symbols-outlined">dns</span>
-            Salon Actif
+            <span class="material-symbols-outlined">radio_button_checked</span>
+            Résumé en direct
         </div>
-        @if (_isLoading)
-        {
-            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
-            <div class="skeleton" style="height:16px;width:50%;"></div>
-        }
-        else if (_activeSalon is not null)
-        {
-            <div class="card-value">@_activeSalon.Name</div>
-            <div class="card-meta">
-                <span class="badge badge-success">Actif</span>
+
+        <div class="focus-metrics">
+            <div class="focus-metric">
+                <span class="focus-label">Salon actif</span>
+                @if (_isLoading)
+                {
+                    <div class="skeleton" style="height:24px;width:180px;"></div>
+                }
+                else if (_activeSalon is not null)
+                {
+                    <div class="focus-value">@_activeSalon.Name</div>
+                    <span class="badge badge-success">Actif</span>
+                }
+                else
+                {
+                    <div class="focus-value focus-value--muted">Aucun salon</div>
+                    <span class="badge badge-muted">Inactif</span>
+                }
             </div>
-        }
-        else
-        {
-            <div class="card-value" style="font-size:16px;color:var(--text-muted)">Aucun salon actif</div>
-            <div class="card-meta">
-                <span class="badge badge-muted">Inactif</span>
+
+            <div class="focus-metric">
+                <span class="focus-label">Nœuds connectés</span>
+                @if (_isLoading)
+                {
+                    <div class="skeleton" style="height:24px;width:90px;"></div>
+                }
+                else
+                {
+                    <div class="focus-value">@_connectedNodes.Count</div>
+                    <span class="focus-subvalue">@_connectedNodes.Count(n => n.IsTx) en émission</span>
+                }
             </div>
-        }
+        </div>
     </div>
 
-    <!-- Card : État SVXLink -->
-    <div class="card">
-        <div class="card-title">
+    <div class="card dashboard-service-strip">
+        <div class="compact-item">
             <span class="material-symbols-outlined">settings_input_component</span>
-            État SVXLink
+            <span class="compact-item-label">SVXLink</span>
+            <span class="badge @(_daemonRunning ? "badge-success" : "badge-danger")">@(_daemonRunning ? "Actif" : "Arrêté")</span>
         </div>
-        @if (_isLoading)
-        {
-            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
-            <div class="skeleton" style="height:16px;width:50%;"></div>
-        }
-        else if (_daemonRunning)
-        {
-            <div class="card-value">En cours d'exécution</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
-                Daemon actif
-            </div>
-        }
-        else
-        {
-            <div class="card-value" style="color:var(--danger)">Arrêté</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">cancel</span>
-                Daemon inactif
-            </div>
-        }
-    </div>
 
-    <!-- Card : État Réflecteur Local -->
-    <div class="card">
-        <div class="card-title">
+        <div class="compact-item">
             <span class="material-symbols-outlined">hub</span>
-            État Réflecteur Local
+            <span class="compact-item-label">Réflecteur</span>
+            <span class="badge @(_reflectorRunning ? "badge-success" : "badge-danger")">@(_reflectorRunning ? "Actif" : "Arrêté")</span>
         </div>
-        @if (_isLoading)
-        {
-            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
-            <div class="skeleton" style="height:16px;width:50%;"></div>
-        }
-        else if (_reflectorRunning)
-        {
-            <div class="card-value">En cours d'exécution</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
-                Daemon actif
-            </div>
-        }
-        else
-        {
-            <div class="card-value" style="color:var(--danger)">Arrêté</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">cancel</span>
-                Daemon inactif
-            </div>
-        }
-    </div>
 
-    <!-- Card : Module SA818 -->
-    <div class="card">
-        <div class="card-title">
-            <span class="material-symbols-outlined">settings_input_component</span>
-            Module SA818
+        <div class="compact-item">
+            <span class="material-symbols-outlined">radio</span>
+            <span class="compact-item-label">SA818</span>
+            @if (_sa818Dto is not null)
+            {
+                <span class="badge badge-accent">Vol @_sa818Dto.Volume | SQL @_sa818Dto.Squelch</span>
+            }
+            else
+            {
+                <span class="badge badge-muted">Non configuré</span>
+            }
         </div>
-        @if (_isLoading)
-        {
-            <div class="skeleton" style="height:24px;width:70%;margin-bottom:8px;"></div>
-            <div class="skeleton" style="height:16px;width:60%;"></div>
-        }
-        else if (_sa818Dto is not null)
-        {
-            <div class="card-value">Vol: @_sa818Dto.Volume&nbsp;|&nbsp;SQL: @_sa818Dto.Squelch</div>
-            <div class="card-meta">
-                <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent)">radio</span>
-                Bande: @(_sa818Dto.Bandwidth == SA818Bandwidth.Wide25kHz ? "25 kHz" : "12.5 kHz")
-            </div>
-            @if (_sa818Dto.RxFrequency.HasValue)
-            {
-                <div class="card-meta">
-                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">arrow_downward</span>
-                    RX: @_sa818Dto.RxFrequency.Value.ToString("F3") MHz
-                </div>
-            }
-            @if (_sa818Dto.TxFrequency.HasValue)
-            {
-                <div class="card-meta">
-                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">arrow_upward</span>
-                    TX: @_sa818Dto.TxFrequency.Value.ToString("F3") MHz
-                </div>
-            }
-            @if (_sa818Dto.RxCtcss.HasValue)
-            {
-                <div class="card-meta">
-                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">tune</span>
-                    CTCSS RX: @_sa818Dto.RxCtcss.Value.ToString("F1") Hz
-                </div>
-            }
-            @if (_sa818Dto.TxCtcss.HasValue)
-            {
-                <div class="card-meta">
-                    <span class="material-symbols-outlined" style="font-size:16px;color:var(--text-muted)">tune</span>
-                    CTCSS TX: @_sa818Dto.TxCtcss.Value.ToString("F1") Hz
-                </div>
-            }
-        }
-        else
-        {
-            <div class="card-value" style="color:var(--text-muted);font-size:16px">Non configuré</div>
-        }
     </div>
 
 </div>
@@ -278,6 +207,92 @@
 
 <style>
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .dashboard-focus-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-focus-card {
+        padding-bottom: 16px;
+    }
+
+    .focus-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 4px;
+    }
+
+    .focus-metric {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .focus-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .focus-value {
+        font-size: 28px;
+        line-height: 1.15;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .focus-value--muted {
+        color: var(--text-muted);
+        font-size: 20px;
+    }
+
+    .focus-subvalue {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .dashboard-service-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
+    .compact-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .compact-item .material-symbols-outlined {
+        font-size: 18px;
+        color: var(--accent);
+    }
+
+    .compact-item-label {
+        font-size: 13px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    @@media (max-width: 900px) {
+        .focus-metrics,
+        .dashboard-service-strip {
+            grid-template-columns: 1fr;
+        }
+
+        .focus-value {
+            font-size: 24px;
+        }
+    }
     
     .node-list {
         display: flex;
