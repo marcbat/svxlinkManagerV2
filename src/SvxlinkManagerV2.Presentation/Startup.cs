@@ -73,6 +73,7 @@ namespace SvxlinkManagerV2.Presentation
 
             services.Configure<ApplicationUpdateOptions>(Configuration.GetSection(ApplicationUpdateOptions.SectionName));
             services.AddHttpClient<IApplicationUpdateService, GitHubReleaseUpdateService>();
+            services.AddSingleton<IApplicationUpdateWorkflowService, ApplicationUpdateWorkflowService>();
 
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();

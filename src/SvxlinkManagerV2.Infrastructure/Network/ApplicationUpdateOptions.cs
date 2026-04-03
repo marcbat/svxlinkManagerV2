@@ -15,7 +15,17 @@ public class ApplicationUpdateOptions
 
     public string Repository { get; set; } = "svxlinkManagerV2";
 
+    public string? GitHubToken { get; set; }
+
     public string PackagePattern { get; set; } = "*.deb";
 
     public ApplicationUpdateChannel Channel { get; set; } = ApplicationUpdateChannel.Stable;
+
+    public string StagingDirectory { get; set; } = "data/updates";
+
+    public string? InstallCommand { get; set; }
+
+    public string? InstallArguments { get; set; } = "{packagePath}";
+
+    public int InstallCommandTimeoutSeconds { get; set; } = 300;
 }

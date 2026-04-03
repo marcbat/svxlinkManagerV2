@@ -20,6 +20,7 @@ public record ApplicationReleaseInfo(
     DateTimeOffset PublishedAt,
     bool IsPrerelease,
     string? ReleaseNotesUrl,
+    string? ChecksumUrl,
     string? PackageUrl,
     string? PackageName);
 

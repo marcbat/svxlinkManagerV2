@@ -100,4 +100,37 @@ public class GitHubReleaseUpdateServiceTests
         latest.Should().NotBeNull();
         latest!.TagName.Should().Be("v1.1.0");
     }
+
+    [Fact]
+    public void SelectChecksumAsset_ShouldPickMatchingSha256File()
+    {
+        var assets = new[]
+        {
+            new GitHubReleaseUpdateService.GitHubReleaseAsset
+            {
+                Name = "svxlinkmanagerv2_0.1.0-alpha.195_armhf.sha256",
+                BrowserDownloadUrl = "https://example.invalid/package.sha256"
+            },
+            new GitHubReleaseUpdateService.GitHubReleaseAsset
+            {
+                Name = "svxlinkmanagerv2_0.1.0-alpha.195_armhf.deb",
+                BrowserDownloadUrl = "https://example.invalid/package.deb"
+            }
+        };
+
+        var checksumAsset = GitHubReleaseUpdateService.SelectChecksumAsset(
+            assets,
+            "svxlinkmanagerv2_0.1.0-alpha.195_armhf.deb");
+
+        checksumAsset.Should().NotBeNull();
+        checksumAsset!.Name.Should().EndWith(".sha256");
+    }
+
+    [Fact]
+    public void BuildGitHubApiErrorMessage_ShouldSuggestTokenWhen404WithoutToken()
+    {
+        var message = GitHubReleaseUpdateService.BuildGitHubApiErrorMessage(404, null);
+
+        message.Should().Contain("GitHubToken");
+    }
 }

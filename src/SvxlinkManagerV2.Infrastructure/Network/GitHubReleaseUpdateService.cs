@@ -51,6 +51,8 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         {
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         }
+
+        ApplyGitHubAuthorizationHeader(_httpClient, _options.GitHubToken);
     }
 
     public async Task<Validation<Error, ApplicationUpdateStatusDto>> GetStatusAsync(
@@ -99,7 +101,7 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
                 return Error.Validation(
                     "APPLICATION_UPDATE_HTTP_ERROR",
-                    $"Impossible de récupérer les releases GitHub (HTTP {(int)response.StatusCode}).")
+                    BuildGitHubApiErrorMessage((int)response.StatusCode, _options.GitHubToken))
                     .ToFailure<ApplicationUpdateStatusDto>();
             }
 
@@ -130,6 +132,7 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
                 : !string.Equals(currentVersion, latestVersion, StringComparison.OrdinalIgnoreCase);
 
             var package = SelectPackageAsset(latestRelease.Assets, _options.PackagePattern);
+            var checksum = SelectChecksumAsset(latestRelease.Assets, package?.Name);
             var status = new ApplicationUpdateStatusDto(
                 CurrentVersion: currentVersion,
                 Channel: effectiveChannel,
@@ -142,6 +145,7 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
                     PublishedAt: latestRelease.PublishedAt ?? latestRelease.CreatedAt ?? DateTimeOffset.MinValue,
                     IsPrerelease: latestRelease.Prerelease,
                     ReleaseNotesUrl: latestRelease.HtmlUrl,
+                    ChecksumUrl: checksum?.BrowserDownloadUrl,
                     PackageUrl: package?.BrowserDownloadUrl,
                     PackageName: package?.Name),
                 Message: updateAvailable
@@ -185,6 +189,27 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
             && asset.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
     }
 
+    internal static GitHubReleaseAsset? SelectChecksumAsset(
+        IEnumerable<GitHubReleaseAsset>? assets,
+        string? packageName)
+    {
+        if (assets is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(packageName))
+        {
+            var expectedChecksumName = Path.GetFileNameWithoutExtension(packageName) + ".sha256";
+            var matchingAsset = assets.FirstOrDefault(asset =>
+                string.Equals(asset.Name, expectedChecksumName, StringComparison.OrdinalIgnoreCase));
+            if (matchingAsset is not null)
+                return matchingAsset;
+        }
+
+        return assets.FirstOrDefault(asset =>
+            !string.IsNullOrWhiteSpace(asset.Name)
+            && asset.Name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static bool MatchesChannel(GitHubRelease release, ApplicationUpdateChannel channel)
     {
         return channel switch
@@ -218,6 +243,24 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         }
 
         return assembly.GetName().Version?.ToString() ?? "0.0.0";
+    }
+
+    internal static void ApplyGitHubAuthorizationHeader(HttpClient httpClient, string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
+    }
+
+    internal static string BuildGitHubApiErrorMessage(int statusCode, string? token)
+    {
+        if (statusCode == 404 && string.IsNullOrWhiteSpace(token))
+        {
+            return "Impossible de récupérer les releases GitHub (HTTP 404). Si le dépôt est privé, configure ApplicationUpdate:GitHubToken.";
+        }
+
+        return $"Impossible de récupérer les releases GitHub (HTTP {statusCode}).";
     }
 
     internal static string? NormalizeVersion(string? value)

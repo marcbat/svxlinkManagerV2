@@ -1,6 +1,8 @@
 @page "/settings"
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate
-@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateStatus
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.DownloadApplicationUpdate
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateWorkflowStatus
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.RequestApplicationUpdateInstallation
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
 @using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration
@@ -69,11 +71,15 @@ else
                     <div class="update-summary-grid">
                         <div class="update-summary-item">
                             <span class="update-label">Version installée</span>
-                            <span class="update-value">@(_updateStatus?.CurrentVersion ?? "-")</span>
+                            <span class="update-value">@(_updateWorkflowStatus?.UpdateStatus.CurrentVersion ?? "-")</span>
                         </div>
                         <div class="update-summary-item">
                             <span class="update-label">Canal</span>
                             <span class="update-value">@GetChannelLabel(_selectedUpdateChannel)</span>
+                        </div>
+                        <div class="update-summary-item">
+                            <span class="update-label">État</span>
+                            <span class="update-value">@GetOperationStateLabel(_updateWorkflowStatus?.OperationState ?? ApplicationUpdateOperationState.Idle)</span>
                         </div>
                     </div>
 
@@ -86,7 +92,7 @@ else
                             }
                         </select>
 
-                        <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateStatusAsync" disabled="@_isCheckingUpdates">
+                        <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
                             @if (_isCheckingUpdates)
                             {
                                 <span class="material-symbols-outlined spin">progress_activity</span>
@@ -97,6 +103,23 @@ else
                             }
                             Vérifier
                         </button>
+
+                        <button type="button" class="btn btn-primary" @onclick="DownloadUpdateAsync" disabled="@(!(_updateWorkflowStatus?.CanDownload ?? false) || _isRunningUpdateAction)">
+                            @if (_isRunningUpdateAction && _updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                            {
+                                <span class="material-symbols-outlined spin">download</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined">download</span>
+                            }
+                            Télécharger le .deb
+                        </button>
+
+                        <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!(_updateWorkflowStatus?.CanRequestInstall ?? false) || _isRunningUpdateAction)">
+                            <span class="material-symbols-outlined">install_desktop</span>
+                            Demander l'installation
+                        </button>
                     </div>
 
                     @if (!string.IsNullOrWhiteSpace(_updateError))
@@ -106,50 +129,105 @@ else
                             @_updateError
                         </div>
                     }
-                    else if (!string.IsNullOrWhiteSpace(_updateStatus?.Message))
+                    else if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.UpdateStatus.Message))
                     {
-                        <div class="update-alert @(_updateStatus?.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
+                        <div class="update-alert @(_updateWorkflowStatus?.UpdateStatus.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
                             <span class="material-symbols-outlined">info</span>
-                            @_updateStatus?.Message
+                            @_updateWorkflowStatus?.UpdateStatus.Message
                         </div>
                     }
 
-                    @if (_updateStatus?.LatestRelease is not null)
+                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.LastOperationMessage))
                     {
-                        <div class="update-release-card @(_updateStatus.IsUpdateAvailable ? "available" : "current")">
+                        <div class="update-alert @(_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Failed ? "update-alert-error" : "update-alert-muted")">
+                            <span class="material-symbols-outlined">history</span>
+                            @_updateWorkflowStatus?.LastOperationMessage
+                        </div>
+                    }
+
+                    @if (_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                    {
+                        <div class="update-progress-card">
+                            <div class="update-progress-header">
+                                <span>Téléchargement en cours</span>
+                                <span>@(_updateWorkflowStatus.DownloadProgressPercent?.ToString() ?? "...")%</span>
+                            </div>
+                            <div class="update-progress-track">
+                                <div class="update-progress-fill" style="width:@(_updateWorkflowStatus.DownloadProgressPercent ?? 0)%"></div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_updateWorkflowStatus?.DownloadedPackage is not null)
+                    {
+                        <div class="update-release-card current">
                             <div class="update-release-header">
                                 <div>
-                                    <div class="update-release-version">@_updateStatus.LatestRelease.Version</div>
+                                    <div class="update-release-version">Paquet prêt</div>
                                     <div class="update-release-meta">
-                                        Publiée le @_updateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
+                                        @_updateWorkflowStatus.DownloadedPackage.FileName
                                     </div>
                                 </div>
-                                <span class="update-badge @(_updateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
-                                    @(_updateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
+                                <span class="update-badge update-badge-current">Téléchargé</span>
+                            </div>
+
+                            <div class="update-release-details">
+                                <div class="update-detail-item">
+                                    <span class="update-label">Version</span>
+                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.Version</span>
+                                </div>
+                                <div class="update-detail-item">
+                                    <span class="update-label">Taille</span>
+                                    <span class="update-value">@FormatFileSize(_updateWorkflowStatus.DownloadedPackage.FileSizeBytes)</span>
+                                </div>
+                                <div class="update-detail-item">
+                                    <span class="update-label">Téléchargé le</span>
+                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.DownloadedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")</span>
+                                </div>
+                                <div class="update-detail-item">
+                                    <span class="update-label">Chemin local</span>
+                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.FilePath</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_updateWorkflowStatus?.UpdateStatus.LatestRelease is not null)
+                    {
+                        <div class="update-release-card @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "available" : "current")">
+                            <div class="update-release-header">
+                                <div>
+                                    <div class="update-release-version">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Version</div>
+                                    <div class="update-release-meta">
+                                        Publiée le @_updateWorkflowStatus.UpdateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
+                                    </div>
+                                </div>
+                                <span class="update-badge @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
+                                    @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
                                 </span>
                             </div>
 
                             <div class="update-release-details">
                                 <div class="update-detail-item">
                                     <span class="update-label">Tag</span>
-                                    <span class="update-value">@_updateStatus.LatestRelease.Tag</span>
+                                    <span class="update-value">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Tag</span>
                                 </div>
                                 <div class="update-detail-item">
                                     <span class="update-label">Paquet</span>
-                                    <span class="update-value">@(_updateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
+                                    <span class="update-value">@(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
                                 </div>
                             </div>
 
                             <div class="update-links">
-                                @if (!string.IsNullOrWhiteSpace(_updateStatus.LatestRelease.ReleaseNotesUrl))
+                                @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl))
                                 {
-                                    <a href="@_updateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
+                                    <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
                                         Voir la release GitHub
                                     </a>
                                 }
-                                @if (!string.IsNullOrWhiteSpace(_updateStatus.LatestRelease.PackageUrl))
+                                @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl))
                                 {
-                                    <a href="@_updateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
+                                    <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
                                         Télécharger le paquet
                                     </a>
                                 }
@@ -383,6 +461,38 @@ else
         text-decoration: underline;
     }
 
+    .update-progress-card {
+        padding: 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-card);
+        background: rgba(255,255,255,0.03);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .update-progress-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--text);
+    }
+
+    .update-progress-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.08);
+    }
+
+    .update-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #7fc8ff);
+        transition: width 0.2s ease;
+    }
+
     /* ── Toggles ─────────────────────────────────────────────── */
     .toggle-input { display: none; }
 
@@ -443,8 +553,9 @@ else
     private bool _isLoading = true;
     private bool _isSubmitting;
     private bool _isCheckingUpdates;
+    private bool _isRunningUpdateAction;
     private List<string> _errors = [];
-    private ApplicationUpdateStatusDto? _updateStatus;
+    private ApplicationUpdateWorkflowStatusDto? _updateWorkflowStatus;
     private string? _updateError;
     private ApplicationUpdateChannel _selectedUpdateChannel = ApplicationUpdateChannel.Stable;
 
@@ -457,7 +568,7 @@ else
             _model.StartDefaultSalonOnStartup = config.StartDefaultSalonOnStartup;
         }
 
-        await RefreshUpdateStatusAsync();
+        await RefreshUpdateWorkflowStatusAsync();
         _isLoading = false;
     }
 
@@ -488,21 +599,21 @@ else
         }
     }
 
-    private async Task RefreshUpdateStatusAsync()
+    private async Task RefreshUpdateWorkflowStatusAsync()
     {
         _isCheckingUpdates = true;
         _updateError = null;
 
         try
         {
-            var result = await Mediator.Send<Validation<Error, ApplicationUpdateStatusDto>>(
-                new GetApplicationUpdateStatusQuery(_selectedUpdateChannel));
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new GetApplicationUpdateWorkflowStatusQuery(_selectedUpdateChannel));
 
             result.Match(
-                Succ: status => _updateStatus = status,
+                Succ: status => _updateWorkflowStatus = status,
                 Fail: errors =>
                 {
-                    _updateStatus = null;
+                    _updateWorkflowStatus = null;
                     _updateError = string.Join(" ", errors.Select(e => e.Message));
                 });
         }
@@ -520,7 +631,63 @@ else
             _selectedUpdateChannel = channel;
         }
 
-        await RefreshUpdateStatusAsync();
+        await RefreshUpdateWorkflowStatusAsync();
+    }
+
+    private async Task DownloadUpdateAsync()
+    {
+        _isRunningUpdateAction = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new DownloadApplicationUpdateCommand(_selectedUpdateChannel));
+
+            result.Match(
+                Succ: status =>
+                {
+                    _updateWorkflowStatus = status;
+                    ToastService.ShowSuccess("Le paquet de mise à jour a été téléchargé.");
+                },
+                Fail: errors =>
+                {
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                    ToastService.ShowError("Erreur lors du téléchargement du paquet.");
+                });
+        }
+        finally
+        {
+            _isRunningUpdateAction = false;
+        }
+    }
+
+    private async Task RequestInstallationAsync()
+    {
+        _isRunningUpdateAction = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new RequestApplicationUpdateInstallationCommand());
+
+            result.Match(
+                Succ: status =>
+                {
+                    _updateWorkflowStatus = status;
+                    ToastService.ShowSuccess("La demande d'installation a été transmise.");
+                },
+                Fail: errors =>
+                {
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                    ToastService.ShowError("Erreur lors de la demande d'installation.");
+                });
+        }
+        finally
+        {
+            _isRunningUpdateAction = false;
+        }
     }
 
     private static string GetChannelLabel(ApplicationUpdateChannel channel)
@@ -531,6 +698,32 @@ else
             ApplicationUpdateChannel.Feature => "Feature",
             _ => channel.ToString()
         };
+
+    private static string GetOperationStateLabel(ApplicationUpdateOperationState state)
+        => state switch
+        {
+            ApplicationUpdateOperationState.Idle => "Au repos",
+            ApplicationUpdateOperationState.Downloading => "Téléchargement",
+            ApplicationUpdateOperationState.Downloaded => "Paquet téléchargé",
+            ApplicationUpdateOperationState.InstallRequested => "Installation demandée",
+            ApplicationUpdateOperationState.Failed => "En erreur",
+            _ => state.ToString()
+        };
+
+    private static string FormatFileSize(long sizeInBytes)
+    {
+        string[] suffixes = ["o", "Ko", "Mo", "Go"];
+        var size = (double)sizeInBytes;
+        var index = 0;
+
+        while (size >= 1024 && index < suffixes.Length - 1)
+        {
+            size /= 1024;
+            index++;
+        }
+
+        return $"{size:0.##} {suffixes[index]}";
+    }
 
     private sealed class SettingsModel
     {

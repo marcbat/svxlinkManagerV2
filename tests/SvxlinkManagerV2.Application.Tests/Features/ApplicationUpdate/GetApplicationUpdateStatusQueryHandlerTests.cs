@@ -37,6 +37,7 @@ public class GetApplicationUpdateStatusQueryHandlerTests
                 PublishedAt: DateTimeOffset.UtcNow,
                 IsPrerelease: false,
                 ReleaseNotesUrl: "https://example.invalid/release",
+                ChecksumUrl: "https://example.invalid/package.sha256",
                 PackageUrl: "https://example.invalid/package.deb",
                 PackageName: "svxlinkmanagerv2_1.1.0_armhf.deb"),
             Message: "Update disponible");

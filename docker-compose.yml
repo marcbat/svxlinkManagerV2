@@ -13,6 +13,7 @@ services:
       - ConnectionStrings__SQLite=Data Source=/app/data/svxlinkmanager.db
       - SA818__UseMock=true
       - SvxLink__UseMockDaemon=false
+      - ApplicationUpdate__GitHubToken=${GITHUB_TOKEN}
     volumes:
       - ./svxlink-config:/etc/svxlink
       - ./logs:/app/logs
