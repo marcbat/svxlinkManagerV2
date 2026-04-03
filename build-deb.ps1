@@ -27,6 +27,7 @@ $packageRoot = Join-Path $stagingRoot $packageDirName
 $appRoot = Join-Path $packageRoot ("opt/{0}" -f $PackageName)
 $debianDir = Join-Path $packageRoot "DEBIAN"
 $systemdDir = Join-Path $packageRoot "etc/systemd/system"
+$helperPath = Join-Path $appRoot "install-update.sh"
 $outputDirAbs = Join-Path $repoRoot $OutputDir
 $debOutputPath = Join-Path $outputDirAbs ("{0}.deb" -f $packageDirName)
 
@@ -77,6 +78,7 @@ Copy-Item (Join-Path $repoRoot "deploy/systemd/svxlinkmanagerv2.service") $syste
 Copy-Item (Join-Path $repoRoot "deploy/debian/postinst") (Join-Path $debianDir "postinst") -Force
 Copy-Item (Join-Path $repoRoot "deploy/debian/prerm") (Join-Path $debianDir "prerm") -Force
 Copy-Item (Join-Path $repoRoot "deploy/debian/postrm") (Join-Path $debianDir "postrm") -Force
+Copy-Item (Join-Path $repoRoot "deploy/linux/install-update.sh") $helperPath -Force
 
 $controlContent = @"
 Package: $PackageName
@@ -112,6 +114,7 @@ $dockerCmd = @(
     "chmod 0755 $packagePathInContainer/DEBIAN/postrm"
     "chmod 0644 $packagePathInContainer/DEBIAN/control"
     "chmod 0644 $packagePathInContainer/etc/systemd/system/svxlinkmanagerv2.service"
+    "chmod 0755 $packagePathInContainer/opt/$PackageName/install-update.sh"
     "dpkg-deb --build $packagePathInContainer $debPathInContainer"
 ) -join "`n"
 

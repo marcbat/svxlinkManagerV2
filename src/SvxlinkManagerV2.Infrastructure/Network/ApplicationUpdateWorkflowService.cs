@@ -283,11 +283,11 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
             var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-            var completed = await Task.WhenAny(
-                process.WaitForExitAsync(cancellationToken),
-                Task.Delay(TimeSpan.FromSeconds(Math.Max(5, _options.InstallCommandTimeoutSeconds)), cancellationToken));
+            var waitForExitTask = process.WaitForExitAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(Math.Max(5, _options.InstallCommandTimeoutSeconds)), cancellationToken);
+            var completed = await Task.WhenAny(waitForExitTask, timeoutTask);
 
-            if (completed != stdoutTask && !process.HasExited)
+            if (completed == timeoutTask && !process.HasExited)
             {
                 try
                 {

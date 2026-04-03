@@ -41,9 +41,10 @@ RUN apt-get update && apt-get install -qq -y \
 # Copy .NET application
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
+COPY deploy/linux/install-update.sh /app/install-update.sh
 
 # Create logs directory for the application
-RUN mkdir -p /app/logs
+RUN mkdir -p /app/logs && chmod 0755 /app/install-update.sh
 
 # Expose HTTP port
 EXPOSE 8080
