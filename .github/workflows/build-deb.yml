@@ -150,6 +150,65 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Générer checksum et manifest de release
+        shell: pwsh
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          SEMVER: ${{ steps.version.outputs.semver }}
+          DEB_VERSION: ${{ steps.version.outputs.deb_version }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          New-Item -ItemType Directory -Path artifacts/release -Force | Out-Null
+
+          $debFile = Get-ChildItem -Path artifacts/deb -Filter *.deb | Select-Object -First 1
+          if (-not $debFile) {
+            throw "Aucun paquet .deb trouvé dans artifacts/deb"
+          }
+
+          $checksum = (Get-FileHash -Path $debFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumLine = "$checksum  $($debFile.Name)"
+          $checksumLine | Set-Content -Path (Join-Path 'artifacts/release' "$($debFile.BaseName).sha256") -Encoding utf8
+
+          $channel = if ($env:IS_PRERELEASE -eq 'true') {
+            if ($env:BRANCH_NAME.StartsWith('feature/')) { 'feature' } else { 'prerelease' }
+          }
+          else {
+            'stable'
+          }
+
+          $packageUrl = "https://github.com/$($env:REPOSITORY)/releases/download/$($env:RELEASE_TAG)/$($debFile.Name)"
+          $checksumUrl = "https://github.com/$($env:REPOSITORY)/releases/download/$($env:RELEASE_TAG)/$($debFile.BaseName).sha256"
+          $releaseUrl = "https://github.com/$($env:REPOSITORY)/releases/tag/$($env:RELEASE_TAG)"
+
+          $manifest = [ordered]@{
+            product = 'SvxlinkManagerV2'
+            version = $env:SEMVER
+            debianVersion = $env:DEB_VERSION
+            channel = $channel
+            packageType = 'deb'
+            architecture = 'armhf'
+            tag = $env:RELEASE_TAG
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+            packageName = $debFile.Name
+            packageUrl = $packageUrl
+            sha256 = $checksum
+            checksumUrl = $checksumUrl
+            releaseNotesUrl = $releaseUrl
+            prerelease = ($env:IS_PRERELEASE -eq 'true')
+          }
+
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path 'artifacts/release' 'manifest.json') -Encoding utf8
+
+      - name: Upload artefacts release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata-${{ steps.version.outputs.deb_version }}
+          path: artifacts/release/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Resume du build
         shell: pwsh
         run: |
@@ -180,4 +239,6 @@ jobs:
           name: SvxlinkManagerV2 ${{ steps.version.outputs.semver }}
           generate_release_notes: true
           prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
-          files: artifacts/deb/*.deb
+          files: |
+            artifacts/deb/*.deb
+            artifacts/release/*

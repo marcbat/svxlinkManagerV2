@@ -1,4 +1,6 @@
 @page "/settings"
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateStatus
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
 @using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration
@@ -54,6 +56,106 @@ else
                         </div>
                     </div>
 
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">system_update</span>
+                    Mises à jour
+                </div>
+
+                <div class="update-panel">
+                    <div class="update-summary-grid">
+                        <div class="update-summary-item">
+                            <span class="update-label">Version installée</span>
+                            <span class="update-value">@(_updateStatus?.CurrentVersion ?? "-")</span>
+                        </div>
+                        <div class="update-summary-item">
+                            <span class="update-label">Canal</span>
+                            <span class="update-value">@GetChannelLabel(_selectedUpdateChannel)</span>
+                        </div>
+                    </div>
+
+                    <div class="update-controls">
+                        <label class="update-channel-picker" for="update-channel">Canal consulté</label>
+                        <select id="update-channel" class="form-select" @onchange="OnChannelChangedAsync">
+                            @foreach (var channel in Enum.GetValues<ApplicationUpdateChannel>())
+                            {
+                                <option value="@channel" selected="@(channel == _selectedUpdateChannel)">@GetChannelLabel(channel)</option>
+                            }
+                        </select>
+
+                        <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateStatusAsync" disabled="@_isCheckingUpdates">
+                            @if (_isCheckingUpdates)
+                            {
+                                <span class="material-symbols-outlined spin">progress_activity</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined">refresh</span>
+                            }
+                            Vérifier
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_updateError))
+                    {
+                        <div class="update-alert update-alert-error">
+                            <span class="material-symbols-outlined">error</span>
+                            @_updateError
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_updateStatus?.Message))
+                    {
+                        <div class="update-alert @(_updateStatus?.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
+                            <span class="material-symbols-outlined">info</span>
+                            @_updateStatus?.Message
+                        </div>
+                    }
+
+                    @if (_updateStatus?.LatestRelease is not null)
+                    {
+                        <div class="update-release-card @(_updateStatus.IsUpdateAvailable ? "available" : "current")">
+                            <div class="update-release-header">
+                                <div>
+                                    <div class="update-release-version">@_updateStatus.LatestRelease.Version</div>
+                                    <div class="update-release-meta">
+                                        Publiée le @_updateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
+                                    </div>
+                                </div>
+                                <span class="update-badge @(_updateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
+                                    @(_updateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
+                                </span>
+                            </div>
+
+                            <div class="update-release-details">
+                                <div class="update-detail-item">
+                                    <span class="update-label">Tag</span>
+                                    <span class="update-value">@_updateStatus.LatestRelease.Tag</span>
+                                </div>
+                                <div class="update-detail-item">
+                                    <span class="update-label">Paquet</span>
+                                    <span class="update-value">@(_updateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
+                                </div>
+                            </div>
+
+                            <div class="update-links">
+                                @if (!string.IsNullOrWhiteSpace(_updateStatus.LatestRelease.ReleaseNotesUrl))
+                                {
+                                    <a href="@_updateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
+                                        Voir la release GitHub
+                                    </a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(_updateStatus.LatestRelease.PackageUrl))
+                                {
+                                    <a href="@_updateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
+                                        Télécharger le paquet
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -119,6 +221,168 @@ else
     .filter-desc { font-size: 12px; color: var(--text-muted); }
     .filter-toggle { flex-shrink: 0; }
 
+    .form-select {
+        min-width: 180px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-card);
+        background: rgba(255,255,255,0.04);
+        color: var(--text);
+    }
+
+    .update-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .update-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .update-summary-item,
+    .update-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-sm);
+        background: rgba(255,255,255,0.02);
+    }
+
+    .update-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+    }
+
+    .update-value {
+        font-size: 14px;
+        color: var(--text);
+        word-break: break-word;
+    }
+
+    .update-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+    }
+
+    .update-channel-picker {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-alert {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+    }
+
+    .update-alert-error {
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+        color: var(--danger);
+    }
+
+    .update-alert-info {
+        background: rgba(72,187,120,0.08);
+        border: 1px solid rgba(72,187,120,0.25);
+        color: #8de3ab;
+    }
+
+    .update-alert-muted {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border-card);
+        color: var(--text-muted);
+    }
+
+    .update-release-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-card);
+        background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    }
+
+    .update-release-card.available {
+        border-color: rgba(72,187,120,0.35);
+        box-shadow: 0 0 0 1px rgba(72,187,120,0.12) inset;
+    }
+
+    .update-release-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: start;
+    }
+
+    .update-release-version {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .update-release-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-badge {
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .update-badge-available {
+        background: rgba(72,187,120,0.12);
+        color: #8de3ab;
+    }
+
+    .update-badge-current {
+        background: rgba(255,255,255,0.08);
+        color: var(--text-muted);
+    }
+
+    .update-release-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .update-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .update-links a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .update-links a:hover {
+        text-decoration: underline;
+    }
+
     /* ── Toggles ─────────────────────────────────────────────── */
     .toggle-input { display: none; }
 
@@ -178,7 +442,11 @@ else
     private readonly SettingsModel _model = new();
     private bool _isLoading = true;
     private bool _isSubmitting;
+    private bool _isCheckingUpdates;
     private List<string> _errors = [];
+    private ApplicationUpdateStatusDto? _updateStatus;
+    private string? _updateError;
+    private ApplicationUpdateChannel _selectedUpdateChannel = ApplicationUpdateChannel.Stable;
 
     protected override async Task OnInitializedAsync()
     {
@@ -188,6 +456,8 @@ else
             _model.StartReflectorOnStartup = config.StartReflectorOnStartup;
             _model.StartDefaultSalonOnStartup = config.StartDefaultSalonOnStartup;
         }
+
+        await RefreshUpdateStatusAsync();
         _isLoading = false;
     }
 
@@ -217,6 +487,50 @@ else
             _isSubmitting = false;
         }
     }
+
+    private async Task RefreshUpdateStatusAsync()
+    {
+        _isCheckingUpdates = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateStatusDto>>(
+                new GetApplicationUpdateStatusQuery(_selectedUpdateChannel));
+
+            result.Match(
+                Succ: status => _updateStatus = status,
+                Fail: errors =>
+                {
+                    _updateStatus = null;
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                });
+        }
+        finally
+        {
+            _isCheckingUpdates = false;
+        }
+    }
+
+    private async Task OnChannelChangedAsync(ChangeEventArgs args)
+    {
+        if (args.Value is string rawValue
+            && Enum.TryParse<ApplicationUpdateChannel>(rawValue, ignoreCase: true, out var channel))
+        {
+            _selectedUpdateChannel = channel;
+        }
+
+        await RefreshUpdateStatusAsync();
+    }
+
+    private static string GetChannelLabel(ApplicationUpdateChannel channel)
+        => channel switch
+        {
+            ApplicationUpdateChannel.Stable => "Stable",
+            ApplicationUpdateChannel.Prerelease => "Prérelease",
+            ApplicationUpdateChannel.Feature => "Feature",
+            _ => channel.ToString()
+        };
 
     private sealed class SettingsModel
     {

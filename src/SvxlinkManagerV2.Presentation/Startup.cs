@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Network;
@@ -69,6 +70,9 @@ namespace SvxlinkManagerV2.Presentation
                 services.AddScoped<IWifiService, WifiMockService>();
             else
                 services.AddScoped<IWifiService, WifiService>();
+
+            services.Configure<ApplicationUpdateOptions>(Configuration.GetSection(ApplicationUpdateOptions.SectionName));
+            services.AddHttpClient<IApplicationUpdateService, GitHubReleaseUpdateService>();
 
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
