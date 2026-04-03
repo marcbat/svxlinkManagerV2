@@ -118,8 +118,12 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
             });
 
             var client = CreateGitHubHttpClient();
-            using var response = await client.GetAsync(
-                updateStatus.LatestRelease.PackageUrl,
+            var downloadUrl = BuildGitHubAssetDownloadUrl(updateStatus.LatestRelease.PackageUrl!, updateStatus.LatestRelease.PackageAssetId);
+            using var downloadRequest = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+            downloadRequest.Headers.Accept.Clear();
+            downloadRequest.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
+            using var response = await client.SendAsync(
+                downloadRequest,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
 
@@ -158,7 +162,7 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
 
             await target.FlushAsync(cancellationToken);
 
-            var checksumContent = await DownloadChecksumFileAsync(client, updateStatus.LatestRelease.ChecksumUrl, cancellationToken);
+            var checksumContent = await DownloadChecksumFileAsync(client, updateStatus.LatestRelease.ChecksumUrl, updateStatus.LatestRelease.ChecksumAssetId, cancellationToken);
             var expectedChecksum = ExtractSha256FromChecksumContent(checksumContent, updateStatus.LatestRelease.PackageName);
             if (string.IsNullOrWhiteSpace(expectedChecksum))
             {
@@ -429,16 +433,38 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
     private HttpClient CreateGitHubHttpClient()
     {
         var client = _httpClientFactory.CreateClient();
+        client.BaseAddress = new Uri("https://api.github.com/");
+        if (client.DefaultRequestHeaders.UserAgent.Count == 0)
+            client.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("SvxlinkManagerV2", "1.0"));
         GitHubReleaseUpdateService.ApplyGitHubAuthorizationHeader(client, _options.GitHubToken);
         return client;
     }
 
+    private string BuildGitHubAssetDownloadUrl(string browserDownloadUrl, long? assetId)
+    {
+        if (assetId.HasValue
+            && !string.IsNullOrWhiteSpace(_options.Owner)
+            && !string.IsNullOrWhiteSpace(_options.Repository))
+        {
+            return $"https://api.github.com/repos/{_options.Owner}/{_options.Repository}/releases/assets/{assetId.Value}";
+        }
+
+        return browserDownloadUrl;
+    }
+
     private static async Task<string> DownloadChecksumFileAsync(
         HttpClient client,
-        string checksumUrl,
+        string? checksumUrl,
+        long? assetId,
         CancellationToken cancellationToken)
     {
-        using var checksumResponse = await client.GetAsync(checksumUrl, cancellationToken);
+        if (string.IsNullOrWhiteSpace(checksumUrl))
+            return string.Empty;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, checksumUrl);
+        request.Headers.Accept.Clear();
+        request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
+        using var checksumResponse = await client.SendAsync(request, cancellationToken);
         checksumResponse.EnsureSuccessStatusCode();
         return await checksumResponse.Content.ReadAsStringAsync(cancellationToken);
     }

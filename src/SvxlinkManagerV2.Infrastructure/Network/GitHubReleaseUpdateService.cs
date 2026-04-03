@@ -147,7 +147,9 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
                     ReleaseNotesUrl: latestRelease.HtmlUrl,
                     ChecksumUrl: checksum?.BrowserDownloadUrl,
                     PackageUrl: package?.BrowserDownloadUrl,
-                    PackageName: package?.Name),
+                    PackageName: package?.Name,
+                    PackageAssetId: package?.Id,
+                    ChecksumAssetId: checksum?.Id),
                 Message: updateAvailable
                     ? "Une nouvelle version est disponible sur le canal sélectionné."
                     : "Vous disposez déjà de la dernière version connue pour ce canal.");
@@ -417,6 +419,9 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
     internal sealed class GitHubReleaseAsset
     {
+        [JsonPropertyName("id")]
+        public long Id { get; set; }
+
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 

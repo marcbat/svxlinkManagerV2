@@ -22,7 +22,9 @@ public record ApplicationReleaseInfo(
     string? ReleaseNotesUrl,
     string? ChecksumUrl,
     string? PackageUrl,
-    string? PackageName);
+    string? PackageName,
+    long? PackageAssetId = null,
+    long? ChecksumAssetId = null);
 
 /// <summary>
 /// Statut courant de la mise à jour applicative.
