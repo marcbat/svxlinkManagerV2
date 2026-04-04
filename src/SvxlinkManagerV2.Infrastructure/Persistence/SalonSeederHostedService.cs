@@ -49,7 +49,7 @@ public class SalonSeederHostedService : IHostedService
 
             _logger.LogInformation("Aucun salon trouvé, seeding des 8 salons originaux...");
 
-            foreach (var (id, name, host, port, authKey) in GetOriginalSalons())
+            foreach (var (id, name, host, port, authKey, dtmfCode) in GetOriginalSalons())
             {
                 var configuration = new SvxLinkConfiguration(
                     Id: Guid.NewGuid(),
@@ -87,6 +87,9 @@ public class SalonSeederHostedService : IHostedService
                 await createResult.Match(
                     async aggregate =>
                     {
+                        if (dtmfCode.HasValue)
+                            aggregate.UpdateDtmfCode(dtmfCode.Value);
+
                         var saveResult = await salonRepository.SaveAsync(aggregate, cancellationToken);
 
                         saveResult.Match(
@@ -133,17 +136,16 @@ public class SalonSeederHostedService : IHostedService
     }
 
     /// <summary>
-    /// Retourne les 8 salons originaux avec leurs GUIDs fixes (compatibilité migration legacy).
+    /// Retourne les 6 salons originaux avec leurs GUIDs fixes (compatibilité migration legacy).
+    /// Chaque entrée inclut le code DTMF standard de l'écosystème RRF/FON.
     /// </summary>
-    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string AuthKey)> GetOriginalSalons()
+    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string AuthKey, int? DtmfCode)> GetOriginalSalons()
     {
-        yield return (new Guid("235a4521-15a1-4e02-a540-91ee600452ac"), "Réseau des Répéteurs Francophones", "rrf2.f5nlg.ovh", 5300, "Magnifique123456789!");
-        yield return (new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"), "Salon Suisse Romand", "salonsuisseromand.hbspot.ch", 5300, "xD9wW5gO7yD9hN5o");
-        yield return (new Guid("0f669a03-dcf1-4277-9b07-54f6a0fd3037"), "French Open Network", "serveur.f1tzo.com", 5300, "FON-F1TZO");
-        yield return (new Guid("a749ffe5-16c7-45da-809d-c048908f115c"), "Salon Technique", "rrf3.f5nlg.ovh", 5301, "Magnifique123456789!");
-        yield return (new Guid("dd03fd9e-aeed-457e-97bf-973837a5fcec"), "Salon International", "rrf3.f5nlg.ovh", 5302, "Magnifique123456789!");
-        yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO");
-        yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO");
-        yield return (new Guid("dcc5afa2-790f-40ca-b24d-bf91e90b1ac7"), "Salon Expérimental", "rrf3.f5nlg.ovh", 5303, "Magnifique123456789!");
+        yield return (new Guid("235a4521-15a1-4e02-a540-91ee600452ac"), "Réseau des Répéteurs Francophones", "rrf2.f5nlg.ovh", 5300, "Magnifique123456789!", 96);
+        yield return (new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"), "Salon Suisse Romand", "salonsuisseromand.hbspot.ch", 5300, "xD9wW5gO7yD9hN5o", 200);
+        yield return (new Guid("0f669a03-dcf1-4277-9b07-54f6a0fd3037"), "French Open Network", "serveur.f1tzo.com", 5300, "FON-F1TZO", 97);
+        yield return (new Guid("a749ffe5-16c7-45da-809d-c048908f115c"), "Salon Technique", "rrf3.f5nlg.ovh", 5301, "Magnifique123456789!", 98);
+        yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO", 100);
+        yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO", 101);
     }
 }

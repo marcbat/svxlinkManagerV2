@@ -63,7 +63,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
 
         // Assert
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(8);
+        salons.Should().HaveCount(6);
     }
 
     [Fact]
@@ -77,10 +77,8 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"),
             new Guid("0f669a03-dcf1-4277-9b07-54f6a0fd3037"),
             new Guid("a749ffe5-16c7-45da-809d-c048908f115c"),
-            new Guid("dd03fd9e-aeed-457e-97bf-973837a5fcec"),
             new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"),
             new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"),
-            new Guid("dcc5afa2-790f-40ca-b24d-bf91e90b1ac7"),
         };
 
         // Act
@@ -195,9 +193,9 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act - Second démarrage (même service, base non-vide maintenant)
         await service.StartAsync(CancellationToken.None);
 
-        // Assert - Toujours 8 salons (pas de doublons)
+        // Assert - Toujours 6 salons (pas de doublons)
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(8);
+        salons.Should().HaveCount(6);
     }
 
     [Fact]
@@ -217,5 +215,41 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         rrf!.Name.Should().Be("Réseau des Répéteurs Francophones");
         rrf.Configuration.Host.Should().Be("rrf2.f5nlg.ovh");
         rrf.Configuration.Port.Should().Be(5300);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenNoSalonsExist_ShouldNotContainObsoleteSalons()
+    {
+        // Arrange
+        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert - Salon International et Salon Expérimental supprimés du seed
+        var salons = await _repository.GetAllAsync();
+        salons.Should().NotContain(s => s.Name == "Salon International");
+        salons.Should().NotContain(s => s.Name == "Salon Expérimental");
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveDtmfCodeAssigned()
+    {
+        // Arrange
+        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert - Chaque salon a le bon code DTMF
+        var salons = await _repository.GetAllAsync();
+        var bySalon = salons.ToDictionary(s => s.Name);
+
+        bySalon["Réseau des Répéteurs Francophones"].DtmfCode.Should().Be(96);
+        bySalon["Salon Suisse Romand"].DtmfCode.Should().Be(200);
+        bySalon["French Open Network"].DtmfCode.Should().Be(97);
+        bySalon["Salon Technique"].DtmfCode.Should().Be(98);
+        bySalon["Salon Bavardage"].DtmfCode.Should().Be(100);
+        bySalon["Salon Local"].DtmfCode.Should().Be(101);
     }
 }
