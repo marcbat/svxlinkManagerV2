@@ -78,11 +78,13 @@ namespace SvxlinkManagerV2.Presentation
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
+            services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddScoped<ISoundFileDeploymentService, SoundFileDeploymentService>();
             services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
             services.AddHostedService<LogicTclInitializerHostedService>();
+            services.AddHostedService<DtmfSalonSwitchService>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();

@@ -42,6 +42,15 @@ public interface ISalonRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Récupère un Salon par son code DTMF (s'il existe)
+    /// </summary>
+    /// <param name="dtmfCode">Code DTMF à rechercher</param>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    Task<SalonAggregate?> GetByDtmfCodeAsync(
+        int dtmfCode,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Supprime un Salon (événement de suppression)
     /// </summary>
     /// <param name="id">Identifiant du Salon</param>

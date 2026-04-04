@@ -1,6 +1,7 @@
 @page "/salons/{Id:guid}/editer"
 @using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
+@using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
 @using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
@@ -159,6 +160,21 @@ else if (_salon is not null)
                                 <option value="@sound.Id">@sound.Name</option>
                             }
                         </select>
+                    </div>
+                </div>
+
+                <!-- Code DTMF -->
+                <div class="card" style="margin-top:18px">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        Commande DTMF
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="form-label">Code DTMF</label>
+                        <InputNumber class="form-control" @bind-Value="_model.DtmfCode"
+                                     placeholder="ex: 96" disabled="@_salonIsActive" />
+                        <div class="field-hint">Optionnel, 1 – 9999. Permet de changer de salon par commande radio.</div>
+                        <ValidationMessage For="() => _model.DtmfCode" class="field-error" />
                     </div>
                 </div>
 
@@ -558,6 +574,7 @@ else if (_salon is not null)
         _model.DefaultLang        = cfg.DefaultLang;
         _model.EventHandler       = cfg.EventHandler;
         _model.SoundId            = cfg.SoundId?.ToString() ?? "";
+        _model.DtmfCode           = salon.DtmfCode;
     }
 
     private async Task HandleSubmit()
@@ -624,6 +641,22 @@ else if (_salon is not null)
                 }
             );
 
+            // Mise à jour du code DTMF si la configuration a été sauvegardée avec succès
+            if (!_errors.Any() && _model.DtmfCode != _salon.DtmfCode)
+            {
+                var dtmfResult = await Mediator.Send<Validation<Error, Unit>>(
+                    new UpdateSalonDtmfCodeCommand(Id, _model.DtmfCode));
+
+                dtmfResult.Match(
+                    Succ: _ => Unit.Default,
+                    Fail: errors =>
+                    {
+                        _errors = errors.Select(e => e.Message).ToList();
+                        return Unit.Default;
+                    }
+                );
+            }
+
             if (!_errors.Any())
                 Nav.NavigateTo("/salons");
         }
@@ -677,5 +710,8 @@ else if (_salon is not null)
         public int RgrSoundDelay { get; set; } = 0;
         public string DefaultLang { get; set; } = "fr_FR";
         public string EventHandler { get; set; } = "Logic.tcl";
+
+        [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
+        public int? DtmfCode { get; set; }
     }
 }

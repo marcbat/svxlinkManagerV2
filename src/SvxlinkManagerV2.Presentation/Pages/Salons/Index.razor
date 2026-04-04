@@ -128,6 +128,13 @@ else
                             TX: @(salon.Configuration.TxCtcss.HasValue ? $"{salon.Configuration.TxCtcss:F1} Hz" : "Aucun")
                         </span>
                     </div>
+                    @if (salon.DtmfCode.HasValue)
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">dialpad</span>
+                            <span>DTMF : @salon.DtmfCode</span>
+                        </div>
+                    }
                 </div>
 
                 <!-- Actions -->

@@ -104,6 +104,22 @@ public class SalonRepository : ISalonRepository
         }
     }
 
+    public async Task<SalonAggregate?> GetByDtmfCodeAsync(
+        int dtmfCode,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _context.Salons
+                .Where(s => s.DtmfCode == dtmfCode && !s.IsDeleted)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<Validation<Error, Unit>> DeleteAsync(
         Guid id,
         CancellationToken cancellationToken = default)

@@ -1,5 +1,6 @@
 @page "/salons/nouveau"
 @using SvxlinkManagerV2.Application.Features.Salons.CreateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
 @using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
 @using SvxlinkManagerV2.Domain.Aggregates.Sound
@@ -51,6 +52,14 @@
                             <option value="@sound.Id">@sound.Name</option>
                         }
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Code DTMF</label>
+                    <InputNumber class="form-control" @bind-Value="_model.DtmfCode"
+                                 placeholder="ex: 96" />
+                    <div class="field-hint">Optionnel, 1 – 9999. Permet de changer de salon par commande radio.</div>
+                    <ValidationMessage For="() => _model.DtmfCode" class="field-error" />
                 </div>
 
                 <div class="toggles-group">
@@ -503,9 +512,11 @@
 
             var result = await Mediator.Send<Validation<Error, Guid>>(command);
 
+            Guid? createdSalonId = null;
             result.Match(
-                Succ: _ =>
+                Succ: id =>
                 {
+                    createdSalonId = id;
                     ToastService.ShowSuccess($"Salon « {_model.Name} » créé avec succès.");
                     return Unit.Default;
                 },
@@ -515,6 +526,22 @@
                     return Unit.Default;
                 }
             );
+
+            // Mise à jour du code DTMF si défini et création réussie
+            if (!_errors.Any() && _model.DtmfCode.HasValue && createdSalonId.HasValue)
+            {
+                var dtmfResult = await Mediator.Send<Validation<Error, Unit>>(
+                    new UpdateSalonDtmfCodeCommand(createdSalonId.Value, _model.DtmfCode));
+
+                dtmfResult.Match(
+                    Succ: _ => Unit.Default,
+                    Fail: errors =>
+                    {
+                        _errors = errors.Select(e => e.Message).ToList();
+                        return Unit.Default;
+                    }
+                );
+            }
 
             if (!_errors.Any())
                 Nav.NavigateTo("/salons");
@@ -579,5 +606,8 @@
         public int RgrSoundDelay { get; set; } = 0;
         public string DefaultLang { get; set; } = "fr_FR";
         public string EventHandler { get; set; } = "/usr/share/svxlink/events.tcl";
+
+        [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
+        public int? DtmfCode { get; set; }
     }
 }
