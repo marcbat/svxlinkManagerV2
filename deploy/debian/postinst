@@ -6,14 +6,23 @@ SERVICE_NAME="svxlinkmanagerv2"
 
 mkdir -p "$APP_DIR/data"
 
-if ! command -v dotnet >/dev/null 2>&1; then
+# dpkg s'exécute avec un PATH restreint — chercher dotnet dans les emplacements connus
+DOTNET_BIN=""
+for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/dotnet; do
+  if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
+    DOTNET_BIN="$candidate"
+    break
+  fi
+done
+
+if [ -z "$DOTNET_BIN" ]; then
   echo "Erreur: dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
   exit 1
 fi
 
-if ! dotnet --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 8\.'; then
+if ! "$DOTNET_BIN" --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 8\.'; then
   echo "Erreur: .NET 8 runtime est requis. Runtimes detectes:"
-  dotnet --list-runtimes 2>/dev/null || true
+  "$DOTNET_BIN" --list-runtimes 2>/dev/null || true
   exit 1
 fi
 
