@@ -40,7 +40,7 @@ public class DtmfCommandTracker : IDtmfCommandTracker, IDisposable
         if (index < 0)
             return;
 
-        var command = message.Substring(index + DtmfCommandPrefix.Length).Trim();
+        var command = message[(index + DtmfCommandPrefix.Length)..].Trim();
         if (string.IsNullOrWhiteSpace(command))
         {
             _logger.LogWarning("Commande DTMF vide détectée dans le log : {Message}", message);

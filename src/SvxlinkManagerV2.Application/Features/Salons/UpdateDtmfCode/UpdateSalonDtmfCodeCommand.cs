@@ -53,11 +53,9 @@ public class UpdateSalonDtmfCodeCommandHandler : IRequestHandler<UpdateSalonDtmf
         // Vérifier l'unicité du code DTMF (si non-null)
         if (command.DtmfCode.HasValue)
         {
-            var allSalons = await _repository.GetAllAsync(cancellationToken);
-            var existingSalon = allSalons.FirstOrDefault(s =>
-                s.DtmfCode == command.DtmfCode.Value && s.Id != command.SalonId);
+            var existingSalon = await _repository.GetByDtmfCodeAsync(command.DtmfCode.Value, cancellationToken);
 
-            if (existingSalon != null)
+            if (existingSalon != null && existingSalon.Id != command.SalonId)
             {
                 _logger.LogWarning("Le code DTMF {DtmfCode} est déjà utilisé par le salon {SalonName}",
                     command.DtmfCode.Value, existingSalon.Name);

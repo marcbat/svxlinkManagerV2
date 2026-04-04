@@ -29,8 +29,8 @@ public class GetSalonByDtmfCodeQueryTests
         var aggregate = CreateValidAggregate();
         aggregate.UpdateDtmfCode(96);
 
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(96, Arg.Any<CancellationToken>())
+            .Returns(aggregate);
 
         var query = new GetSalonByDtmfCodeQuery(96);
 
@@ -48,11 +48,8 @@ public class GetSalonByDtmfCodeQueryTests
     public async Task Handle_WithNonExistingDtmfCode_ShouldReturnNull()
     {
         // Arrange
-        var aggregate = CreateValidAggregate();
-        aggregate.UpdateDtmfCode(96);
-
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(42, Arg.Any<CancellationToken>())
+            .Returns((SalonAggregate?)null);
 
         var query = new GetSalonByDtmfCodeQuery(42);
 
@@ -68,11 +65,8 @@ public class GetSalonByDtmfCodeQueryTests
     public async Task Handle_WithNoSalonsHavingDtmfCode_ShouldReturnNull()
     {
         // Arrange
-        var aggregate = CreateValidAggregate();
-        // No DtmfCode set
-
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(96, Arg.Any<CancellationToken>())
+            .Returns((SalonAggregate?)null);
 
         var query = new GetSalonByDtmfCodeQuery(96);
 
@@ -88,14 +82,11 @@ public class GetSalonByDtmfCodeQueryTests
     public async Task Handle_WithMultipleSalons_ShouldReturnCorrectOne()
     {
         // Arrange
-        var aggregate1 = CreateValidAggregate(name: "Salon 1");
-        aggregate1.UpdateDtmfCode(96);
-
         var aggregate2 = CreateValidAggregate(name: "Salon 2");
         aggregate2.UpdateDtmfCode(97);
 
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate1, aggregate2 }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(97, Arg.Any<CancellationToken>())
+            .Returns(aggregate2);
 
         var query = new GetSalonByDtmfCodeQuery(97);
 

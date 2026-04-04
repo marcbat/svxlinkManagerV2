@@ -1,9 +1,7 @@
-using LanguageExt;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
-using SvxlinkManagerV2.Domain.Common;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.GetSalonByDtmfCode;
 
@@ -34,8 +32,7 @@ public class GetSalonByDtmfCodeQueryHandler : IRequestHandler<GetSalonByDtmfCode
         GetSalonByDtmfCodeQuery query,
         CancellationToken cancellationToken)
     {
-        var allSalons = await _repository.GetAllAsync(cancellationToken);
-        var salon = allSalons.FirstOrDefault(s => s.DtmfCode == query.DtmfCode);
+        var salon = await _repository.GetByDtmfCodeAsync(query.DtmfCode, cancellationToken);
 
         if (salon == null)
         {

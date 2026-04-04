@@ -36,8 +36,8 @@ public class UpdateSalonDtmfCodeCommandTests
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(aggregate.ToSuccess());
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(96, Arg.Any<CancellationToken>())
+            .Returns((SalonAggregate?)null);
         _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
             .Returns(unit.ToSuccess());
 
@@ -94,8 +94,8 @@ public class UpdateSalonDtmfCodeCommandTests
 
         _repository.GetByIdAsync(salonId1, Arg.Any<CancellationToken>())
             .Returns(aggregate1.ToSuccess());
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate1, aggregate2 }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(96, Arg.Any<CancellationToken>())
+            .Returns(aggregate2);
 
         var command = new UpdateSalonDtmfCodeCommand(salonId1, 96);
 
@@ -122,8 +122,8 @@ public class UpdateSalonDtmfCodeCommandTests
 
         _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
             .Returns(aggregate.ToSuccess());
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<SalonAggregate> { aggregate }.AsReadOnly());
+        _repository.GetByDtmfCodeAsync(96, Arg.Any<CancellationToken>())
+            .Returns(aggregate);
         _repository.SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>())
             .Returns(unit.ToSuccess());
 
