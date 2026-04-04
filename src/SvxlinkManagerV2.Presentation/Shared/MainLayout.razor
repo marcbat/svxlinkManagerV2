@@ -96,7 +96,20 @@
         {
             var attr = (System.Reflection.AssemblyInformationalVersionAttribute?)
                 Attribute.GetCustomAttribute(asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
-            _appVersion = attr?.InformationalVersion ?? "?";
+            _appVersion = FormatAppVersion(attr?.InformationalVersion);
         }
+    }
+
+    private static string FormatAppVersion(string? informationalVersion)
+    {
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return "?";
+        }
+
+        var buildMetadataSeparatorIndex = informationalVersion.IndexOf('+');
+        return buildMetadataSeparatorIndex >= 0
+            ? informationalVersion[..buildMetadataSeparatorIndex]
+            : informationalVersion;
     }
 }
