@@ -136,33 +136,35 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
             }
 
             var totalBytes = response.Content.Headers.ContentLength;
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var target = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-
-            var buffer = new byte[81920];
-            long totalRead = 0;
-            int read;
-
-            while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var target = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
-                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                totalRead += read;
+                var buffer = new byte[81920];
+                long totalRead = 0;
+                int read;
 
-                if (totalBytes is > 0)
+                while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
                 {
-                    var progress = (int)Math.Clamp(Math.Round((double)totalRead * 100 / totalBytes.Value), 0, 100);
-                    UpdateState(state => state with
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    totalRead += read;
+
+                    if (totalBytes is > 0)
                     {
-                        DownloadProgressPercent = progress,
-                        LastOperationMessage = $"Téléchargement en cours... {progress}%",
-                        UpdatedAt = DateTimeOffset.UtcNow
-                    });
+                        var progress = (int)Math.Clamp(Math.Round((double)totalRead * 100 / totalBytes.Value), 0, 100);
+                        UpdateState(state => state with
+                        {
+                            DownloadProgressPercent = progress,
+                            LastOperationMessage = $"Téléchargement en cours... {progress}%",
+                            UpdatedAt = DateTimeOffset.UtcNow
+                        });
+                    }
                 }
-            }
 
-            await target.FlushAsync(cancellationToken);
+                await target.FlushAsync(cancellationToken);
+            } // source et target sont disposés ici — fichier fermé avant le calcul SHA-256
 
-            var checksumContent = await DownloadChecksumFileAsync(client, updateStatus.LatestRelease.ChecksumUrl, updateStatus.LatestRelease.ChecksumAssetId, cancellationToken);
+            var checksumDownloadUrl = BuildGitHubAssetDownloadUrl(updateStatus.LatestRelease.ChecksumUrl!, updateStatus.LatestRelease.ChecksumAssetId);
+            var checksumContent = await DownloadChecksumFileAsync(client, checksumDownloadUrl, cancellationToken);
             var expectedChecksum = ExtractSha256FromChecksumContent(checksumContent, updateStatus.LatestRelease.PackageName);
             if (string.IsNullOrWhiteSpace(expectedChecksum))
             {
@@ -454,13 +456,9 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
 
     private static async Task<string> DownloadChecksumFileAsync(
         HttpClient client,
-        string? checksumUrl,
-        long? assetId,
+        string checksumUrl,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(checksumUrl))
-            return string.Empty;
-
         using var request = new HttpRequestMessage(HttpMethod.Get, checksumUrl);
         request.Headers.Accept.Clear();
         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
