@@ -482,7 +482,10 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
         var canDownload = !state.IsBusy
             && updateStatus.IsUpdateAvailable
             && !string.IsNullOrWhiteSpace(updateStatus.LatestRelease?.PackageUrl);
-        var canRequestInstall = !state.IsBusy && state.DownloadedPackage is not null;
+        var canRequestInstall = !state.IsBusy
+            && state.DownloadedPackage is not null
+            && File.Exists(state.DownloadedPackage.FilePath)
+            && IsLatestReleaseDownloaded(updateStatus, state.DownloadedPackage);
 
         return new ApplicationUpdateWorkflowStatusDto(
             UpdateStatus: updateStatus,
@@ -494,6 +497,29 @@ public class ApplicationUpdateWorkflowService : IApplicationUpdateWorkflowServic
             CanRequestInstall: canRequestInstall,
             LastOperationMessage: state.LastOperationMessage,
             UpdatedAt: state.UpdatedAt);
+    }
+
+    private static bool IsLatestReleaseDownloaded(
+        ApplicationUpdateStatusDto updateStatus,
+        ApplicationDownloadedPackageInfo downloadedPackage)
+    {
+        var latestRelease = updateStatus.LatestRelease;
+        if (latestRelease is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(downloadedPackage.Version, latestRelease.Version, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(latestRelease.PackageName))
+        {
+            return string.Equals(downloadedPackage.FileName, latestRelease.PackageName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return true;
     }
 
     private WorkflowState GetState()

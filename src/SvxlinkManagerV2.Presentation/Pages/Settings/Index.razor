@@ -116,11 +116,19 @@ else
                             Télécharger le .deb
                         </button>
 
-                        <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!(_updateWorkflowStatus?.CanRequestInstall ?? false) || _isRunningUpdateAction)">
+                        <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!CanInstallLatestVersion || _isRunningUpdateAction)">
                             <span class="material-symbols-outlined">install_desktop</span>
-                            Demander l'installation
+                            Installer la dernière version
                         </button>
                     </div>
+
+                    @if (!CanInstallLatestVersion)
+                    {
+                        <div class="update-inline-hint">
+                            <span class="material-symbols-outlined">download</span>
+                            Téléchargez d'abord la dernière version disponible pour activer l'installation.
+                        </div>
+                    }
 
                     @if (!string.IsNullOrWhiteSpace(_updateError))
                     {
@@ -299,33 +307,34 @@ else
     .filter-desc { font-size: 12px; color: var(--text-muted); }
     .filter-toggle { flex-shrink: 0; }
 
-    .form-select {
-        min-width: 180px;
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border-card);
-        background: rgba(255,255,255,0.04);
+    .update-controls .form-select {
+        min-width: 170px;
+        width: auto;
+    }
+
+    .update-controls .form-select option {
+        background: var(--bg-card);
         color: var(--text);
     }
 
     .update-panel {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
     }
 
     .update-summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
     }
 
     .update-summary-item,
     .update-detail-item {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        padding: 12px 14px;
+        gap: 3px;
+        padding: 10px 12px;
         border: 1px solid var(--border-card);
         border-radius: var(--radius-sm);
         background: rgba(255,255,255,0.02);
@@ -339,7 +348,7 @@ else
     }
 
     .update-value {
-        font-size: 14px;
+        font-size: 13px;
         color: var(--text);
         word-break: break-word;
     }
@@ -347,23 +356,35 @@ else
     .update-controls {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 10px;
         align-items: end;
     }
 
     .update-channel-picker {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
         font-size: 12px;
         color: var(--text-muted);
+    }
+
+    .update-inline-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-inline-hint .material-symbols-outlined {
+        font-size: 16px;
     }
 
     .update-alert {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 12px 14px;
+        padding: 10px 12px;
         border-radius: var(--radius-sm);
         font-size: 13px;
     }
@@ -389,9 +410,9 @@ else
     .update-release-card {
         display: flex;
         flex-direction: column;
-        gap: 14px;
-        padding: 16px;
-        border-radius: var(--radius-md);
+        gap: 12px;
+        padding: 14px;
+        border-radius: var(--radius-sm);
         border: 1px solid var(--border-card);
         background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
     }
@@ -404,12 +425,12 @@ else
     .update-release-header {
         display: flex;
         justify-content: space-between;
-        gap: 12px;
+        gap: 10px;
         align-items: start;
     }
 
     .update-release-version {
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 600;
         color: var(--text);
     }
@@ -440,8 +461,8 @@ else
 
     .update-release-details {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
     }
 
     .update-links {
@@ -462,7 +483,7 @@ else
     }
 
     .update-progress-card {
-        padding: 14px;
+        padding: 12px;
         border-radius: var(--radius-sm);
         border: 1px solid var(--border-card);
         background: rgba(255,255,255,0.03);
@@ -558,6 +579,8 @@ else
     private ApplicationUpdateWorkflowStatusDto? _updateWorkflowStatus;
     private string? _updateError;
     private ApplicationUpdateChannel _selectedUpdateChannel = ApplicationUpdateChannel.Stable;
+    private bool CanInstallLatestVersion
+        => _updateWorkflowStatus?.CanRequestInstall == true;
 
     protected override async Task OnInitializedAsync()
     {
