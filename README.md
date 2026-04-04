@@ -89,7 +89,7 @@ Le logiciel permet de :
 - option de demarrage automatique du reflector au lancement de l'application
 - option de demarrage automatique du salon par defaut au lancement
 
-## Illustrations 
+## Illustrations
 
 ### Tableau de bord
 
