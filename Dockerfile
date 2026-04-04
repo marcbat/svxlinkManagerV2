@@ -1,6 +1,10 @@
 # Stage 1: Build .NET Application
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
 
+# Version injectée lors du build. Par défaut 0.0.1-dev pour que l'environnement
+# Docker/développement soit toujours inférieur aux releases publiées par le pipeline.
+ARG APP_VERSION=0.0.1-dev
+
 WORKDIR /src
 
 # Copy only source project files (not tests)
@@ -20,7 +24,7 @@ COPY src/ /src/src/
 RUN dotnet build -c Release -o /app/build
 
 # Publish
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet publish -c Release -o /app/publish -p:InformationalVersion=${APP_VERSION}
 
 # Stage 2: Final runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
