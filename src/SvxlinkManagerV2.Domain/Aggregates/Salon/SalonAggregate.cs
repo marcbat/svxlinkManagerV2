@@ -41,6 +41,11 @@ public class SalonAggregate : AggregateRoot
     public bool IsDeleted { get; private set; }
 
     /// <summary>
+    /// Code DTMF optionnel pour changer de salon par commande radio (1-9999)
+    /// </summary>
+    public int? DtmfCode { get; private set; }
+
+    /// <summary>
     /// Pattern regex pour validation du format d'indicatif radioamateur
     /// Format: one à deux lettres + chiffre + lettres/chiffres + optionnel tiret et suffixe
     /// Exemples valides: F5ABC, F5ABC-L, W1AW, KB2XYZ-R
@@ -192,6 +197,28 @@ public class SalonAggregate : AggregateRoot
         return unit.ToSuccess();
     }
 
+    /// <summary>
+    /// Met à jour le code DTMF du salon
+    /// </summary>
+    /// <param name="dtmfCode">Code DTMF (null pour supprimer, 1-9999 pour définir)</param>
+    /// <returns>Validation du résultat</returns>
+    public Validation<Error, Unit> UpdateDtmfCode(int? dtmfCode)
+    {
+        if (IsDeleted)
+            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
+                .ToFailure<Unit>();
+
+        if (dtmfCode.HasValue && (dtmfCode.Value < 1 || dtmfCode.Value > 9999))
+            return Error.Validation("DTMF_CODE_INVALID", "Le code DTMF doit être entre 1 et 9999")
+                .ToFailure<Unit>();
+
+        var @event = new SalonDtmfCodeUpdated(Id, dtmfCode);
+        Apply(@event);
+        AddDomainEvent(@event);
+
+        return unit.ToSuccess();
+    }
+
     #region Event Sourcing - Apply Methods
 
     /// <summary>
@@ -233,6 +260,14 @@ public class SalonAggregate : AggregateRoot
     public void Apply(SalonUnsetDefault @event)
     {
         IsDefault = false;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonDtmfCodeUpdated (Event Sourcing)
+    /// </summary>
+    public void Apply(SalonDtmfCodeUpdated @event)
+    {
+        DtmfCode = @event.DtmfCode;
     }
 
     #endregion

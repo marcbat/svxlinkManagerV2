@@ -872,6 +872,181 @@ public class SalonAggregateTests
 
     #endregion
 
+    #region DtmfCode Tests
+
+    [Fact]
+    public void UpdateDtmfCode_WithValidCode_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(96);
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.DtmfCode.Should().Be(96);
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonDtmfCodeUpdated>();
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithNull_ShouldClearCode()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.UpdateDtmfCode(96);
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(null);
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.DtmfCode.Should().BeNull();
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithMinValue_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(1);
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.DtmfCode.Should().Be(1);
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithMaxValue_ShouldSucceed()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(9999);
+
+        // Assert
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.DtmfCode.Should().Be(9999);
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithZero_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(0);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithNegativeValue_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(-1);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WithValueAbove9999_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(10000);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Fact]
+    public void UpdateDtmfCode_WhenDeleted_ShouldFail()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(96);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    [Fact]
+    public void Apply_SalonDtmfCodeUpdated_ShouldSetDtmfCode()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        var @event = new SalonDtmfCodeUpdated(aggregate.Id, 42);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.DtmfCode.Should().Be(42);
+    }
+
+    [Fact]
+    public void Apply_SalonDtmfCodeUpdated_WithNull_ShouldClearDtmfCode()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+        aggregate.Apply(new SalonDtmfCodeUpdated(aggregate.Id, 42));
+
+        var @event = new SalonDtmfCodeUpdated(aggregate.Id, null);
+
+        // Act
+        aggregate.Apply(@event);
+
+        // Assert
+        aggregate.DtmfCode.Should().BeNull();
+    }
+
+    [Fact]
+    public void Create_ShouldHaveNullDtmfCodeByDefault()
+    {
+        // Arrange & Act
+        var aggregate = CreateValidAggregate();
+
+        // Assert
+        aggregate.DtmfCode.Should().BeNull();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static SvxLinkConfiguration CreateValidConfiguration()
