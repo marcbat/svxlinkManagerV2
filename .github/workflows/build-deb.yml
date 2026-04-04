@@ -6,7 +6,6 @@ on:
       - main
       - master
       - develop
-      - feature/**
       - release/**
       - hotfix/**
   workflow_dispatch:
@@ -96,6 +95,11 @@ jobs:
           }
           elseif ($refName.StartsWith('feature/')) {
               $featureLabel = Convert-ToDebLabel($refName.Substring('feature/'.Length))
+              $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z.]+\.', '')
+              $debVersion = "$majorMinorPatch~$featureLabel.$preReleaseNumber"
+          }
+          elseif ($refName.StartsWith('copilot/')) {
+              $featureLabel = Convert-ToDebLabel($refName.Substring('copilot/'.Length))
               $preReleaseNumber = ($semVer -replace '^[0-9]+\.[0-9]+\.[0-9]+-[a-z.]+\.', '')
               $debVersion = "$majorMinorPatch~$featureLabel.$preReleaseNumber"
           }
@@ -225,7 +229,11 @@ jobs:
 
       - name: Publier une GitHub Release
         if: |
-          (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
+          (github.event_name == 'workflow_dispatch' && (
+            inputs.publish_release ||
+            startsWith(github.ref_name, 'feature/') ||
+            startsWith(github.ref_name, 'copilot/')
+          )) ||
           (github.event_name == 'push' && (
             github.ref_name == 'main' ||
             github.ref_name == 'master' ||
