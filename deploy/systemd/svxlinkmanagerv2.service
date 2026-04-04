@@ -10,6 +10,7 @@ ExecStart=/usr/share/dotnet/dotnet /opt/svxlinkmanagerv2/SvxlinkManagerV2.Presen
 SyslogIdentifier=svxlinkmanagerv2
 Restart=always
 RestartSec=10
+KillMode=process
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://0.0.0.0:80
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
