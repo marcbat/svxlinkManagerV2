@@ -60,6 +60,38 @@
     }
 </div>
 
+<!-- ── Commandes d'annonce vocale ───────────────────────────── -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="section-header">
+        <span class="material-symbols-outlined">campaign</span>
+        Commandes d'annonce vocale (300-399)
+    </div>
+
+    <table class="help-dtmf-table">
+        <thead>
+            <tr>
+                <th>Code DTMF</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        300
+                    </span>
+                </td>
+                <td>Rejouer le nom du salon actif</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="help-dtmf-hint">
+        <span class="material-symbols-outlined">info</span>
+        Ces commandes déclenchent une annonce vocale sur la fréquence sans changer le salon actif.
+    </p>
+</div>
+
 @code {
     private bool _isLoading = true;
     private List<SalonAggregate> _salonsWithDtmf = [];
