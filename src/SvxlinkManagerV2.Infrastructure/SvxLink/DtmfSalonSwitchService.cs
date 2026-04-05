@@ -58,6 +58,11 @@ public class DtmfSalonSwitchService : IHostedService
                 return;
             }
 
+            // La plage 300-399 est réservée aux commandes d'annonce (info commands),
+            // traitées par DtmfAnnounceService — ignorer silencieusement ici.
+            if (dtmfCode >= 300 && dtmfCode <= 399)
+                return;
+
             using var scope = _scopeFactory.CreateScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 

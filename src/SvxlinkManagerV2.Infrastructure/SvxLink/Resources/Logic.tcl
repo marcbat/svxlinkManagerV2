@@ -31,7 +31,19 @@ proc startup {} {
 # Outputs the command on stdout for DtmfCommandTracker to parse.
 # Returns 1 to indicate the command has been handled (prevents "unknown command").
 #
+# Info commands (300-399) — annonces vocales :
+#   300 : Rejoue le nom du salon actuellement actif (Name.wav)
+#
 proc dtmf_cmd_received {cmd} {
+    # --- Commandes d'annonce (plage 300-399) ---
+    if {$cmd eq "300"} {
+        set name_wav "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/Name.wav"
+        if {[file exists $name_wav] == 1} {
+            playMsg "svxlinkmanager" "Name"
+        }
+    }
+
+    # Toujours émettre la commande vers .NET pour logging et extensibilité
     puts "DTMF_CMD:$cmd"
     return 1
 }

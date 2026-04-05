@@ -85,6 +85,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
+            services.AddHostedService<DtmfAnnounceService>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
