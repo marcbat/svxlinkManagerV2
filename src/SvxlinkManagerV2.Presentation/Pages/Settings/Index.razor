@@ -699,7 +699,7 @@ else
                 Succ: status =>
                 {
                     _updateWorkflowStatus = status;
-                    ToastService.ShowSuccess("La demande d'installation a été transmise.");
+                    ToastService.ShowSuccess("La demande d'installation a été transmise. Veuillez attendre 1 à 2 minutes avant de rafraichir la page.", durationMs: 10000);
                 },
                 Fail: errors =>
                 {
