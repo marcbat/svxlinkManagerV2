@@ -326,7 +326,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             ShortIdentInterval: 60,
             LongIdentInterval: 60,
             ReportCtcss: null,
-            EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
             RxFrequency: 145.550m,
@@ -367,7 +366,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             ShortIdentInterval: 60,
             LongIdentInterval: 60,
             ReportCtcss: "136.5", // Valeur optionnelle présente
-            EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
             RxFrequency: 145.550m,
@@ -408,7 +406,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             ShortIdentInterval: 60,
             LongIdentInterval: 60,
             ReportCtcss: null,
-            EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
             RxFrequency: 145.550m,

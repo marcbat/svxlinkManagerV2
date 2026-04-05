@@ -376,7 +376,6 @@ public class ActivateSalonCommandTests
             60,
             60,
             null,
-            "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
             145.550m,

@@ -223,7 +223,6 @@ public class UpdateSalonConfigurationCommandTests
             60,
             60,
             "71.9",
-            "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
             0m,              // RxFrequency - sera remplacée par la Command
@@ -250,7 +249,6 @@ public class UpdateSalonConfigurationCommandTests
             60,
             60,
             "71.9",
-            "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
             145.550m,

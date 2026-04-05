@@ -69,7 +69,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key-123", 0,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
-            "71.9", "/usr/share/svxlink/events.tcl", "fr_FR", 0,
+            "71.9", "fr_FR", 0,
             rxFrequency, txFrequency, rxCtcss, txCtcss);
     }
 

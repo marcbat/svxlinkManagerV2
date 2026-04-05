@@ -130,7 +130,6 @@ public class GetSalonByDtmfCodeQueryTests
         ShortIdentInterval: 60,
         LongIdentInterval: 60,
         ReportCtcss: "71.9",
-        EventHandler: "/usr/share/svxlink/events.tcl",
         DefaultLang: "fr_FR",
         RgrSoundDelay: 0,
         RxFrequency: 145.550m,

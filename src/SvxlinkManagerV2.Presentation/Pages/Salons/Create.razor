@@ -257,10 +257,6 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="form-label">Event Handler (TCL)</label>
-                            <InputText class="form-control" @bind-Value="_model.EventHandler" />
-                        </div>
                     </div>
                 }
             </div>
@@ -577,7 +573,6 @@
                 ShortIdentInterval:  _model.ShortIdentInterval,
                 LongIdentInterval:   _model.LongIdentInterval,
                 ReportCtcss:         null,
-                EventHandler:        _model.EventHandler,
                 DefaultLang:         _model.DefaultLang,
                 RgrSoundDelay:       _model.RgrSoundDelay,
                 RxFrequency:         _model.RxFrequency,
@@ -712,7 +707,6 @@
         public int LongIdentInterval { get; set; } = 60;
         public int RgrSoundDelay { get; set; } = 0;
         public string DefaultLang { get; set; } = "fr_FR";
-        public string EventHandler { get; set; } = "/usr/share/svxlink/events.tcl";
 
         [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
         public int? DtmfCode { get; set; }

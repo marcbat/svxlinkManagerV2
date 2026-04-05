@@ -24,7 +24,6 @@ public record SvxLinkConfiguration(
     int ShortIdentInterval,
     int LongIdentInterval,
     string? ReportCtcss,
-    string EventHandler,
     string DefaultLang,
     int RgrSoundDelay,
     // Configuration Radio (directement dans Salon, plus de RadioProfil)

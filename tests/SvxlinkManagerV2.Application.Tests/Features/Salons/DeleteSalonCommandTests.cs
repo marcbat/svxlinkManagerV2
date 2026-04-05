@@ -134,7 +134,7 @@ public class DeleteSalonCommandTests
             0,
             "F5ABC", "ModuleHelp",
             60, 60,
-            null, "/usr/share/svxlink/events.tcl",
+            null,
             "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);
 
