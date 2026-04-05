@@ -60,7 +60,7 @@ public class SoundRepository : ISoundRepository
 
             var aggregate = await _context.Sounds.FindAsync(new object[] { id }, cancellationToken);
 
-            if (aggregate == null || aggregate.IsDeleted)
+            if (aggregate == null)
                 return Error.NotFound("Sound", id)
                     .ToFailure<SoundAggregate>();
 
@@ -73,39 +73,29 @@ public class SoundRepository : ISoundRepository
         }
     }
 
-    public async Task<IReadOnlyList<SoundAggregate>> GetAllAsync(
+    public async Task<Validation<Error, Unit>> HardDeleteAsync(
+        Guid id,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _context.Sounds
-                .Where(s => !s.IsDeleted)
-                .ToListAsync(cancellationToken);
+            if (id == Guid.Empty)
+                return Error.Validation("INVALID_ID", "L'identifiant est vide")
+                    .ToFailure<Unit>();
+
+            var aggregate = await _context.Sounds.FindAsync(new object[] { id }, cancellationToken);
+            if (aggregate == null)
+                return Error.NotFound("Sound", id)
+                    .ToFailure<Unit>();
+
+            _context.Sounds.Remove(aggregate);
+            await _context.SaveChangesAsync(cancellationToken);
+            return unit.ToSuccess();
         }
-        catch
+        catch (Exception ex)
         {
-            return [];
+            return Error.Validation("DELETE_ERROR", $"Erreur lors de la suppression : {ex.Message}")
+                .ToFailure<Unit>();
         }
-    }
-
-    public async Task<Validation<Error, Unit>> DeleteAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        var aggregateResult = await GetByIdAsync(id, cancellationToken);
-        if (aggregateResult.IsFail)
-            return aggregateResult.Match(
-                Succ: _ => throw new InvalidOperationException(),
-                Fail: errors => Validation<Error, Unit>.Fail(errors));
-
-        var aggregate = aggregateResult.Match(
-            Succ: a => a,
-            Fail: _ => throw new InvalidOperationException());
-
-        var deleteResult = aggregate.Delete();
-        if (deleteResult.IsFail)
-            return deleteResult;
-
-        return await SaveAsync(aggregate, cancellationToken);
     }
 }

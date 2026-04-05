@@ -71,7 +71,6 @@ public class SalonSeederHostedService : IHostedService
                     EventHandler: "/usr/share/svxlink/events.tcl",
                     DefaultLang: "fr_FR",
                     RgrSoundDelay: 0,
-                    SoundId: null,
                     RxFrequency: 145.550m,
                     TxFrequency: 145.550m,
                     RxCtcss: null,
