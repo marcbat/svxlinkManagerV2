@@ -72,27 +72,20 @@ public class SA818Repository : ISA818Repository
     public async Task<SA818ConfigurationDto?> GetConfigurationAsync(
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var aggregate = await _context.SA818.FindAsync(new object[] { SA818Aggregate.FixedId }, cancellationToken);
-            if (aggregate == null)
-                return null;
-
-            return new SA818ConfigurationDto
-            {
-                Id = aggregate.Id,
-                Volume = aggregate.Volume,
-                Squelch = aggregate.Squelch,
-                Bandwidth = aggregate.Bandwidth,
-                PreEmph = aggregate.PreEmph,
-                HighPass = aggregate.HighPass,
-                LowPass = aggregate.LowPass,
-                UpdatedAt = DateTime.UtcNow
-            };
-        }
-        catch
-        {
+        var aggregate = await _context.SA818.FindAsync(new object[] { SA818Aggregate.FixedId }, cancellationToken);
+        if (aggregate == null)
             return null;
-        }
+
+        return new SA818ConfigurationDto
+        {
+            Id = aggregate.Id,
+            Volume = aggregate.Volume,
+            Squelch = aggregate.Squelch,
+            Bandwidth = aggregate.Bandwidth,
+            PreEmph = aggregate.PreEmph,
+            HighPass = aggregate.HighPass,
+            LowPass = aggregate.LowPass,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 }

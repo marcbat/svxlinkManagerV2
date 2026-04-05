@@ -15,13 +15,16 @@ public class SalonSeederHostedService : IHostedService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SalonSeederHostedService> _logger;
+    private readonly IHostEnvironment _environment;
 
     public SalonSeederHostedService(
         IServiceScopeFactory scopeFactory,
-        ILogger<SalonSeederHostedService> logger)
+        ILogger<SalonSeederHostedService> logger,
+        IHostEnvironment environment)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _environment = environment;
     }
 
     /// <summary>
@@ -47,7 +50,16 @@ public class SalonSeederHostedService : IHostedService
                 return;
             }
 
-            _logger.LogInformation("Aucun salon trouvé, seeding des 8 salons originaux...");
+            if (_environment.IsProduction())
+            {
+                _logger.LogWarning(
+                    "SalonSeederHostedService: ATTENTION — aucun salon trouvé en environnement Production. " +
+                    "Démarrage du seeding des salons par défaut. Si des données étaient attendues, vérifiez le chemin de la base SQLite.");
+            }
+            else
+            {
+                _logger.LogInformation("Aucun salon trouvé, seeding des 8 salons originaux...");
+            }
 
             foreach (var (id, name, host, port, authKey, dtmfCode) in GetOriginalSalons())
             {
@@ -121,7 +133,7 @@ public class SalonSeederHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erreur critique lors du seeding des salons");
+            _logger.LogError(ex, "Erreur critique lors du seeding des salons — seeding interrompu");
             // Ne pas throw : on ne veut pas empêcher le démarrage de l'application
         }
     }

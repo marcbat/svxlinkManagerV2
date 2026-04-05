@@ -76,17 +76,10 @@ public class SalonRepository : ISalonRepository
     public async Task<IReadOnlyList<SalonAggregate>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            return await _context.Salons
-                .AsNoTracking()
-                .Where(s => !s.IsDeleted)
-                .ToListAsync(cancellationToken);
-        }
-        catch
-        {
-            return [];
-        }
+        return await _context.Salons
+            .AsNoTracking()
+            .Where(s => !s.IsDeleted)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<SalonAggregate?> GetDefaultAsync(

@@ -20,7 +20,6 @@ $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $repoRoot
 
 $publishDir = Join-Path $repoRoot ("artifacts/publish/{0}" -f $Rid)
-$legacyPublishDir = Join-Path $repoRoot ("publish/{0}" -f $Rid)
 $stagingRoot = Join-Path $repoRoot "artifacts/deb-staging"
 $packageDirName = "{0}_{1}_{2}" -f $PackageName, $PackageVersion, $DebArchitecture
 $packageRoot = Join-Path $stagingRoot $packageDirName
@@ -53,11 +52,6 @@ if (-not $SkipPublish) {
     if ($LASTEXITCODE -ne 0) {
         throw "Echec du dotnet publish"
     }
-}
-
-if ((-not (Test-Path (Join-Path $publishDir "SvxlinkManagerV2.Presentation.dll"))) -and
-    (Test-Path (Join-Path $legacyPublishDir "SvxlinkManagerV2.Presentation.dll"))) {
-    $publishDir = $legacyPublishDir
 }
 
 if (-not (Test-Path (Join-Path $publishDir "SvxlinkManagerV2.Presentation.dll"))) {

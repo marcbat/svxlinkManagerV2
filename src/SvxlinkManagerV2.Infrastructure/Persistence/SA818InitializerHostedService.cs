@@ -14,13 +14,16 @@ public class SA818InitializerHostedService : IHostedService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SA818InitializerHostedService> _logger;
+    private readonly IHostEnvironment _environment;
 
     public SA818InitializerHostedService(
         IServiceScopeFactory scopeFactory,
-        ILogger<SA818InitializerHostedService> logger)
+        ILogger<SA818InitializerHostedService> logger,
+        IHostEnvironment environment)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _environment = environment;
     }
 
     /// <summary>
@@ -49,7 +52,16 @@ public class SA818InitializerHostedService : IHostedService
             }
 
             // SA818 absent : créer avec valeurs par défaut
-            _logger.LogInformation("SA818 non trouvé, création avec valeurs par défaut...");
+            if (_environment.IsProduction())
+            {
+                _logger.LogWarning(
+                    "SA818InitializerHostedService: ATTENTION — SA818 absent en environnement Production. " +
+                    "Création avec valeurs par défaut. Si une configuration était attendue, vérifiez le chemin de la base SQLite.");
+            }
+            else
+            {
+                _logger.LogInformation("SA818 non trouvé, création avec valeurs par défaut...");
+            }
 
             var createResult = SA818Aggregate.Create(
                 volume: 4,

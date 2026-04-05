@@ -1,7 +1,9 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Infrastructure.Persistence;
@@ -21,6 +23,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     private ISA818Repository _repository = null!;
     private ILogger<SA818InitializerHostedService> _logger = null!;
     private IServiceScopeFactory _scopeFactory = null!;
+    private IHostEnvironment _environment = null!;
 
     public SA818InitializerHostedServiceIntegrationTests(PostgresContainerFixture fixture)
     {
@@ -42,6 +45,9 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
         _scopeFactory = Substitute.For<IServiceScopeFactory>();
         _scopeFactory.CreateScope().Returns(scope);
 
+        _environment = Substitute.For<IHostEnvironment>();
+        _environment.EnvironmentName.Returns(Environments.Development);
+
         return Task.CompletedTask;
     }
 
@@ -55,7 +61,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenSA818DoesNotExist_ShouldCreateWithDefaultValues()
     {
         // Arrange
-        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -82,7 +88,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création SA818 initial"));
 
-        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -102,7 +108,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_ShouldLogInitializationMessages()
     {
         // Arrange
-        var service = new SA818InitializerHostedService(_scopeFactory, _logger);
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -114,5 +120,69 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
             Arg.Is<object>(o => o.ToString()!.Contains("Vérification existence SA818Aggregate")),
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    /// <summary>
+    /// Régression : si la lecture de la DB lève une exception (schéma incompatible, DB verrouillée…),
+    /// le service d'initialisation ne doit PAS créer un SA818 avec des valeurs par défaut
+    /// — cela écraserait la configuration existante après un update.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenGetConfigurationAsyncThrowsException_ShouldNotInitializeSA818()
+    {
+        // Arrange
+        var failingRepository = Substitute.For<ISA818Repository>();
+        failingRepository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<SA818ConfigurationDto?>(
+                new InvalidOperationException("Erreur SQLite simulée — schéma incompatible")));
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISA818Repository)).Returns(failingRepository);
+
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+
+        var service = new SA818InitializerHostedService(scopeFactory, _logger, _environment);
+
+        // Act — ne doit pas lever d'exception (le catch interne absorbe)
+        var act = async () => await service.StartAsync(CancellationToken.None);
+        await act.Should().NotThrowAsync();
+
+        // Assert — aucune configuration SA818 ne doit avoir été écrite
+        _ = failingRepository.DidNotReceive().SaveAsync(Arg.Any<SA818Aggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Régression : un redémarrage en Production avec un SA818 configuré ne doit pas réinitialiser les paramètres radio.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenSA818ExistsInProduction_ShouldNotReinitialize()
+    {
+        // Arrange — simuler Production avec une configuration personnalisée
+        var productionEnvironment = Substitute.For<IHostEnvironment>();
+        productionEnvironment.EnvironmentName.Returns(Environments.Production);
+
+        var existingSA818Result = SA818Aggregate.Create(7, 6, SA818Bandwidth.Narrow12_5kHz, true, false, true);
+        await existingSA818Result.Match(
+            async aggregate => await _repository.SaveAsync(aggregate),
+            errors => throw new Exception("Échec création SA818 initial"));
+
+        var service = new SA818InitializerHostedService(_scopeFactory, _logger, productionEnvironment);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert — la configuration personnalisée est inchangée
+        var config = await _repository.GetConfigurationAsync();
+        config.Should().NotBeNull();
+        config!.Volume.Should().Be(7);
+        config.Squelch.Should().Be(6);
+        config.Bandwidth.Should().Be(SA818Bandwidth.Narrow12_5kHz);
+        config.PreEmph.Should().BeTrue();
+        config.HighPass.Should().BeFalse();
+        config.LowPass.Should().BeTrue();
     }
 }

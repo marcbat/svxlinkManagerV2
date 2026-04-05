@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -22,6 +23,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     private ISalonRepository _repository = null!;
     private ILogger<SalonSeederHostedService> _logger = null!;
     private IServiceScopeFactory _scopeFactory = null!;
+    private IHostEnvironment _environment = null!;
 
     public SalonSeederHostedServiceIntegrationTests(PostgresContainerFixture fixture)
     {
@@ -43,6 +45,9 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         _scopeFactory = Substitute.For<IServiceScopeFactory>();
         _scopeFactory.CreateScope().Returns(scope);
 
+        _environment = Substitute.For<IHostEnvironment>();
+        _environment.EnvironmentName.Returns(Environments.Development);
+
         return Task.CompletedTask;
     }
 
@@ -56,7 +61,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreate8Salons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -70,7 +75,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreateSalonsWithFixedGuids()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
         var expectedGuids = new[]
         {
             new Guid("235a4521-15a1-4e02-a540-91ee600452ac"),
@@ -93,7 +98,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsDefaultFalse()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -107,7 +112,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsTemporizedFalse()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -121,7 +126,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveNullSoundId()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -169,7 +174,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création salon initial"));
 
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act - Exécuter le seeder alors qu'un salon existe déjà
         await service.StartAsync(CancellationToken.None);
@@ -184,7 +189,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate8SalonsOnFirstCallOnly()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act - Premier démarrage
         await service.StartAsync(CancellationToken.None);
@@ -201,7 +206,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldContainRRFSalon()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -220,7 +225,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldNotContainObsoleteSalons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -235,7 +240,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveDtmfCodeAssigned()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -250,5 +255,94 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         bySalon["Salon Technique"].DtmfCode.Should().Be(98);
         bySalon["Salon Bavardage"].DtmfCode.Should().Be(100);
         bySalon["Salon Local"].DtmfCode.Should().Be(101);
+    }
+
+    /// <summary>
+    /// Régression : si la lecture de la DB lève une exception (schéma incompatible, DB verrouillée…),
+    /// le seeder ne doit PAS écrire de données — il interrompt silencieusement sans détruire les données existantes.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenGetAllAsyncThrowsException_ShouldNotSeedAnySalon()
+    {
+        // Arrange
+        var failingRepository = Substitute.For<ISalonRepository>();
+        failingRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<SalonAggregate>>(
+                new InvalidOperationException("Erreur SQLite simulée — schéma incompatible")));
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISalonRepository)).Returns(failingRepository);
+
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+
+        var service = new SalonSeederHostedService(scopeFactory, _logger, _environment);
+
+        // Act — ne doit pas lever d'exception (le catch interne absorbe)
+        var act = async () => await service.StartAsync(CancellationToken.None);
+        await act.Should().NotThrowAsync();
+
+        // Assert — aucun salon ne doit avoir été enregistré dans la base
+        _ = failingRepository.DidNotReceive().SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Régression : un redémarrage avec des données existantes ne doit pas écraser ces données.
+    /// Scénario typique post-update .deb : la base contient des salons personnalisés.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenSalonsAlreadyExistInProduction_ShouldNotOverwriteThem()
+    {
+        // Arrange — simuler un environnement Production avec des salons personnalisés
+        var productionEnvironment = Substitute.For<IHostEnvironment>();
+        productionEnvironment.EnvironmentName.Returns(Environments.Production);
+
+        var existingSalonResult = SalonAggregate.Create(
+            id: Guid.NewGuid(),
+            name: "Mon Salon Personnalisé",
+            isDefault: true,
+            isTemporized: false,
+            configuration: new SvxLinkConfiguration(
+                Id: Guid.NewGuid(),
+                Logics: "SimplexLogic,ReflectorLogic",
+                CfgDir: "svxlink.d",
+                CardSampleRate: 16000,
+                CardChannels: 1,
+                Host: "mon-reflecteur.local",
+                Port: 5300,
+                Callsign: "F0XYZ",
+                AuthKey: "MaClePersonnalisee",
+                AudioCodec: "OPUS",
+                JitterBufferDelay: 0,
+                SimplexCallsign: "F0XYZ",
+                Modules: "ModuleHelp",
+                ShortIdentInterval: 600,
+                LongIdentInterval: 3600,
+                ReportCtcss: null,
+                EventHandler: "/usr/share/svxlink/events.tcl",
+                DefaultLang: "fr_FR",
+                RgrSoundDelay: 0,
+                RxFrequency: 145.500m,
+                TxFrequency: 145.500m,
+                RxCtcss: null,
+                TxCtcss: null));
+
+        await existingSalonResult.Match(
+            async aggregate => await _repository.SaveAsync(aggregate),
+            errors => throw new Exception("Échec création salon initial"));
+
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, productionEnvironment);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert — le salon personnalisé est toujours le seul, il n'a pas été remplacé par les salons par défaut
+        var salons = await _repository.GetAllAsync();
+        salons.Should().HaveCount(1);
+        salons[0].Name.Should().Be("Mon Salon Personnalisé");
+        salons[0].IsDefault.Should().BeTrue();
     }
 }

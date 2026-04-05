@@ -76,16 +76,9 @@ public class ReflectorRepository : IReflectorRepository
     public async Task<IReadOnlyList<ReflectorAggregate>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            return await _context.Reflectors
-                .Where(r => !r.IsDeleted)
-                .ToListAsync(cancellationToken);
-        }
-        catch
-        {
-            return [];
-        }
+        return await _context.Reflectors
+            .Where(r => !r.IsDeleted)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<Validation<Error, Unit>> DeleteAsync(
