@@ -79,7 +79,6 @@ public class CreateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,      // SoundId
             0m,        // RxFrequency - sera remplacée par la Command
             0m,        // TxFrequency - sera remplacée par la Command
             null,      // RxCtcss - sera remplacée par la Command
@@ -296,7 +295,6 @@ public class CreateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            Guid.NewGuid(),  // SoundId
             0m,              // RxFrequency - sera remplacée par la Command
             0m,              // TxFrequency - sera remplacée par la Command
             null,            // RxCtcss - sera remplacée par la Command

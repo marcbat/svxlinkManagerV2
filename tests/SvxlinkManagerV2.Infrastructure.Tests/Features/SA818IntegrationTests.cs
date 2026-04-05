@@ -70,7 +70,6 @@ public class SA818IntegrationTests : IAsyncLifetime
             "F5ABC-L", "test-auth-key-123", "OPUS", 0,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "/usr/share/svxlink/events.tcl", "fr_FR", 0,
-            Guid.NewGuid(),
             rxFrequency, txFrequency, rxCtcss, txCtcss);
     }
 

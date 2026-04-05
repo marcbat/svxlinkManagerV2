@@ -147,7 +147,6 @@ public class SetSalonAsDefaultCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,
             145.550m,
             145.550m,
             136.5m,

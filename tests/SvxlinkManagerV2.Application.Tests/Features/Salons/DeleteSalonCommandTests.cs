@@ -17,11 +17,13 @@ namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 public class DeleteSalonCommandTests
 {
     private readonly ISalonRepository _repository;
+    private readonly ISoundRepository _soundRepository;
     private readonly IActiveSessionTracker _tracker;
 
     public DeleteSalonCommandTests()
     {
         _repository = Substitute.For<ISalonRepository>();
+        _soundRepository = Substitute.For<ISoundRepository>();
         _tracker = Substitute.For<IActiveSessionTracker>();
     }
 
@@ -40,7 +42,7 @@ public class DeleteSalonCommandTests
             .Returns(unit.ToSuccess());
 
         // Act
-        var result = await new DeleteSalonCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
+        var result = await new DeleteSalonCommandHandler(_repository, _soundRepository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
@@ -61,7 +63,7 @@ public class DeleteSalonCommandTests
         _tracker.IsSalonActive(salonId).Returns(true);
 
         // Act
-        var result = await new DeleteSalonCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
+        var result = await new DeleteSalonCommandHandler(_repository, _soundRepository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -85,7 +87,7 @@ public class DeleteSalonCommandTests
             .Returns(Error.NotFound("Salon", salonId).ToFailure<SalonAggregate>());
 
         // Act
-        var result = await new DeleteSalonCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
+        var result = await new DeleteSalonCommandHandler(_repository, _soundRepository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -109,7 +111,7 @@ public class DeleteSalonCommandTests
             .Returns(salon.ToSuccess());
 
         // Act
-        var result = await new DeleteSalonCommandHandler(_repository, _tracker).Handle(command, CancellationToken.None);
+        var result = await new DeleteSalonCommandHandler(_repository, _soundRepository, _tracker).Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -133,7 +135,7 @@ public class DeleteSalonCommandTests
             "F5ABC", "ModuleHelp",
             60, 60,
             null, "/usr/share/svxlink/events.tcl",
-            "fr_FR", 0, null,
+            "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);
 
         var result = SalonAggregate.Create(id, "Salon Test", isDefault, false, config);

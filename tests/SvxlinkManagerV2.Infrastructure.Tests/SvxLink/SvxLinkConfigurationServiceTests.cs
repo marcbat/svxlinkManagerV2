@@ -330,7 +330,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
-            SoundId: null,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 136.5m,
@@ -373,7 +372,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
-            SoundId: null,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 136.5m,
@@ -416,7 +414,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             EventHandler: "/usr/share/svxlink/events.tcl",
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
-            SoundId: null,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: null,   // Pas de sous-ton RX
