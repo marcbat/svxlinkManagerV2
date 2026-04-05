@@ -2,11 +2,10 @@
 @using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
-@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
+@using SvxlinkManagerV2.Application.Features.Salons.Sound
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
-@using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -152,15 +151,64 @@ else if (_salon is not null)
                         <span class="material-symbols-outlined">volume_up</span>
                         Son d'annonce
                     </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <select class="form-select" @bind="_model.SoundId" disabled="@_salonIsActive">
-                            <option value="">— Aucun son —</option>
-                            @foreach (var sound in _sounds)
-                            {
-                                <option value="@sound.Id">@sound.Name</option>
-                            }
-                        </select>
-                    </div>
+
+                    @if (_soundSummary != null)
+                    {
+                        <div class="sound-info">
+                            <div class="form-group">
+                                <label class="form-label">Nom</label>
+                                <span class="form-value">@_soundSummary.Name</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Durée</label>
+                                <span class="form-value">@FormatDuration(_soundSummary.Duration)</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Fréquence</label>
+                                <span class="form-value">@_soundSummary.SampleRate Hz</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Canaux</label>
+                                <span class="form-value">@(_soundSummary.Channels == 1 ? "Mono" : "Stéréo")</span>
+                            </div>
+                            <div class="form-group" style="margin-bottom:0">
+                                <label class="form-label">Date de création</label>
+                                <span class="form-value">@_soundSummary.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
+                        </div>
+                        @if (!_salonIsActive)
+                        {
+                            <div style="display:flex;gap:8px;margin-top:12px">
+                                <label class="btn btn-secondary" style="margin:0">
+                                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">swap_horiz</span>
+                                    Remplacer
+                                    <InputFile OnChange="HandleSoundReplace" accept=".wav" style="display:none" />
+                                </label>
+                                <button type="button" class="btn btn-danger" @onclick="HandleSoundDelete">
+                                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">delete</span>
+                                    Supprimer
+                                </button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @if (!_salonIsActive)
+                        {
+                            <div class="form-group" style="margin-bottom:0">
+                                <label class="form-label">Fichier WAV</label>
+                                <InputFile OnChange="HandleSoundUpload" accept=".wav" disabled="@_salonIsActive" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Nom du son</label>
+                                <input class="form-control" @bind="_soundName" placeholder="ex: annonce-salon" />
+                            </div>
+                        }
+                        else
+                        {
+                            <p style="color:var(--text-muted);margin:0">Aucun son configuré</p>
+                        }
+                    }
                 </div>
 
                 <!-- Code DTMF -->
@@ -508,6 +556,9 @@ else if (_salon is not null)
 
     .spin { animation: spin 1s linear infinite; }
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .sound-info .form-group { margin-bottom: 6px; }
+    .sound-info .form-value { color: var(--text-secondary, #555); }
 </style>
 
 @code {
@@ -515,7 +566,9 @@ else if (_salon is not null)
 
     private SalonAggregate? _salon;
     private bool _salonIsActive;
-    private IReadOnlyList<SoundAggregate> _sounds = [];
+    private SoundSummaryDto? _soundSummary;
+    private string _soundName = "";
+    private IBrowserFile? _soundFile;
     private Dictionary<decimal, string> _ctcssOptions = [];
     private readonly EditModel _model = new();
     private bool _isLoading = true;
@@ -528,15 +581,9 @@ else if (_salon is not null)
     {
         _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
 
-        // Chargement en parallèle : salon + sons
-        var salonTask  = Mediator.Send<Validation<Error, SalonAggregate>>(new GetSalonByIdQuery(Id));
-        var soundsTask = Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery());
+        var salonResult = await Mediator.Send<Validation<Error, SalonAggregate>>(new GetSalonByIdQuery(Id));
 
-        await Task.WhenAll(salonTask, soundsTask);
-
-        _sounds = soundsTask.Result ?? [];
-
-        salonTask.Result.Match(
+        salonResult.Match(
             Succ: salon =>
             {
                 _salon = salon;
@@ -550,6 +597,11 @@ else if (_salon is not null)
                 return Unit.Default;
             }
         );
+
+        if (_salon?.SoundId != null)
+        {
+            _soundSummary = await Mediator.Send(new GetSalonSoundQuery(_salon.Id));
+        }
 
         _isLoading = false;
     }
@@ -573,7 +625,6 @@ else if (_salon is not null)
         _model.RgrSoundDelay      = cfg.RgrSoundDelay;
         _model.DefaultLang        = cfg.DefaultLang;
         _model.EventHandler       = cfg.EventHandler;
-        _model.SoundId            = cfg.SoundId?.ToString() ?? "";
         _model.DtmfCode           = salon.DtmfCode;
     }
 
@@ -610,7 +661,6 @@ else if (_salon is not null)
                 EventHandler:        _model.EventHandler,
                 DefaultLang:         _model.DefaultLang,
                 RgrSoundDelay:       _model.RgrSoundDelay,
-                SoundId:             string.IsNullOrEmpty(_model.SoundId) ? null : Guid.Parse(_model.SoundId),
                 RxFrequency:         _model.RxFrequency,
                 TxFrequency:         _model.TxFrequency,
                 RxCtcss:             ParseCtcss(_model.RxCtcssStr),
@@ -678,6 +728,104 @@ else if (_salon is not null)
                ? d : null;
     }
 
+    private async Task HandleSoundUpload(InputFileChangeEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_soundName))
+        {
+            _errors = ["Veuillez saisir un nom pour le son avant de sélectionner le fichier."];
+            return;
+        }
+
+        try
+        {
+            var file = e.File;
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+
+            var result = await Mediator.Send(new UploadSalonSoundCommand(Id, _soundName.Trim(), ms.ToArray()));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Son ajouté avec succès.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                });
+
+            if (!_errors.Any())
+                _soundSummary = await Mediator.Send(new GetSalonSoundQuery(Id));
+        }
+        catch (Exception ex)
+        {
+            _errors = [$"Erreur lors de l'upload : {ex.Message}"];
+        }
+    }
+
+    private async Task HandleSoundReplace(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            var name = Path.GetFileNameWithoutExtension(file.Name);
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+
+            var result = await Mediator.Send(new ReplaceSalonSoundCommand(Id, name, ms.ToArray()));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Son remplacé avec succès.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                });
+
+            if (!_errors.Any())
+                _soundSummary = await Mediator.Send(new GetSalonSoundQuery(Id));
+        }
+        catch (Exception ex)
+        {
+            _errors = [$"Erreur lors du remplacement : {ex.Message}"];
+        }
+    }
+
+    private async Task HandleSoundDelete()
+    {
+        try
+        {
+            var result = await Mediator.Send(new DeleteSalonSoundCommand(Id));
+            result.Match(
+                Succ: _ =>
+                {
+                    _soundSummary = null;
+                    ToastService.ShowSuccess("Son supprimé avec succès.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                });
+        }
+        catch (Exception ex)
+        {
+            _errors = [$"Erreur lors de la suppression : {ex.Message}"];
+        }
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes >= 1)
+            return $"{(int)duration.TotalMinutes}m {duration.Seconds:D2}s";
+        return $"{duration.Seconds}s";
+    }
+
     // ── Modèle de formulaire ──────────────────────────────────
     private class EditModel
     {
@@ -703,7 +851,6 @@ else if (_salon is not null)
         public string AuthKey { get; set; } = "";
 
         public string AudioCodec { get; set; } = "OPUS";
-        public string SoundId { get; set; } = "";
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;
         public int LongIdentInterval { get; set; } = 60;

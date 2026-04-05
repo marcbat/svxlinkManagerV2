@@ -1,9 +1,7 @@
 @page "/salons/nouveau"
 @using SvxlinkManagerV2.Application.Features.Salons.CreateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
-@using SvxlinkManagerV2.Application.Features.Sounds.GetAllSounds
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
-@using SvxlinkManagerV2.Domain.Aggregates.Sound
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -41,17 +39,6 @@
                     <label class="form-label">Nom du salon <span class="required">*</span></label>
                     <InputText class="form-control" @bind-Value="_model.Name" placeholder="ex: Salon National France" />
                     <ValidationMessage For="() => _model.Name" class="field-error" />
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Son d'annonce</label>
-                    <select class="form-select" @bind="_model.SoundId">
-                        <option value="">— Aucun son —</option>
-                        @foreach (var sound in _sounds)
-                        {
-                            <option value="@sound.Id">@sound.Name</option>
-                        }
-                    </select>
                 </div>
 
                 <div class="form-group">
@@ -443,23 +430,14 @@
 
 @code {
     private readonly SalonFormModel _model = new();
-    private IReadOnlyList<SoundAggregate> _sounds = [];
     private Dictionary<decimal, string> _ctcssOptions = [];
     private bool _showAdvanced;
     private bool _isSubmitting;
     private List<string> _errors = [];
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         _ctcssOptions = CtcssDropdownService.GetCtcssOptions();
-        try
-        {
-            _sounds = await Mediator.Send<IReadOnlyList<SoundAggregate>>(new GetAllSoundsQuery()) ?? [];
-        }
-        catch
-        {
-            // Sons non-critiques pour la création
-        }
     }
 
     private async Task HandleSubmit()
@@ -491,7 +469,6 @@
                 EventHandler:        _model.EventHandler,
                 DefaultLang:         _model.DefaultLang,
                 RgrSoundDelay:       _model.RgrSoundDelay,
-                SoundId:             string.IsNullOrEmpty(_model.SoundId) ? null : Guid.Parse(_model.SoundId),
                 RxFrequency:         _model.RxFrequency,
                 TxFrequency:         _model.TxFrequency,
                 RxCtcss:             ParseCtcss(_model.RxCtcssStr),
@@ -574,7 +551,6 @@
 
         public bool IsDefault { get; set; }
         public bool IsTemporized { get; set; }
-        public string SoundId { get; set; } = "";
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La fréquence RX est obligatoire.")]
         [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]
