@@ -183,7 +183,6 @@ public class UpdateSalonDtmfCodeCommandTests
         Port: 5300,
         Callsign: "F5ABC-L",
         AuthKey: "test-auth-key-123",
-        AudioCodec: "OPUS",
         JitterBufferDelay: 0,
         SimplexCallsign: "F5ABC",
         Modules: "ModuleHelp,ModuleParrot",

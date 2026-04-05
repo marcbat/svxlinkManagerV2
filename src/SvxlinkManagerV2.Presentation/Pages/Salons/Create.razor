@@ -190,14 +190,6 @@
                                      placeholder="5300" />
                         <ValidationMessage For="() => _model.Port" class="field-error" />
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Codec Audio</label>
-                        <select class="form-select" @bind="_model.AudioCodec">
-                            <option value="OPUS">OPUS</option>
-                            <option value="GSM">GSM</option>
-                            <option value="SPEEX">SPEEX</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div class="form-group">
@@ -577,7 +569,6 @@
                 Port:                _model.Port,
                 Callsign:            _model.Callsign.Trim().ToUpperInvariant(),
                 AuthKey:             _model.AuthKey,
-                AudioCodec:          _model.AudioCodec,
                 JitterBufferDelay:   0,
                 SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
                                          ? _model.Callsign.Trim().ToUpperInvariant()
@@ -716,7 +707,6 @@
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La clé d'authentification est obligatoire.")]
         public string AuthKey { get; set; } = "";
 
-        public string AudioCodec { get; set; } = "OPUS";
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;
         public int LongIdentInterval { get; set; } = 60;

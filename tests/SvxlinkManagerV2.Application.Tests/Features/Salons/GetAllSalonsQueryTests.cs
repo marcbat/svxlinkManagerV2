@@ -71,7 +71,6 @@ public class GetAllSalonsQueryTests
             5300,
             "F5ABC-L",
             "test-key",
-            "OPUS",
             0,
             "F5ABC",
             "ModuleHelp",

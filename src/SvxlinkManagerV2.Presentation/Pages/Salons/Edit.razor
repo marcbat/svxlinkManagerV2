@@ -291,14 +291,6 @@ else if (_salon is not null)
                                          disabled="@_salonIsActive" />
                             <ValidationMessage For="() => _model.Port" class="field-error" />
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Codec Audio</label>
-                            <select class="form-select" @bind="_model.AudioCodec" disabled="@_salonIsActive">
-                                <option value="OPUS">OPUS</option>
-                                <option value="GSM">GSM</option>
-                                <option value="SPEEX">SPEEX</option>
-                            </select>
-                        </div>
                     </div>
 
                     <div class="form-group">
@@ -716,7 +708,6 @@ else if (_salon is not null)
         _model.Port               = cfg.Port;
         _model.Callsign           = cfg.Callsign;
         _model.AuthKey            = cfg.AuthKey;
-        _model.AudioCodec         = cfg.AudioCodec;
         _model.SimplexCallsign    = cfg.SimplexCallsign;
         _model.ShortIdentInterval = cfg.ShortIdentInterval;
         _model.LongIdentInterval  = cfg.LongIdentInterval;
@@ -747,7 +738,6 @@ else if (_salon is not null)
                 Port:                _model.Port,
                 Callsign:            _model.Callsign.Trim().ToUpperInvariant(),
                 AuthKey:             _model.AuthKey,
-                AudioCodec:          _model.AudioCodec,
                 JitterBufferDelay:   existingCfg.JitterBufferDelay,
                 SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
                                          ? _model.Callsign.Trim().ToUpperInvariant()
@@ -957,7 +947,6 @@ else if (_salon is not null)
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La clé d'authentification est obligatoire.")]
         public string AuthKey { get; set; } = "";
 
-        public string AudioCodec { get; set; } = "OPUS";
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;
         public int LongIdentInterval { get; set; } = 60;

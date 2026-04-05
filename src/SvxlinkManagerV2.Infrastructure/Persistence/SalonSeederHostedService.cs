@@ -83,7 +83,6 @@ public class SalonSeederHostedService : IHostedService
                     Port: port,
                     Callsign: "NOCALL",
                     AuthKey: authKey,
-                    AudioCodec: "OPUS",
                     JitterBufferDelay: 0,
                     SimplexCallsign: "F0ABC",
                     Modules: "ModuleHelp",

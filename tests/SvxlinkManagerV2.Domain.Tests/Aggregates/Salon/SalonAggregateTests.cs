@@ -91,7 +91,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -133,7 +132,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -179,7 +177,6 @@ public class SalonAggregateTests
             invalidPort, // Port invalide
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -223,7 +220,6 @@ public class SalonAggregateTests
             config.Port,
             invalidCallsign, // Callsign vide
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -265,7 +261,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             "", // AuthKey vide
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -290,52 +285,7 @@ public class SalonAggregateTests
         });
     }
 
-    [Theory]
-    [InlineData("MP3")]
-    [InlineData("AAC")]
-    [InlineData("invalid")]
-    public void Create_WithInvalidAudioCodec_ShouldFail(string invalidCodec)
-    {
-        // Arrange
-        var id = Guid.NewGuid();
-        var name = "Salon Test";
-        var config = CreateValidConfiguration();
-        var invalidConfig = new SvxLinkConfiguration(
-            config.Id,
-            config.Logics,
-            config.CfgDir,
-            config.CardSampleRate,
-            config.CardChannels,
-            config.Host,
-            config.Port,
-            config.Callsign,
-            config.AuthKey,
-            invalidCodec, // Codec invalide
-            config.JitterBufferDelay,
-            config.SimplexCallsign,
-            config.Modules,
-            config.ShortIdentInterval,
-            config.LongIdentInterval,
-            config.ReportCtcss,
-            config.EventHandler,
-            config.DefaultLang,
-            config.RgrSoundDelay,
-            config.RxFrequency,
-            config.TxFrequency,
-            config.RxCtcss,
-            config.TxCtcss);
-
-        // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SALON_AUDIOCODEC_INVALID");
-        });
-    }
-
-    [Fact]
+        [Fact]
     public void Create_WithInvalidRxFrequency_ShouldFail()
     {
         // Arrange
@@ -352,7 +302,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -394,7 +343,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -436,7 +384,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -478,7 +425,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -523,7 +469,6 @@ public class SalonAggregateTests
             config.Port,
             config.Callsign,
             config.AuthKey,
-            config.AudioCodec,
             config.JitterBufferDelay,
             config.SimplexCallsign,
             config.Modules,
@@ -1147,7 +1092,6 @@ public class SalonAggregateTests
             Port: 5300,
             Callsign: "F5ABC-L",
             AuthKey: "test-auth-key-123",
-            AudioCodec: "OPUS",
             JitterBufferDelay: 0,
             // Section SimplexLogic
             SimplexCallsign: "F5ABC",

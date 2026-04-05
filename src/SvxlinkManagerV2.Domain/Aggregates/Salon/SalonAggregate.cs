@@ -58,11 +58,6 @@ public class SalonAggregate : AggregateRoot
     private static readonly Regex CallsignPattern = new(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Codecs audio valides supportés par SVXLink
-    /// </summary>
-    private static readonly string[] ValidAudioCodecs = { "OPUS", "GSM", "SPEEX", "S16" };
-
-    /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
     /// </summary>
     public SalonAggregate()
@@ -378,14 +373,6 @@ public class SalonAggregate : AggregateRoot
             errors.Add(Error.Validation(
                 "SALON_AUTHKEY_REQUIRED",
                 "La clé d'authentification est obligatoire"));
-        }
-
-        // Validation AudioCodec (doit être dans la liste valide)
-        if (!ValidAudioCodecs.Contains(config.AudioCodec.ToUpperInvariant()))
-        {
-            errors.Add(Error.Validation(
-                "SALON_AUDIOCODEC_INVALID",
-                $"Le codec audio doit être parmi: {string.Join(", ", ValidAudioCodecs)}"));
         }
 
         // Validation RxFrequency (obligatoire, plage 30-3000 MHz)

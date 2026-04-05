@@ -54,7 +54,7 @@ internal static class SalonSoundTestHelpers
             16000, 1,
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key",
-            "OPUS", 0,
+            0,
             "F5ABC", "ModuleHelp",
             60, 60,
             null, "/usr/share/svxlink/events.tcl",

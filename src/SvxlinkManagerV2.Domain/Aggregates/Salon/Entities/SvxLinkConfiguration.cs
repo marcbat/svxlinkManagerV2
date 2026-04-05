@@ -17,7 +17,6 @@ public record SvxLinkConfiguration(
     int Port,
     string Callsign,
     string AuthKey,
-    string AudioCodec,
     int JitterBufferDelay,
     // Section SimplexLogic
     string SimplexCallsign,

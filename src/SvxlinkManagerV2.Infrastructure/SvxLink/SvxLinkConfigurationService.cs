@@ -159,7 +159,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
         iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
         iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey;
-        iniData["ReflectorLogic"]["AUDIO_CODEC"] = config.AudioCodec;
+        iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
         iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
         iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
 

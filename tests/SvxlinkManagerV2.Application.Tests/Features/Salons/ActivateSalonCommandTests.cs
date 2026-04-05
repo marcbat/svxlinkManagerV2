@@ -370,7 +370,6 @@ public class ActivateSalonCommandTests
             5300,
             "F5ABC-L",
             "test-auth-key",
-            "OPUS",
             0,
             "F5ABC",
             "ModuleHelp",
