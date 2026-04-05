@@ -12,6 +12,10 @@
     <div>
         <h1 class="page-title">Module SA818</h1>
         <p class="page-subtitle">Configuration hardware du module radio VHF/UHF (volume, squelch, bande, filtres audio).</p>
+        <div class="info-banner">
+            <span class="material-symbols-outlined">info</span>
+            <span>Les modifications enregistrées ici sont appliquées lors de la prochaine activation d'un salon. Si un salon est déjà actif, elles prendront effet au prochain changement de salon.</span>
+        </div>
     </div>
     @if (_dto is not null)
     {
@@ -226,6 +230,28 @@ else
 }
 
 <style>
+    .info-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(108,92,231,0.24);
+        border-radius: var(--radius-sm);
+        background: rgba(108,92,231,0.08);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.5;
+        max-width: 760px;
+    }
+
+    .info-banner .material-symbols-outlined {
+        font-size: 18px;
+        color: var(--accent);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
     .last-updated {
         display: flex;
         align-items: center;
