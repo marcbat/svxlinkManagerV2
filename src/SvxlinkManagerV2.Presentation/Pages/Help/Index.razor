@@ -1,0 +1,76 @@
+@page "/aide"
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+
+@inject IMediator Mediator
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Aide</h1>
+        <p class="page-subtitle">Commandes DTMF disponibles sur ce nœud.</p>
+    </div>
+</div>
+
+<!-- ── Raccourcis DTMF - Sélection de salon ─────────────────── -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="section-header">
+        <span class="material-symbols-outlined">dialpad</span>
+        Sélection de salon par DTMF
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="skeleton" style="height: 120px; border-radius: 8px;"></div>
+    }
+    else if (_salonsWithDtmf.Count == 0)
+    {
+        <p style="color: var(--text-muted); margin: 0.5rem 0 0;">
+            Aucun salon n'a de code DTMF configuré pour le moment.
+        </p>
+    }
+    else
+    {
+        <table class="help-dtmf-table">
+            <thead>
+                <tr>
+                    <th>Code DTMF</th>
+                    <th>Salon</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var salon in _salonsWithDtmf)
+                {
+                    <tr>
+                        <td>
+                            <span class="badge badge-accent">
+                                <span class="material-symbols-outlined">dialpad</span>
+                                @salon.DtmfCode
+                            </span>
+                        </td>
+                        <td>@salon.Name</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="help-dtmf-hint">
+            <span class="material-symbols-outlined">info</span>
+            Composez le code DTMF depuis le transceiver pour basculer automatiquement vers le salon correspondant.
+        </p>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private List<SalonAggregate> _salonsWithDtmf = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var salons = await Mediator.Send(new GetAllSalonsQuery());
+        _salonsWithDtmf = salons
+            .Where(s => s.DtmfCode.HasValue)
+            .OrderBy(s => s.DtmfCode)
+            .ToList();
+        _isLoading = false;
+    }
+}

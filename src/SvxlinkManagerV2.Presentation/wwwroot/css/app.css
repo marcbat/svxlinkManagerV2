@@ -608,6 +608,61 @@ a { color: inherit; text-decoration: none; }
 .wifi-password-body { display: flex; flex-direction: column; gap: 10px; }
 .wifi-password-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* ── Nav Separator ───────────────────────────────────────────── */
+.nav-item-separator {
+    margin: 6px 16px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── Help Page ───────────────────────────────────────────────── */
+.help-dtmf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.75rem;
+    font-size: 14px;
+}
+
+.help-dtmf-table thead tr {
+    border-bottom: 1px solid var(--border-card);
+}
+
+.help-dtmf-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.help-dtmf-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(42, 43, 74, 0.5);
+    vertical-align: middle;
+}
+
+.help-dtmf-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.help-dtmf-table tbody tr:hover {
+    background: rgba(108, 92, 231, 0.05);
+}
+
+.help-dtmf-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 1rem;
+}
+
+.help-dtmf-hint .material-symbols-outlined {
+    font-size: 16px;
+}
+
 /* ── Mobile Layout ──────────────────────────────────────────── */
 @media (max-width: 900px) {
     .sidebar {
