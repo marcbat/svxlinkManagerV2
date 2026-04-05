@@ -28,8 +28,6 @@ public record SvxLinkConfiguration(
     string EventHandler,
     string DefaultLang,
     int RgrSoundDelay,
-    // Références vers autres Aggregates
-    Guid? SoundId,
     // Configuration Radio (directement dans Salon, plus de RadioProfil)
     /// <summary>
     /// Fréquence de réception en MHz (format: 145.550). Plage valide: 30-3000 MHz.
