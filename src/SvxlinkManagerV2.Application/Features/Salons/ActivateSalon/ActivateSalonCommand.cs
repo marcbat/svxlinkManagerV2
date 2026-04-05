@@ -104,7 +104,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             return Error.Validation("SA818_CONFIGURE_ERROR", "Impossible de configurer le module SA818").ToFailure<Unit>();
 
         // Déploiement du fichier son (optionnel — résilience si son supprimé)
-        var soundId = aggregate.Configuration.SoundId;
+        var soundId = aggregate.SoundId;
         if (soundId.HasValue)
         {
             _logger.LogInformation("Déploiement du son {SoundId} pour le Salon {SalonName}", soundId.Value, aggregate.Name);
@@ -112,14 +112,6 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             await soundResult.Match(
                 Succ: async sound =>
                 {
-                    if (sound.IsDeleted)
-                    {
-                        _logger.LogWarning(
-                            "Le son {SoundId} est supprimé, activation continue sans annonce",
-                            soundId.Value);
-                        await _soundDeploymentService.CleanupAsync(cancellationToken);
-                        return;
-                    }
                     var deployResult = await _soundDeploymentService.DeployAsync(sound, cancellationToken);
                     deployResult.Match(
                         Succ: _ => unit,

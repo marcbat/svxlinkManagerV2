@@ -34,6 +34,12 @@ public class SvxlinkDbContext : DbContext
             entity.Property(e => e.IsTemporized);
             entity.Property(e => e.IsDeleted);
             entity.Property(e => e.DtmfCode);
+            entity.Property(e => e.SoundId);
+            entity.HasOne<SoundAggregate>()
+                .WithOne()
+                .HasForeignKey<SalonAggregate>(e => e.SoundId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.OwnsOne(e => e.Configuration, cfg => cfg.ToJson());
         });
 
@@ -58,7 +64,6 @@ public class SvxlinkDbContext : DbContext
             entity.Property(e => e.Channels);
             entity.Property(e => e.CreatedAt);
             entity.Property(e => e.UpdatedAt);
-            entity.Property(e => e.IsDeleted);
         });
 
         modelBuilder.Entity<ReflectorAggregate>(entity =>

@@ -6,7 +6,7 @@ using NSubstitute;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Interfaces;
-using SvxlinkManagerV2.Application.Tests.Features.Sounds;
+using SvxlinkManagerV2.Application.Tests.Features.Salons.Sound;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
@@ -125,7 +125,7 @@ public class ActivateSalonCommandTests
         var salonId = Guid.NewGuid();
         var soundId = Guid.NewGuid();
         var salon = CreateValidAggregate(salonId, soundId: soundId);
-        var sound = SoundTestHelpers.CreateValidAggregate(soundId, "annonce-test");
+        var sound = SalonSoundTestHelpers.CreateValidSoundAggregate(soundId, "annonce-test");
         var command = new ActivateSalonCommand(salonId);
         var sa818Config = CreateValidSA818Config();
         const string deployedPath = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/Name.wav";
@@ -380,15 +380,19 @@ public class ActivateSalonCommandTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            soundId,
             145.550m,
             145.550m,
             136.5m,
             136.5m);
         var result = SalonAggregate.Create(id, "Salon Test", false, false, config);
-        return result.Match(
+        var aggregate = result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));
+
+        if (soundId.HasValue)
+            aggregate.AssignSound(soundId.Value);
+
+        return aggregate;
     }
 
     private static SA818ConfigurationDto CreateValidSA818Config() => new()

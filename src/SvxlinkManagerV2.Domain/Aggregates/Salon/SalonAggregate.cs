@@ -46,6 +46,11 @@ public class SalonAggregate : AggregateRoot
     public int? DtmfCode { get; private set; }
 
     /// <summary>
+    /// Identifiant du son associé au salon (relation 1:1 optionnelle)
+    /// </summary>
+    public Guid? SoundId { get; private set; }
+
+    /// <summary>
     /// Pattern regex pour validation du format d'indicatif radioamateur
     /// Format: one à deux lettres + chiffre + lettres/chiffres + optionnel tiret et suffixe
     /// Exemples valides: F5ABC, F5ABC-L, W1AW, KB2XYZ-R
@@ -219,6 +224,41 @@ public class SalonAggregate : AggregateRoot
         return unit.ToSuccess();
     }
 
+    /// <summary>
+    /// Assigne un son au salon
+    /// </summary>
+    /// <param name="soundId">Identifiant du son à assigner</param>
+    /// <returns>Validation du résultat</returns>
+    public Validation<Error, Unit> AssignSound(Guid soundId)
+    {
+        if (IsDeleted)
+            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
+                .ToFailure<Unit>();
+
+        var @event = new SalonSoundAssigned(Id, soundId);
+        Apply(@event);
+        AddDomainEvent(@event);
+
+        return unit.ToSuccess();
+    }
+
+    /// <summary>
+    /// Retire le son associé au salon
+    /// </summary>
+    /// <returns>Validation du résultat</returns>
+    public Validation<Error, Unit> RemoveSound()
+    {
+        if (IsDeleted)
+            return Error.Validation("SALON_DELETED", "Le salon est supprimé")
+                .ToFailure<Unit>();
+
+        var @event = new SalonSoundRemoved(Id);
+        Apply(@event);
+        AddDomainEvent(@event);
+
+        return unit.ToSuccess();
+    }
+
     #region Event Sourcing - Apply Methods
 
     /// <summary>
@@ -268,6 +308,22 @@ public class SalonAggregate : AggregateRoot
     public void Apply(SalonDtmfCodeUpdated @event)
     {
         DtmfCode = @event.DtmfCode;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonSoundAssigned (Event Sourcing)
+    /// </summary>
+    public void Apply(SalonSoundAssigned @event)
+    {
+        SoundId = @event.SoundId;
+    }
+
+    /// <summary>
+    /// Applique l'événement SalonSoundRemoved (Event Sourcing)
+    /// </summary>
+    public void Apply(SalonSoundRemoved @event)
+    {
+        SoundId = null;
     }
 
     #endregion

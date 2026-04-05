@@ -32,7 +32,6 @@ public class SoundAggregateTests
             aggregate.Duration.Should().BeGreaterThan(TimeSpan.Zero);
             aggregate.SampleRate.Should().Be(16000);
             aggregate.Channels.Should().Be(1);
-            aggregate.IsDeleted.Should().BeFalse();
             aggregate.DomainEvents.Should().ContainSingle()
                 .Which.Should().BeOfType<SoundCreatedEvent>();
         });
@@ -225,23 +224,6 @@ public class SoundAggregateTests
     }
 
     [Fact]
-    public void Update_WithDeletedAggregate_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidSoundAggregate();
-        aggregate.Delete();
-
-        // Act
-        var result = aggregate.Update(name: "new_name");
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SOUND_DELETED");
-        });
-    }
-
-    [Fact]
     public void Update_WithEmptyName_ShouldFail()
     {
         // Arrange
@@ -275,45 +257,6 @@ public class SoundAggregateTests
 
     #endregion
 
-    #region Delete Tests
-
-    [Fact]
-    public void Delete_WithValidAggregate_ShouldSucceed()
-    {
-        // Arrange
-        var aggregate = CreateValidSoundAggregate();
-
-        // Act
-        var result = aggregate.Delete();
-
-        // Assert
-        result.ShouldBeSuccess(_ =>
-        {
-            aggregate.IsDeleted.Should().BeTrue();
-            aggregate.DomainEvents.Should().HaveCount(2);
-            aggregate.DomainEvents.Last().Should().BeOfType<SoundDeletedEvent>();
-        });
-    }
-
-    [Fact]
-    public void Delete_WithAlreadyDeletedAggregate_ShouldFail()
-    {
-        // Arrange
-        var aggregate = CreateValidSoundAggregate();
-        aggregate.Delete();
-
-        // Act
-        var result = aggregate.Delete();
-
-        // Assert
-        result.ShouldBeFail(errors =>
-        {
-            errors.Should().Contain(e => e.Code == "SOUND_ALREADY_DELETED");
-        });
-    }
-
-    #endregion
-
     #region Event Sourcing Tests
 
     [Fact]
@@ -339,7 +282,6 @@ public class SoundAggregateTests
         aggregate.Duration.Should().Be(@event.Duration);
         aggregate.SampleRate.Should().Be(@event.SampleRate);
         aggregate.Channels.Should().Be(@event.Channels);
-        aggregate.IsDeleted.Should().BeFalse();
         aggregate.CreatedAt.Should().Be(@event.OccurredOn);
         aggregate.UpdatedAt.Should().Be(@event.OccurredOn);
     }
@@ -380,20 +322,6 @@ public class SoundAggregateTests
         aggregate.Duration.Should().Be(TimeSpan.FromSeconds(2));
         aggregate.SampleRate.Should().Be(8000);
         aggregate.Channels.Should().Be(2);
-    }
-
-    [Fact]
-    public void Apply_SoundDeletedEvent_ShouldMarkAsDeleted()
-    {
-        // Arrange
-        var aggregate = CreateValidSoundAggregate();
-        var @event = new SoundDeletedEvent(aggregate.Id);
-
-        // Act
-        aggregate.Apply(@event);
-
-        // Assert
-        aggregate.IsDeleted.Should().BeTrue();
     }
 
     #endregion

@@ -48,11 +48,6 @@ public class SoundAggregate : AggregateRoot
     public DateTime UpdatedAt { get; private set; }
 
     /// <summary>
-    /// Indique si le sound est supprimé (soft delete)
-    /// </summary>
-    public bool IsDeleted { get; private set; }
-
-    /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
     /// </summary>
     public SoundAggregate()
@@ -114,10 +109,6 @@ public class SoundAggregate : AggregateRoot
         string? name = null,
         byte[]? fileContent = null)
     {
-        if (IsDeleted)
-            return Error.Validation("SOUND_DELETED", "Le sound est supprimé")
-                .ToFailure<Unit>();
-
         // Validation du nom si fourni
         var nameValidation = name != null
             ? ValidateName(name)
@@ -152,23 +143,6 @@ public class SoundAggregate : AggregateRoot
     }
 
     /// <summary>
-    /// Suppression logique du sound
-    /// </summary>
-    /// <returns>Validation du résultat</returns>
-    public Validation<Error, Unit> Delete()
-    {
-        if (IsDeleted)
-            return Error.Validation("SOUND_ALREADY_DELETED", "Le sound est déjà supprimé")
-                .ToFailure<Unit>();
-
-        var @event = new SoundDeletedEvent(Id);
-        Apply(@event);
-        AddDomainEvent(@event);
-
-        return unit.ToSuccess();
-    }
-
-    /// <summary>
     /// Applique l'événement SoundCreatedEvent (Event Sourcing)
     /// </summary>
     public void Apply(SoundCreatedEvent @event)
@@ -181,7 +155,6 @@ public class SoundAggregate : AggregateRoot
         Channels = @event.Channels;
         CreatedAt = @event.OccurredOn;
         UpdatedAt = @event.OccurredOn;
-        IsDeleted = false;
     }
 
     /// <summary>
@@ -201,14 +174,6 @@ public class SoundAggregate : AggregateRoot
         }
 
         UpdatedAt = @event.OccurredOn;
-    }
-
-    /// <summary>
-    /// Applique l'événement SoundDeletedEvent (Event Sourcing)
-    /// </summary>
-    public void Apply(SoundDeletedEvent @event)
-    {
-        IsDeleted = true;
     }
 
     /// <summary>

@@ -81,7 +81,6 @@ public class GetAllSalonsQueryTests
             "/usr/share/svxlink/events.tcl",
             "fr_FR",
             0,
-            null,
             145.550m, // RxFrequency
             145.550m, // TxFrequency
             136.5m,   // RxCtcss

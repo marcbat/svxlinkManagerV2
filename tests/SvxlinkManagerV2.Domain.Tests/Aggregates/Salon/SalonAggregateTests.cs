@@ -101,7 +101,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -144,7 +143,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -191,7 +189,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -236,7 +233,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -279,7 +275,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -325,7 +320,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -368,7 +362,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             0m, // RxFrequency invalide (hors plage 30-3000 MHz)
             config.TxFrequency,
             config.RxCtcss,
@@ -411,7 +404,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             4000m, // TxFrequency invalide (hors plage 30-3000 MHz)
             config.RxCtcss,
@@ -454,7 +446,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             300m, // RxCtcss invalide (hors plage 67.0-250.3 Hz)
@@ -497,7 +488,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -543,7 +533,6 @@ public class SalonAggregateTests
             config.EventHandler,
             config.DefaultLang,
             config.RgrSoundDelay,
-            config.SoundId,
             config.RxFrequency,
             config.TxFrequency,
             config.RxCtcss,
@@ -1047,6 +1036,101 @@ public class SalonAggregateTests
 
     #endregion
 
+    #region AssignSound Tests
+
+    [Fact]
+    public void AssignSound_WithValidAggregate_ShouldSucceed()
+    {
+        var aggregate = CreateValidAggregate();
+        var soundId = Guid.NewGuid();
+
+        var result = aggregate.AssignSound(soundId);
+
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.SoundId.Should().Be(soundId);
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonSoundAssigned>();
+        });
+    }
+
+    [Fact]
+    public void AssignSound_WithDeletedAggregate_ShouldFail()
+    {
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+        var soundId = Guid.NewGuid();
+
+        var result = aggregate.AssignSound(soundId);
+
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    #endregion
+
+    #region RemoveSound Tests
+
+    [Fact]
+    public void RemoveSound_WithValidAggregate_ShouldSucceed()
+    {
+        var aggregate = CreateValidAggregate();
+        aggregate.AssignSound(Guid.NewGuid());
+
+        var result = aggregate.RemoveSound();
+
+        result.ShouldBeSuccess(_ =>
+        {
+            aggregate.SoundId.Should().BeNull();
+            aggregate.DomainEvents.Last().Should().BeOfType<SalonSoundRemoved>();
+        });
+    }
+
+    [Fact]
+    public void RemoveSound_WithDeletedAggregate_ShouldFail()
+    {
+        var aggregate = CreateValidAggregate();
+        aggregate.Delete();
+
+        var result = aggregate.RemoveSound();
+
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_DELETED");
+        });
+    }
+
+    #endregion
+
+    #region Sound Event Sourcing Tests
+
+    [Fact]
+    public void Apply_SalonSoundAssigned_ShouldSetSoundId()
+    {
+        var aggregate = CreateValidAggregate();
+        var soundId = Guid.NewGuid();
+        var @event = new SalonSoundAssigned(aggregate.Id, soundId);
+
+        aggregate.Apply(@event);
+
+        aggregate.SoundId.Should().Be(soundId);
+    }
+
+    [Fact]
+    public void Apply_SalonSoundRemoved_ShouldClearSoundId()
+    {
+        var aggregate = CreateValidAggregate();
+        aggregate.AssignSound(Guid.NewGuid());
+        var @event = new SalonSoundRemoved(aggregate.Id);
+
+        aggregate.Apply(@event);
+
+        aggregate.SoundId.Should().BeNull();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static SvxLinkConfiguration CreateValidConfiguration()
@@ -1075,7 +1159,6 @@ public class SalonAggregateTests
             DefaultLang: "fr_FR",
             RgrSoundDelay: 0,
             // Références
-            SoundId: Guid.NewGuid(),
             // Configuration Radio (valeurs par défaut pour tests)
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,

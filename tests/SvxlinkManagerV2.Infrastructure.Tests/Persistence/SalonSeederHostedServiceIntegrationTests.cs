@@ -128,7 +128,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
 
         // Assert
         var salons = await _repository.GetAllAsync();
-        salons.Should().AllSatisfy(s => s.Configuration.SoundId.Should().BeNull());
+        salons.Should().AllSatisfy(s => s.SoundId.Should().BeNull());
     }
 
     [Fact]
@@ -160,7 +160,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
                 EventHandler: "/usr/share/svxlink/events.tcl",
                 DefaultLang: "fr_FR",
                 RgrSoundDelay: 0,
-                SoundId: null,
                 RxFrequency: 145.500m,
                 TxFrequency: 145.500m,
                 RxCtcss: null,

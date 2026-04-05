@@ -161,6 +161,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
             "F5ABC-L", "test-auth-key-123", "OPUS", 0,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "/usr/share/svxlink/events.tcl", "fr_FR", 0,
-            Guid.NewGuid(), 145.550m, 145.550m, 136.5m, 136.5m);
+            145.550m, 145.550m, 136.5m, 136.5m);
     }
 }

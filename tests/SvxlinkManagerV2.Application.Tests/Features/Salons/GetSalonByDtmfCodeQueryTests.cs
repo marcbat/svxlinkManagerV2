@@ -134,7 +134,6 @@ public class GetSalonByDtmfCodeQueryTests
         EventHandler: "/usr/share/svxlink/events.tcl",
         DefaultLang: "fr_FR",
         RgrSoundDelay: 0,
-        SoundId: Guid.NewGuid(),
         RxFrequency: 145.550m,
         TxFrequency: 145.550m,
         RxCtcss: 136.5m,
