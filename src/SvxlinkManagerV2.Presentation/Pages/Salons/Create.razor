@@ -85,7 +85,9 @@
                 <div class="drop-zone @(_isDragOver ? "drop-zone--over" : "")"
                      @ondragover:preventDefault
                      @ondragover="() => _isDragOver = true"
-                     @ondragleave="() => _isDragOver = false">
+                     @ondragleave="() => _isDragOver = false"
+                     @ondrop="() => _isDragOver = false"
+                     @ondrop:preventDefault>
                     <InputFile OnChange="OnSoundFileSelected" accept=".wav" class="drop-input" id="sound-file-input" />
                     <label for="sound-file-input" class="drop-label">
                         <span class="material-symbols-outlined drop-icon">audio_file</span>
@@ -652,14 +654,8 @@
                     var soundResult = await Mediator.Send(
                         new UploadSalonSoundCommand(createdSalonId.Value, _soundName.Trim(), ms.ToArray()));
 
-                    soundResult.Match(
-                        Succ: _ => Unit.Default,
-                        Fail: errors =>
-                        {
-                            _errors = errors.Select(e => e.Message).ToList();
-                            return Unit.Default;
-                        }
-                    );
+                    soundResult.IfFail(errors =>
+                        _errors = errors.Select(e => e.Message).ToList());
                 }
                 catch (Exception ex)
                 {
