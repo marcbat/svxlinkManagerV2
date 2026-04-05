@@ -191,6 +191,10 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
 
+        // DTMF_CTRL_PTY est requis pour que SVXLink crée le pseudo-terminal permettant
+        // à l'application d'injecter des commandes DTMF (ex: déclencher la lecture TTS via pico2wave)
+        iniData["SimplexLogic"]["DTMF_CTRL_PTY"] = DtmfPtyWriter.DefaultPtyPath;
+
         // REPORT_CTCSS est optionnel
         if (!string.IsNullOrEmpty(config.ReportCtcss))
         {
