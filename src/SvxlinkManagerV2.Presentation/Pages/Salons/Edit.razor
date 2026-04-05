@@ -203,9 +203,7 @@ else if (_salon is not null)
                             <div class="drop-zone @(_isDragOver ? "drop-zone--over" : "")"
                                  @ondragover:preventDefault
                                  @ondragover="() => _isDragOver = true"
-                                 @ondragleave="() => _isDragOver = false"
-                                 @ondrop="() => _isDragOver = false"
-                                 @ondrop:preventDefault>
+                                 @ondragleave="() => _isDragOver = false">
                                 <InputFile OnChange="OnSoundFileSelected" accept=".wav" class="drop-input" id="edit-sound-file" />
                                 <label for="edit-sound-file" class="drop-label">
                                     <span class="material-symbols-outlined drop-icon">audio_file</span>
