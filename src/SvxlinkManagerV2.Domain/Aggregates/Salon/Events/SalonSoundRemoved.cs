@@ -7,6 +7,9 @@ namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 /// </summary>
 public record SalonSoundRemoved : DomainEvent
 {
+    /// <summary>
+    /// Identifiant unique du Salon
+    /// </summary>
     public Guid Id { get; init; }
 
     public SalonSoundRemoved(Guid id)
