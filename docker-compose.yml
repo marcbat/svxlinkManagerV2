@@ -18,6 +18,7 @@ services:
       - ./svxlink-config:/etc/svxlink
       - ./logs:/app/logs
       - ./data:/app/data
+      - ./audio:/app/audio
       - svxlink-spool:/var/spool/svxlink
       - svxlink-logs:/var/log/svxlink
     depends_on:

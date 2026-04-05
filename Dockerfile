@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -qq -y \
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
 COPY deploy/linux/install-update.sh /app/install-update.sh
+COPY audio/ /app/audio/
 
 # Create logs directory for the application
 RUN mkdir -p /app/logs && chmod 0755 /app/install-update.sh
