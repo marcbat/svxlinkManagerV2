@@ -14,6 +14,7 @@ using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.Reflector;
 using SvxlinkManagerV2.Infrastructure.Runtime;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
+using SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
 using SvxlinkManagerV2.Presentation.Services;
 
 namespace SvxlinkManagerV2.Presentation
@@ -86,6 +87,11 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
             services.AddHostedService<DtmfAnnounceService>();
+
+            // TTS et providers d'information pour les commandes DTMF 301-398
+            services.AddSingleton<ITtsService, PicoTtsService>();
+            services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
+            services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();

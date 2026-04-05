@@ -33,6 +33,7 @@ proc startup {} {
 #
 # Info commands (300-399) — annonces vocales :
 #   300 : Rejoue le nom du salon actuellement actif (Name.wav)
+#   399 : Commande interne — joue /tmp/svxlink_tts.wav généré par .NET puis supprime le fichier
 #
 proc dtmf_cmd_received {cmd} {
     # --- Commandes d'annonce (plage 300-399) ---
@@ -41,6 +42,16 @@ proc dtmf_cmd_received {cmd} {
         if {[file exists $name_wav] == 1} {
             playMsg "svxlinkmanager" "Name"
         }
+    }
+
+    # --- Commande interne 399 : lecture du WAV TTS généré par .NET ---
+    if {$cmd eq "399"} {
+        set tts_wav "/tmp/svxlink_tts.wav"
+        if {[file exists $tts_wav] == 1} {
+            playFile $tts_wav
+            file delete $tts_wav
+        }
+        return 1
     }
 
     # Toujours émettre la commande vers .NET pour logging et extensibilité
