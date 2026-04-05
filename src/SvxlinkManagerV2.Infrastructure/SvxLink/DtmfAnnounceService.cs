@@ -143,7 +143,9 @@ public class DtmfAnnounceService : IHostedService
                 return;
             }
 
-            var infoText = infoResult.IfFail(string.Empty);
+            var infoText = infoResult.Match(
+                Succ: text => text,
+                Fail: _ => string.Empty);
 
             var ttsResult = await _ttsService.GenerateWavAsync(infoText, TtsWavPath);
             if (ttsResult.IsFail)

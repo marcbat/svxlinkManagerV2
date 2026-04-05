@@ -53,7 +53,8 @@ public class CpuTemperatureInfoProvider : IInfoProvider
             }
 
             var tempCelsius = rawTemp / 1000;
-            var infoText = $"La température du processeur est de {tempCelsius} degrés";
+            var degreeWord = tempCelsius <= 1 ? "degré" : "degrés";
+            var infoText = $"La température du processeur est de {tempCelsius} {degreeWord}";
 
             _logger.LogInformation("Température CPU : {Temp}°C", tempCelsius);
             return Validation<Error, string>.Success(infoText);

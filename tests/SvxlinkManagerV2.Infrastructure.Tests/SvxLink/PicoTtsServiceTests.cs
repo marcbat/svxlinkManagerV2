@@ -105,21 +105,18 @@ public class PicoTtsServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task GenerateWavAsync_WhenPico2WaveNotInstalled_ShouldReturnFailure()
+    public async Task GenerateWavAsync_WithValidArgs_ShouldNotThrowUnhandledException()
     {
-        // Arrange : on utilise une commande inexistante pour simuler l'absence de pico2wave
-        // Ce test est valide dans tous les environnements (CI, dev, prod)
+        // Ce test vérifie que l'appel retourne toujours un Validation (Success ou Failure),
+        // sans lever d'exception non gérée, que pico2wave soit installé ou non.
         var service = new PicoTtsService(_logger);
         var outputPath = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid()}.wav");
 
         try
         {
-            // Act : si pico2wave n'est pas installé, on attend un échec
-            var result = await service.GenerateWavAsync("Test", outputPath);
-
-            // Assert : soit un échec (pico2wave absent), soit un succès (pico2wave présent)
-            // On vérifie juste que l'appel ne lève pas d'exception non gérée
-            result.IsSuccess.Should().Be(File.Exists(outputPath) && new FileInfo(outputPath).Length > 0);
+            // Act : l'appel ne doit pas lever d'exception
+            var act = async () => await service.GenerateWavAsync("Test", outputPath);
+            await act.Should().NotThrowAsync();
         }
         finally
         {

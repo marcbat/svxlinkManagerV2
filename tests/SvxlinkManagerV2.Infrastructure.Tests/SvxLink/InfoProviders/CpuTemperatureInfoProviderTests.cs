@@ -66,8 +66,8 @@ public class CpuTemperatureInfoProviderTests
     [Theory]
     [InlineData("45000", "La température du processeur est de 45 degrés")]
     [InlineData("42500", "La température du processeur est de 42 degrés")]
-    [InlineData("0", "La température du processeur est de 0 degrés")]
-    [InlineData("1000", "La température du processeur est de 1 degrés")]
+    [InlineData("0", "La température du processeur est de 0 degré")]
+    [InlineData("1000", "La température du processeur est de 1 degré")]
     [InlineData("75000\n", "La température du processeur est de 75 degrés")]
     public async Task GetInfoTextAsync_WithValidThermalFile_ShouldReturnCorrectText(
         string rawContent,
