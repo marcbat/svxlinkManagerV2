@@ -6,6 +6,10 @@ SERVICE_NAME="svxlinkmanagerv2"
 
 mkdir -p "$APP_DIR/data"
 
+# Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
+# Le seed automatique au démarrage recrée les données par défaut.
+rm -f "$APP_DIR/data/svxlinkmanager.db"
+
 # dpkg s'exécute avec un PATH restreint — chercher dotnet dans les emplacements connus
 DOTNET_BIN=""
 for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/dotnet; do
