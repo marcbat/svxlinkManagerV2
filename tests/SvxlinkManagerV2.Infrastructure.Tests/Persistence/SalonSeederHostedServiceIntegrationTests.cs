@@ -170,7 +170,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate8SalonsOnFirstCallOnly()
+    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate6SalonsOnFirstCallOnly()
     {
         // Arrange
         var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);

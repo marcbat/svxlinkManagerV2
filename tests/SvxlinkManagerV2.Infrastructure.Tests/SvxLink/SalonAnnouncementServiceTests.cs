@@ -6,6 +6,7 @@ using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using static LanguageExt.Prelude;
+using LangExtError = LanguageExt.Common.Error;
 
 namespace SvxlinkManagerV2.Infrastructure.Tests.SvxLink;
 
@@ -77,8 +78,8 @@ public class SalonAnnouncementServiceTests : IDisposable
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
         _ttsService.GenerateWavAsync(salonName, expectedPath, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(
-                Validation<global::LanguageExt.Common.Error, string>.Fail(
-                    Seq1(global::LanguageExt.Common.Error.New("pico2wave a échoué")))));
+                Validation<LangExtError, string>.Fail(
+                    Seq1(LangExtError.New("pico2wave a échoué")))));
 
         // Act
         var result = await _service.GenerateAsync(salonName);
