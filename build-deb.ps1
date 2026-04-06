@@ -61,9 +61,6 @@ if (-not (Test-Path (Join-Path $publishDir "SvxlinkManagerV2.Presentation.dll"))
 Write-Step "Assemblage du paquet Debian"
 Copy-Item (Join-Path $publishDir "*") $appRoot -Recurse -Force
 
-# Copie des fichiers audio par défaut pour le seeding initial
-Copy-Item (Join-Path $repoRoot "audio") (Join-Path $appRoot "audio") -Recurse -Force
-
 $devConfigPath = Join-Path $appRoot "appsettings.Development.json"
 if (Test-Path $devConfigPath) {
     Remove-Item $devConfigPath -Force
