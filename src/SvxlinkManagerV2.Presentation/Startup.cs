@@ -45,7 +45,6 @@ namespace SvxlinkManagerV2.Presentation
             // Enregistrement des repositories
             services.AddScoped<ISA818Repository, SA818Repository>();
             services.AddScoped<ISalonRepository, SalonRepository>();
-            services.AddScoped<ISoundRepository, SoundRepository>();
             services.AddScoped<IGeneralConfigurationRepository, GeneralConfigurationRepository>();
             services.AddScoped<IReflectorRepository, ReflectorRepository>();
 
@@ -82,7 +81,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
-            services.AddScoped<ISoundFileDeploymentService, SoundFileDeploymentService>();
+            services.AddScoped<ISalonAnnouncementService, SalonAnnouncementService>();
             services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
@@ -103,7 +102,6 @@ namespace SvxlinkManagerV2.Presentation
 
             // UI Services
             services.AddSingleton<ToastService>();
-            services.AddScoped<AudioService>();
 
             services.AddRazorPages();
             services.AddServerSideBlazor();

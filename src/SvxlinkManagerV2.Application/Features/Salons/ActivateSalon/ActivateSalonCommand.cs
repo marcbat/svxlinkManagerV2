@@ -18,7 +18,7 @@ public record ActivateSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande ActivateSalonCommand.
-/// Orchestre la configuration SA818, le déploiement du son, la génération svxlink.conf et le redémarrage du daemon.
+/// Orchestre la configuration SA818, la génération TTS de l'annonce, la génération svxlink.conf et le redémarrage du daemon.
 /// </summary>
 public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand, Validation<Error, Unit>>
 {
@@ -31,8 +31,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
     private readonly ISvxLinkConfigurationService _configurationService;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
-    private readonly ISoundRepository _soundRepository;
-    private readonly ISoundFileDeploymentService _soundDeploymentService;
+    private readonly ISalonAnnouncementService _announcementService;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandHandler(
@@ -43,8 +42,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         ISvxLinkConfigurationService configurationService,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
-        ISoundRepository soundRepository,
-        ISoundFileDeploymentService soundDeploymentService,
+        ISalonAnnouncementService announcementService,
         ILogger<ActivateSalonCommandHandler> logger)
     {
         _repository = repository;
@@ -54,8 +52,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         _configurationService = configurationService;
         _daemonService = daemonService;
         _connectedNodesService = connectedNodesService;
-        _soundRepository = soundRepository;
-        _soundDeploymentService = soundDeploymentService;
+        _announcementService = announcementService;
         _logger = logger;
     }
 
@@ -103,39 +100,18 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         if (sa818Result.IsFail)
             return Error.Validation("SA818_CONFIGURE_ERROR", "Impossible de configurer le module SA818").ToFailure<Unit>();
 
-        // Déploiement du fichier son (optionnel — résilience si son supprimé)
-        var soundId = aggregate.SoundId;
-        if (soundId.HasValue)
-        {
-            _logger.LogInformation("Déploiement du son {SoundId} pour le Salon {SalonName}", soundId.Value, aggregate.Name);
-            var soundResult = await _soundRepository.GetByIdAsync(soundId.Value, cancellationToken);
-            await soundResult.Match(
-                Succ: async sound =>
-                {
-                    var deployResult = await _soundDeploymentService.DeployAsync(sound, cancellationToken);
-                    deployResult.Match(
-                        Succ: _ => unit,
-                        Fail: errors =>
-                        {
-                            _logger.LogWarning(
-                                "Échec du déploiement du son {SoundId}, activation continue sans annonce: {Errors}",
-                                soundId.Value, errors);
-                            return unit;
-                        });
-                },
-                Fail: _ =>
-                {
-                    _logger.LogWarning(
-                        "Son {SoundId} introuvable, activation continue sans annonce",
-                        soundId.Value);
-                    return Task.CompletedTask;
-                });
-        }
-        else
-        {
-            // Pas de son configuré — nettoyer un éventuel fichier résiduel
-            await _soundDeploymentService.CleanupAsync(cancellationToken);
-        }
+        // Génération de l'annonce TTS (résilience — échec TTS = log warning, activation continue)
+        _logger.LogInformation("Génération de l'annonce TTS pour le Salon {SalonName}", aggregate.Name);
+        var announcementResult = await _announcementService.GenerateAsync(aggregate.Name, cancellationToken);
+        announcementResult.Match(
+            Succ: _ => unit,
+            Fail: errors =>
+            {
+                _logger.LogWarning(
+                    "Échec de la génération TTS, activation continue sans annonce: {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message)));
+                return unit;
+            });
 
         _logger.LogInformation("Génération du fichier {Path}", SvxLinkConfPath);
         var configResult = await _configurationService.GenerateAsync(aggregate, SvxLinkConfPath, cancellationToken);

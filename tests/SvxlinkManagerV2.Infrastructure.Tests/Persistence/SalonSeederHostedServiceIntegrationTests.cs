@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,11 +21,9 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     private readonly PostgresContainerFixture _fixture;
     private SvxlinkDbContext _context = null!;
     private ISalonRepository _repository = null!;
-    private ISoundRepository _soundRepository = null!;
     private ILogger<SalonSeederHostedService> _logger = null!;
     private IServiceScopeFactory _scopeFactory = null!;
     private IHostEnvironment _environment = null!;
-    private IConfiguration _configuration = null!;
 
     public SalonSeederHostedServiceIntegrationTests(PostgresContainerFixture fixture)
     {
@@ -37,12 +34,10 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     {
         _context = _fixture.CreateDbContext();
         _repository = new SalonRepository(_context);
-        _soundRepository = new SoundRepository(_context);
         _logger = Substitute.For<ILogger<SalonSeederHostedService>>();
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(ISalonRepository)).Returns(_repository);
-        serviceProvider.GetService(typeof(ISoundRepository)).Returns(_soundRepository);
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
@@ -52,10 +47,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
 
         _environment = Substitute.For<IHostEnvironment>();
         _environment.EnvironmentName.Returns(Environments.Development);
-
-        // Par défaut : répertoire audio inexistant → les sons ne sont pas seedés
-        _configuration = Substitute.For<IConfiguration>();
-        _configuration["Seed:AudioDirectory"].Returns("/nonexistent/audio-path");
 
         return Task.CompletedTask;
     }
@@ -70,7 +61,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreate8Salons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -84,7 +75,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreateSalonsWithFixedGuids()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
         var expectedGuids = new[]
         {
             new Guid("235a4521-15a1-4e02-a540-91ee600452ac"),
@@ -107,7 +98,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsDefaultFalse()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -121,7 +112,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsTemporizedFalse()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -129,20 +120,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Assert
         var salons = await _repository.GetAllAsync();
         salons.Should().AllSatisfy(s => s.IsTemporized.Should().BeFalse());
-    }
-
-    [Fact]
-    public async Task StartAsync_WhenAudioDirectoryDoesNotExist_AllSalonsShouldHaveNullSoundId()
-    {
-        // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
-
-        // Act
-        await service.StartAsync(CancellationToken.None);
-
-        // Assert
-        var salons = await _repository.GetAllAsync();
-        salons.Should().AllSatisfy(s => s.SoundId.Should().BeNull());
     }
 
     [Fact]
@@ -181,7 +158,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création salon initial"));
 
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act - Exécuter le seeder alors qu'un salon existe déjà
         await service.StartAsync(CancellationToken.None);
@@ -193,10 +170,10 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate8SalonsOnFirstCallOnly()
+    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate6SalonsOnFirstCallOnly()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act - Premier démarrage
         await service.StartAsync(CancellationToken.None);
@@ -213,7 +190,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldContainRRFSalon()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -232,7 +209,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldNotContainObsoleteSalons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -247,7 +224,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveDtmfCodeAssigned()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -286,7 +263,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var service = new SalonSeederHostedService(scopeFactory, _logger, _environment, _configuration);
+        var service = new SalonSeederHostedService(scopeFactory, _logger, _environment);
 
         // Act — ne doit pas lever d'exception (le catch interne absorbe)
         var act = async () => await service.StartAsync(CancellationToken.None);
@@ -339,7 +316,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création salon initial"));
 
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, productionEnvironment, _configuration);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, productionEnvironment);
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -349,65 +326,5 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         salons.Should().HaveCount(1);
         salons[0].Name.Should().Be("Mon Salon Personnalisé");
         salons[0].IsDefault.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task StartAsync_WhenAudioFilesAvailable_AllSalonsShouldHaveSoundAssigned()
-    {
-        // Arrange
-        var audioDir = FindAudioDirectory();
-        Assert.True(Directory.Exists(audioDir), $"Le dossier audio/ doit être présent dans le dépôt. Chemin attendu : {audioDir}");
-
-        var audioConfiguration = Substitute.For<IConfiguration>();
-        audioConfiguration["Seed:AudioDirectory"].Returns(audioDir);
-
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, audioConfiguration);
-
-        // Act
-        await service.StartAsync(CancellationToken.None);
-
-        // Assert — chaque salon a un son assigné
-        var salons = await _repository.GetAllAsync();
-        salons.Should().AllSatisfy(s => s.SoundId.Should().NotBeNull());
-    }
-
-    [Fact]
-    public async Task StartAsync_WhenAudioFilesAvailable_SoundsShouldHaveFixedGuids()
-    {
-        // Arrange
-        var audioDir = FindAudioDirectory();
-        Assert.True(Directory.Exists(audioDir), $"Le dossier audio/ doit être présent dans le dépôt. Chemin attendu : {audioDir}");
-
-        var audioConfiguration = Substitute.For<IConfiguration>();
-        audioConfiguration["Seed:AudioDirectory"].Returns(audioDir);
-
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, audioConfiguration);
-
-        // Act
-        await service.StartAsync(CancellationToken.None);
-
-        // Assert — les GUIDs des sons correspondent aux GUIDs fixes attendus
-        var salons = await _repository.GetAllAsync();
-        var bySalon = salons.ToDictionary(s => s.Name);
-
-        bySalon["Réseau des Répéteurs Francophones"].SoundId.Should().Be(new Guid("235a4521-0000-0000-0000-000000000001"));
-        bySalon["Salon Suisse Romand"].SoundId.Should().Be(new Guid("1f2e87b8-0000-0000-0000-000000000001"));
-        bySalon["French Open Network"].SoundId.Should().Be(new Guid("0f669a03-0000-0000-0000-000000000001"));
-        bySalon["Salon Technique"].SoundId.Should().Be(new Guid("a749ffe5-0000-0000-0000-000000000001"));
-        bySalon["Salon Bavardage"].SoundId.Should().Be(new Guid("d4c59d86-0000-0000-0000-000000000001"));
-        bySalon["Salon Local"].SoundId.Should().Be(new Guid("9f99b18b-0000-0000-0000-000000000001"));
-    }
-
-    private static string FindAudioDirectory()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            var audioPath = Path.Combine(dir.FullName, "audio");
-            if (Directory.Exists(audioPath))
-                return audioPath;
-            dir = dir.Parent;
-        }
-        return string.Empty;
     }
 }
