@@ -123,11 +123,11 @@ public class DtmfAnnounceServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Commande 300 — Annonce salon actif
+    // Commande 300 — Annonce contextuelle du salon actif
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task Command300_WithActiveSalon_ShouldQueryActiveSalonAndLog()
+    public async Task Command300_WithActiveSalon_ShouldGenerateTtsAndSendToPty()
     {
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
@@ -136,6 +136,32 @@ public class DtmfAnnounceServiceTests
 
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
                  .Returns(Task.FromResult<SalonAggregate?>(salon));
+        _ttsService.GenerateWavAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                   .Returns(Validation<Error, string>.Success(DtmfAnnounceService.TtsWavPath));
+        _ptyWriter.SendCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                  .Returns(Validation<Error, LanguageExt.Unit>.Success(LanguageExt.Unit.Default));
+
+        var service = CreateService();
+        await service.StartAsync(CancellationToken.None);
+
+        _capturedHandler!.Invoke("300");
+        await Task.Delay(100);
+
+        await _mediator.Received(1).Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>());
+        await _ttsService.Received(1).GenerateWavAsync(
+            Arg.Is<string>(t => t.Contains("F5ABC") && t.Contains("Salon National France")),
+            DtmfAnnounceService.TtsWavPath,
+            Arg.Any<CancellationToken>());
+        await _ptyWriter.Received(1).SendCommandAsync(
+            DtmfAnnounceService.TtsInternalCode.ToString(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Command300_WithNoActiveSalon_ShouldNotCallTts()
+    {
+        _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.FromResult<SalonAggregate?>(null));
 
         var service = CreateService();
         await service.StartAsync(CancellationToken.None);
@@ -144,25 +170,30 @@ public class DtmfAnnounceServiceTests
         await Task.Delay(50);
 
         await _mediator.Received(1).Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>());
+        await _ttsService.DidNotReceive().GenerateWavAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _ptyWriter.DidNotReceive().SendCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Command300_WithNoActiveSalon_ShouldNotThrow()
+    public async Task Command300_WhenTtsFails_ShouldNotSendToPty()
     {
+        var salonId = Guid.NewGuid();
+        var config = CreateValidConfiguration();
+        var salon = SalonAggregate.Create(salonId, "Salon Test", false, false, config)
+            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
+
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
-                 .Returns(Task.FromResult<SalonAggregate?>(null));
+                 .Returns(Task.FromResult<SalonAggregate?>(salon));
+        _ttsService.GenerateWavAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                   .Returns(Validation<Error, string>.Fail(Seq1(Error.New("pico2wave introuvable"))));
 
         var service = CreateService();
         await service.StartAsync(CancellationToken.None);
 
-        var act = async () =>
-        {
-            _capturedHandler!.Invoke("300");
-            await Task.Delay(50);
-        };
+        _capturedHandler!.Invoke("300");
+        await Task.Delay(100);
 
-        await act.Should().NotThrowAsync();
-        await _mediator.Received(1).Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>());
+        await _ptyWriter.DidNotReceive().SendCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     // -------------------------------------------------------------------------
@@ -312,6 +343,58 @@ public class DtmfAnnounceServiceTests
         DtmfAnnounceService.RangeMax.Should().Be(399);
         DtmfAnnounceService.TtsInternalCode.Should().Be(399);
         DtmfAnnounceService.TtsWavPath.Should().Be("/tmp/svxlink_tts.wav");
+    }
+
+    // -------------------------------------------------------------------------
+    // BuildAnnounceText — construction du texte TTS DTMF 300
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void BuildAnnounceText_SimplexMode_ShouldNotIncludeFrequency()
+    {
+        // RxFrequency == TxFrequency → pas d'annonce de fréquence
+        var config = CreateValidConfiguration(); // 145.550 / 145.550
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Test", false, false, config)
+            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
+
+        var text = DtmfAnnounceService.BuildAnnounceText(salon);
+
+        text.Should().Be("Vous êtes sur le link F5ABC actuellement connecté sur Salon Test.");
+        text.Should().NotContain("fréquence");
+    }
+
+    [Fact]
+    public void BuildAnnounceText_SplitMode_ShouldIncludeTxFrequency()
+    {
+        // RxFrequency != TxFrequency → annonce de la fréquence TX
+        var config = new SvxLinkConfiguration(
+            Guid.NewGuid(),
+            "SimplexLogic,ReflectorLogic", "svxlink.d", 16000, 1,
+            "ref.f5kri.fr", 5300, "F5ABC-L", "test-auth-key-123", 0,
+            "F4XYZ", "ModuleHelp", 60, 60,
+            null, "fr_FR", 0,
+            145.600m, 145.000m, null, null);
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Split", false, false, config)
+            .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
+
+        var text = DtmfAnnounceService.BuildAnnounceText(salon);
+
+        text.Should().Be("Vous êtes sur le link F4XYZ actuellement connecté sur Salon Split. La fréquence d'émission est 145 virgule 000 mégahertz.");
+    }
+
+    // -------------------------------------------------------------------------
+    // FormatFrequency — formatage des fréquences pour TTS fr-FR
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(145.550, "145 virgule 550 mégahertz")]
+    [InlineData(145.000, "145 virgule 000 mégahertz")]
+    [InlineData(438.675, "438 virgule 675 mégahertz")]
+    [InlineData(430.100, "430 virgule 100 mégahertz")]
+    public void FormatFrequency_ShouldFormatCorrectly(double frequency, string expected)
+    {
+        var result = DtmfAnnounceService.FormatFrequency((decimal)frequency);
+        result.Should().Be(expected);
     }
 
     // -------------------------------------------------------------------------

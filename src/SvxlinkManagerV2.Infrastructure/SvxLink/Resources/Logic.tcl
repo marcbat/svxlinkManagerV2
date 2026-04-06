@@ -37,14 +37,6 @@ proc startup {} {
 #   399 : Commande interne — joue /tmp/svxlink_tts.wav généré par .NET (pas de suppression, écrasé au prochain appel)
 #
 proc dtmf_cmd_received {cmd} {
-    # --- Commandes d'annonce (plage 300-399) ---
-    if {$cmd eq "300"} {
-        set name_wav "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/Name.wav"
-        if {[file exists $name_wav] == 1} {
-            playMsg "svxlinkmanager" "Name"
-        }
-    }
-
     # --- Commande interne 399 : lecture du WAV TTS généré par .NET ---
     # Note: pas de file delete ici — playFile est asynchrone (queue audio) et le fichier
     # serait supprimé avant que SVXLink ait pu le lire. Le fichier sera écrasé au prochain appel TTS.

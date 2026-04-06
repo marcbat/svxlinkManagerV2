@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
@@ -13,7 +14,7 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// la synthèse vocale TTS pour les commandes d'information (301-398).
 ///
 /// Commandes supportées :
-///   300 — Rejoue le nom du salon actif (Name.wav, déployé par ActivateSalonCommand)
+///   300 — Annonce contextuelle du salon actif (TTS dynamique : callsign, nom, fréquence TX si split)
 ///   301–398 — Annonces vocales synthétisées via IInfoProvider + ITtsService + IDtmfPtyWriter
 ///   399 — Commande interne SVXLink (trigger lecture WAV TTS), jamais traitée ici
 /// </summary>
@@ -118,7 +119,45 @@ public class DtmfAnnounceService : IHostedService
             return;
         }
 
-        _logger.LogInformation("Commande DTMF 300 : annonce du salon actif « {SalonName} »", salon.Name);
+        _logger.LogInformation("Commande DTMF 300 : annonce contextuelle du salon actif « {SalonName} »", salon.Name);
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            var text = BuildAnnounceText(salon);
+            var ttsResult = await _ttsService.GenerateWavAsync(text, TtsWavPath);
+            if (ttsResult.IsFail)
+            {
+                _logger.LogWarning("Échec de la synthèse TTS pour la commande DTMF 300");
+                return;
+            }
+
+            var ptyResult = await _ptyWriter.SendCommandAsync(TtsInternalCode.ToString());
+            if (ptyResult.IsFail)
+                _logger.LogWarning("Échec de l'envoi de la commande PTY pour la commande DTMF 300");
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    internal static string BuildAnnounceText(SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+        var text = $"Vous êtes sur le link {config.SimplexCallsign} actuellement connecté sur {salon.Name}.";
+
+        if (config.RxFrequency != config.TxFrequency)
+            text += $" La fréquence d'émission est {FormatFrequency(config.TxFrequency)}.";
+
+        return text;
+    }
+
+    internal static string FormatFrequency(decimal frequency)
+    {
+        var intPart = (int)frequency;
+        var decPart = (int)Math.Round((frequency - intPart) * 1000);
+        return $"{intPart} virgule {decPart:D3} mégahertz";
     }
 
     private async Task HandleInfoCommandAsync(int dtmfCode)
