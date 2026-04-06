@@ -40,7 +40,7 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
-        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
+        var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
         _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(expectedPath);
@@ -58,7 +58,7 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
-        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
+        var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
         _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(expectedPath);
@@ -77,7 +77,7 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
-        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
+        var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
         _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(
