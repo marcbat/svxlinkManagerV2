@@ -17,16 +17,13 @@ public record DeleteSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
 public class DeleteSalonCommandHandler : IRequestHandler<DeleteSalonCommand, Validation<Error, Unit>>
 {
     private readonly ISalonRepository _repository;
-    private readonly ISoundRepository _soundRepository;
     private readonly IActiveSessionTracker _tracker;
 
     public DeleteSalonCommandHandler(
         ISalonRepository repository,
-        ISoundRepository soundRepository,
         IActiveSessionTracker tracker)
     {
         _repository = repository;
-        _soundRepository = soundRepository;
         _tracker = tracker;
     }
 
@@ -46,14 +43,6 @@ public class DeleteSalonCommandHandler : IRequestHandler<DeleteSalonCommand, Val
         var aggregate = aggregateResult.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException());
-
-        // Hard delete du son associé si existant
-        if (aggregate.SoundId.HasValue)
-        {
-            var soundDeleteResult = await _soundRepository.HardDeleteAsync(aggregate.SoundId.Value, cancellationToken);
-            if (soundDeleteResult.IsFail)
-                return soundDeleteResult;
-        }
 
         var deleteResult = aggregate.Delete();
         if (deleteResult.IsFail)

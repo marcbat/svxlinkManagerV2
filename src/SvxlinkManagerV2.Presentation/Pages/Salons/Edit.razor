@@ -2,7 +2,6 @@
 @using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
-@using SvxlinkManagerV2.Application.Features.Salons.Sound
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
@@ -143,111 +142,6 @@ else if (_salon is not null)
                             </select>
                         </div>
                     </div>
-                </div>
-
-                <!-- Son d'annonce -->
-                <div class="card">
-                    <div class="section-header">
-                        <span class="material-symbols-outlined">volume_up</span>
-                        Son d'annonce
-                    </div>
-
-                    <div class="format-hint">
-                        <span class="material-symbols-outlined">info</span>
-                        Format requis&nbsp;: <strong>WAV · 16 000 Hz · Mono · 16 bits PCM</strong>
-                    </div>
-
-                    @if (_soundSummary != null)
-                    {
-                        <div class="sound-info">
-                            <div class="form-group">
-                                <label class="form-label">Nom</label>
-                                <span class="form-value">@_soundSummary.Name</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Durée</label>
-                                <span class="form-value">@FormatDuration(_soundSummary.Duration)</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Fréquence</label>
-                                <span class="form-value">@_soundSummary.SampleRate Hz</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Canaux</label>
-                                <span class="form-value">@(_soundSummary.Channels == 1 ? "Mono" : "Stéréo")</span>
-                            </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label class="form-label">Date de création</label>
-                                <span class="form-value">@_soundSummary.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
-                            </div>
-                        </div>
-                        @if (!_salonIsActive)
-                        {
-                            <div style="display:flex;gap:8px;margin-top:12px">
-                                <label class="btn btn-secondary" style="margin:0">
-                                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">swap_horiz</span>
-                                    Remplacer
-                                    <InputFile OnChange="HandleSoundReplace" accept=".wav" style="display:none" />
-                                </label>
-                                <button type="button" class="btn btn-danger" @onclick="HandleSoundDelete">
-                                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">delete</span>
-                                    Supprimer
-                                </button>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        @if (!_salonIsActive)
-                        {
-                            <div class="drop-zone @(_isDragOver ? "drop-zone--over" : "")"
-                                 @ondragover:preventDefault
-                                 @ondragover="() => _isDragOver = true"
-                                 @ondragleave="() => _isDragOver = false">
-                                <InputFile OnChange="OnSoundFileSelected" accept=".wav" class="drop-input" id="edit-sound-file" />
-                                <label for="edit-sound-file" class="drop-label">
-                                    <span class="material-symbols-outlined drop-icon">audio_file</span>
-                                    @if (_soundFile is null)
-                                    {
-                                        <span class="drop-text">Glissez un fichier <strong>.wav</strong> ici ou cliquez pour parcourir</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="drop-text drop-text--selected">
-                                            <span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span>
-                                            @_soundFileName
-                                        </span>
-                                    }
-                                </label>
-                            </div>
-
-                            @if (_soundFile is not null)
-                            {
-                                <div class="form-group" style="margin-top:14px;margin-bottom:0">
-                                    <label class="form-label">Nom du son</label>
-                                    <input class="form-control" @bind="_soundName" @bind:event="oninput"
-                                           placeholder="ex: annonce-salon" maxlength="100" />
-                                    @if (string.IsNullOrWhiteSpace(_soundName))
-                                    {
-                                        <span class="field-error">Le nom est obligatoire pour le son.</span>
-                                    }
-                                </div>
-
-                                <div style="margin-top:12px;display:flex;justify-content:flex-end">
-                                    <button type="button" class="btn btn-primary"
-                                            disabled="@(string.IsNullOrWhiteSpace(_soundName))"
-                                            @onclick="HandleUploadSelectedFile">
-                                        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">upload</span>
-                                        Enregistrer le son
-                                    </button>
-                                </div>
-                            }
-                        }
-                        else
-                        {
-                            <p style="color:var(--text-muted);margin:0">Aucun son configuré</p>
-                        }
-                    }
                 </div>
 
                 <!-- Code DTMF -->
@@ -584,63 +478,6 @@ else if (_salon is not null)
 
     .sound-info .form-group { margin-bottom: 6px; }
     .sound-info .form-value { color: var(--text-secondary, #555); }
-
-    /* ── Son d'annonce — drag-and-drop ──────────────────────── */
-    .format-hint {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        color: var(--text-muted);
-        background: rgba(108,92,231,0.06);
-        border: 1px solid rgba(108,92,231,0.18);
-        border-radius: var(--radius-sm);
-        padding: 8px 12px;
-        margin-bottom: 12px;
-    }
-    .format-hint .material-symbols-outlined { font-size: 15px; color: var(--accent); }
-    .format-hint strong { color: var(--text); }
-
-    .drop-zone {
-        position: relative;
-        border: 2px dashed var(--border-card);
-        border-radius: var(--radius-sm);
-        padding: 28px 20px;
-        text-align: center;
-        transition: border-color 0.15s, background 0.15s;
-        cursor: pointer;
-    }
-    .drop-zone--over, .drop-zone:hover {
-        border-color: var(--accent);
-        background: rgba(108,92,231,0.06);
-    }
-    .drop-input {
-        position: absolute;
-        inset: 0;
-        opacity: 0;
-        width: 100%;
-        height: 100%;
-        cursor: pointer;
-        z-index: 2;
-    }
-    .drop-label {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        pointer-events: none;
-    }
-    .drop-icon { font-size: 40px; color: var(--text-muted); }
-    .drop-text { font-size: 14px; color: var(--text-muted); }
-    .drop-text strong { color: var(--accent); }
-    .drop-text--selected {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        color: var(--success);
-        font-weight: 500;
-    }
 </style>
 
 @code {
@@ -648,11 +485,6 @@ else if (_salon is not null)
 
     private SalonAggregate? _salon;
     private bool _salonIsActive;
-    private SoundSummaryDto? _soundSummary;
-    private string _soundName = "";
-    private IBrowserFile? _soundFile;
-    private string _soundFileName = "";
-    private bool _isDragOver;
     private Dictionary<decimal, string> _ctcssOptions = [];
     private readonly EditModel _model = new();
     private bool _isLoading = true;
@@ -681,11 +513,6 @@ else if (_salon is not null)
                 return Unit.Default;
             }
         );
-
-        if (_salon?.SoundId != null)
-        {
-            _soundSummary = await Mediator.Send(new GetSalonSoundQuery(_salon.Id));
-        }
 
         _isLoading = false;
     }
@@ -806,113 +633,6 @@ else if (_salon is not null)
         return decimal.TryParse(value, System.Globalization.NumberStyles.Number,
                                 System.Globalization.CultureInfo.InvariantCulture, out var d)
                ? d : null;
-    }
-
-    private void OnSoundFileSelected(InputFileChangeEventArgs e)
-    {
-        _soundFile = e.File;
-        _soundFileName = e.File.Name;
-        if (string.IsNullOrWhiteSpace(_soundName))
-            _soundName = Path.GetFileNameWithoutExtension(e.File.Name);
-        _isDragOver = false;
-    }
-
-    private async Task HandleUploadSelectedFile()
-    {
-        if (_soundFile is null || string.IsNullOrWhiteSpace(_soundName)) return;
-
-        try
-        {
-            using var ms = new MemoryStream();
-            await _soundFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
-
-            var result = await Mediator.Send(new UploadSalonSoundCommand(Id, _soundName.Trim(), ms.ToArray()));
-            result.Match(
-                Succ: _ =>
-                {
-                    ToastService.ShowSuccess("Son ajouté avec succès.");
-                    return Unit.Default;
-                },
-                Fail: errors =>
-                {
-                    _errors = errors.Select(e => e.Message).ToList();
-                    return Unit.Default;
-                });
-
-            if (!_errors.Any())
-            {
-                _soundSummary = await Mediator.Send(new GetSalonSoundQuery(Id));
-                _soundFile = null;
-                _soundFileName = "";
-                _soundName = "";
-            }
-        }
-        catch (Exception ex)
-        {
-            _errors = [$"Erreur lors de l'upload : {ex.Message}"];
-        }
-    }
-
-    private async Task HandleSoundReplace(InputFileChangeEventArgs e)
-    {
-        try
-        {
-            var file = e.File;
-            var name = Path.GetFileNameWithoutExtension(file.Name);
-            using var ms = new MemoryStream();
-            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
-
-            var result = await Mediator.Send(new ReplaceSalonSoundCommand(Id, name, ms.ToArray()));
-            result.Match(
-                Succ: _ =>
-                {
-                    ToastService.ShowSuccess("Son remplacé avec succès.");
-                    return Unit.Default;
-                },
-                Fail: errors =>
-                {
-                    _errors = errors.Select(e => e.Message).ToList();
-                    return Unit.Default;
-                });
-
-            if (!_errors.Any())
-                _soundSummary = await Mediator.Send(new GetSalonSoundQuery(Id));
-        }
-        catch (Exception ex)
-        {
-            _errors = [$"Erreur lors du remplacement : {ex.Message}"];
-        }
-    }
-
-    private async Task HandleSoundDelete()
-    {
-        try
-        {
-            var result = await Mediator.Send(new DeleteSalonSoundCommand(Id));
-            result.Match(
-                Succ: _ =>
-                {
-                    _soundSummary = null;
-                    ToastService.ShowSuccess("Son supprimé avec succès.");
-                    return Unit.Default;
-                },
-                Fail: errors =>
-                {
-                    _errors = errors.Select(e => e.Message).ToList();
-                    return Unit.Default;
-                });
-        }
-        catch (Exception ex)
-        {
-            _errors = [$"Erreur lors de la suppression : {ex.Message}"];
-        }
-    }
-
-    private static string FormatDuration(TimeSpan duration)
-    {
-        if (duration.TotalMinutes >= 1)
-            return $"{(int)duration.TotalMinutes}m {duration.Seconds:D2}s";
-        return $"{duration.Seconds}s";
     }
 
     // ── Modèle de formulaire ──────────────────────────────────
