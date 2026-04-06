@@ -40,9 +40,10 @@ public class SalonAnnouncementService : ISalonAnnouncementService
                 Directory.CreateDirectory(_deployDirectory);
 
             var outputPath = Path.Combine(_deployDirectory, AnnounceFileName);
+            var announcementText = $"Bienvenue sur le salon {salonName}";
             _logger.LogInformation("Génération de l'annonce TTS pour le salon « {SalonName} » → {OutputPath}", salonName, outputPath);
 
-            var result = await _ttsService.GenerateWavAsync(salonName, outputPath, cancellationToken);
+            var result = await _ttsService.GenerateWavAsync(announcementText, outputPath, cancellationToken);
 
             if (result.IsFail)
             {

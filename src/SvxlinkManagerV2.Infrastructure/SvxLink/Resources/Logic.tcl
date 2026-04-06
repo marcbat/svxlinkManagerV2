@@ -22,6 +22,7 @@ proc startup {} {
     set name_wav "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager/Name.wav"
     if {[file exists $name_wav] == 1} {
         puts "SvxlinkManagerV2: Name.wav found, playing salon announcement."
+        playSilence 500
         playMsg "svxlinkmanager" "Name"
     }
 }

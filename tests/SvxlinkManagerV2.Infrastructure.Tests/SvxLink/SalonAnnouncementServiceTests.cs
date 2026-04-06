@@ -40,8 +40,9 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
+        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(salonName, expectedPath, Arg.Any<CancellationToken>())
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(expectedPath);
 
         // Act
@@ -49,7 +50,7 @@ public class SalonAnnouncementServiceTests : IDisposable
 
         // Assert
         result.ShouldBeSuccess();
-        await _ttsService.Received(1).GenerateWavAsync(salonName, expectedPath, Arg.Any<CancellationToken>());
+        await _ttsService.Received(1).GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -57,8 +58,9 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
+        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(salonName, expectedPath, Arg.Any<CancellationToken>())
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(expectedPath);
 
         Directory.Exists(_testDeployDirectory).Should().BeFalse();
@@ -75,8 +77,9 @@ public class SalonAnnouncementServiceTests : IDisposable
     {
         // Arrange
         var salonName = "Salon Test";
+        var expectedAnnouncementText = $"Bienvenue sur le salon {salonName}";
         var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(salonName, expectedPath, Arg.Any<CancellationToken>())
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(
                 Validation<LangExtError, string>.Fail(
                     Seq1(LangExtError.New("pico2wave a échoué")))));
