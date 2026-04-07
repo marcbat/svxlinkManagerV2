@@ -63,6 +63,35 @@ else
 
             <div class="card">
                 <div class="section-header">
+                    <span class="material-symbols-outlined">settings_input_antenna</span>
+                    Configuration sans réflecteur
+                </div>
+
+                <div class="filter-list">
+                    <div class="filter-row freq-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Fréquence RX par défaut (MHz)</span>
+                            <span class="filter-desc">Fréquence de réception utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                        </div>
+                        <div class="freq-input-wrap">
+                            <InputNumber @bind-Value="_model.DefaultRxFrequency" class="form-input freq-input" min="30" max="3000" step="0.001" />
+                        </div>
+                    </div>
+
+                    <div class="filter-row freq-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Fréquence TX par défaut (MHz)</span>
+                            <span class="filter-desc">Fréquence de transmission utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                        </div>
+                        <div class="freq-input-wrap">
+                            <InputNumber @bind-Value="_model.DefaultTxFrequency" class="form-input freq-input" min="30" max="3000" step="0.001" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-header">
                     <span class="material-symbols-outlined">system_update</span>
                     Mises à jour
                 </div>
@@ -517,6 +546,18 @@ else
     /* ── Toggles ─────────────────────────────────────────────── */
     .toggle-input { display: none; }
 
+    .freq-row { align-items: start; }
+
+    .freq-input-wrap {
+        flex-shrink: 0;
+        width: 120px;
+    }
+
+    .freq-input {
+        width: 100%;
+        text-align: right;
+    }
+
     .toggle-switch {
         display: inline-block;
         width: 40px;
@@ -589,6 +630,8 @@ else
         {
             _model.StartReflectorOnStartup = config.StartReflectorOnStartup;
             _model.StartDefaultSalonOnStartup = config.StartDefaultSalonOnStartup;
+            _model.DefaultRxFrequency = config.DefaultRxFrequency;
+            _model.DefaultTxFrequency = config.DefaultTxFrequency;
         }
 
         await RefreshUpdateWorkflowStatusAsync();
@@ -604,7 +647,9 @@ else
         {
             var command = new CreateOrUpdateGeneralConfigurationCommand(
                 _model.StartReflectorOnStartup,
-                _model.StartDefaultSalonOnStartup);
+                _model.StartDefaultSalonOnStartup,
+                _model.DefaultRxFrequency,
+                _model.DefaultTxFrequency);
 
             var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
@@ -752,5 +797,7 @@ else
     {
         public bool StartReflectorOnStartup { get; set; }
         public bool StartDefaultSalonOnStartup { get; set; }
+        public decimal DefaultRxFrequency { get; set; } = 145.550m;
+        public decimal DefaultTxFrequency { get; set; } = 145.550m;
     }
 }

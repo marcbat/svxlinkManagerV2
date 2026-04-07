@@ -168,4 +168,9 @@ public class IniSection
     /// Vérifie si une clé existe.
     /// </summary>
     public bool ContainsKey(string key) => _data.ContainsKey(key);
+
+    /// <summary>
+    /// Supprime une clé de la section.
+    /// </summary>
+    public bool Remove(string key) => _data.Remove(key);
 }

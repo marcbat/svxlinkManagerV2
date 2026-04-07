@@ -29,6 +29,16 @@ public class GeneralConfigurationAggregate : AggregateRoot
     public bool StartDefaultSalonOnStartup { get; private set; }
 
     /// <summary>
+    /// Fréquence de réception par défaut (MHz) utilisée en mode sans réflecteur pour l'écoute DTMF.
+    /// </summary>
+    public decimal DefaultRxFrequency { get; private set; } = 145.550m;
+
+    /// <summary>
+    /// Fréquence de transmission par défaut (MHz) utilisée en mode sans réflecteur pour l'écoute DTMF.
+    /// </summary>
+    public decimal DefaultTxFrequency { get; private set; } = 145.550m;
+
+    /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
     /// </summary>
     public GeneralConfigurationAggregate() { }
@@ -38,10 +48,17 @@ public class GeneralConfigurationAggregate : AggregateRoot
     /// </summary>
     public static Validation<Error, GeneralConfigurationAggregate> Create(
         bool startReflectorOnStartup = false,
-        bool startDefaultSalonOnStartup = false)
+        bool startDefaultSalonOnStartup = false,
+        decimal defaultRxFrequency = 145.550m,
+        decimal defaultTxFrequency = 145.550m)
     {
         var aggregate = new GeneralConfigurationAggregate();
-        var @event = new GeneralConfigurationCreated(FixedId, startReflectorOnStartup, startDefaultSalonOnStartup);
+        var @event = new GeneralConfigurationCreated(
+            FixedId,
+            startReflectorOnStartup,
+            startDefaultSalonOnStartup,
+            defaultRxFrequency,
+            defaultTxFrequency);
 
         aggregate.Apply(@event);
         aggregate.AddDomainEvent(@event);
@@ -54,9 +71,15 @@ public class GeneralConfigurationAggregate : AggregateRoot
     /// </summary>
     public Validation<Error, Unit> Update(
         bool startReflectorOnStartup,
-        bool startDefaultSalonOnStartup)
+        bool startDefaultSalonOnStartup,
+        decimal defaultRxFrequency = 145.550m,
+        decimal defaultTxFrequency = 145.550m)
     {
-        var @event = new GeneralConfigurationUpdated(startReflectorOnStartup, startDefaultSalonOnStartup);
+        var @event = new GeneralConfigurationUpdated(
+            startReflectorOnStartup,
+            startDefaultSalonOnStartup,
+            defaultRxFrequency,
+            defaultTxFrequency);
 
         Apply(@event);
         AddDomainEvent(@event);
@@ -74,6 +97,8 @@ public class GeneralConfigurationAggregate : AggregateRoot
         Id = @event.Id;
         StartReflectorOnStartup = @event.StartReflectorOnStartup;
         StartDefaultSalonOnStartup = @event.StartDefaultSalonOnStartup;
+        DefaultRxFrequency = @event.DefaultRxFrequency;
+        DefaultTxFrequency = @event.DefaultTxFrequency;
     }
 
     /// <summary>
@@ -83,6 +108,8 @@ public class GeneralConfigurationAggregate : AggregateRoot
     {
         StartReflectorOnStartup = @event.StartReflectorOnStartup;
         StartDefaultSalonOnStartup = @event.StartDefaultSalonOnStartup;
+        DefaultRxFrequency = @event.DefaultRxFrequency;
+        DefaultTxFrequency = @event.DefaultTxFrequency;
     }
 
     #endregion

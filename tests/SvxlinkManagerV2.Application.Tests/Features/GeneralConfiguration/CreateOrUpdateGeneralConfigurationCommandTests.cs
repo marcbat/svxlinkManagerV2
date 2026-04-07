@@ -31,7 +31,9 @@ public class CreateOrUpdateGeneralConfigurationCommandTests
         // Arrange
         var command = new CreateOrUpdateGeneralConfigurationCommand(
             StartReflectorOnStartup: true,
-            StartDefaultSalonOnStartup: false);
+            StartDefaultSalonOnStartup: false,
+            DefaultRxFrequency: 145.500m,
+            DefaultTxFrequency: 145.500m);
 
         _repository.GetAsync(Arg.Any<CancellationToken>())
             .Returns((GeneralConfigurationAggregate?)null);
@@ -48,7 +50,9 @@ public class CreateOrUpdateGeneralConfigurationCommandTests
         await _repository.Received(1).SaveAsync(
             Arg.Is<GeneralConfigurationAggregate>(a =>
                 a.StartReflectorOnStartup == true &&
-                a.StartDefaultSalonOnStartup == false),
+                a.StartDefaultSalonOnStartup == false &&
+                a.DefaultRxFrequency == 145.500m &&
+                a.DefaultTxFrequency == 145.500m),
             Arg.Any<CancellationToken>());
     }
 
@@ -59,7 +63,9 @@ public class CreateOrUpdateGeneralConfigurationCommandTests
         var existing = CreateValidAggregate(false, false);
         var command = new CreateOrUpdateGeneralConfigurationCommand(
             StartReflectorOnStartup: true,
-            StartDefaultSalonOnStartup: true);
+            StartDefaultSalonOnStartup: true,
+            DefaultRxFrequency: 430.100m,
+            DefaultTxFrequency: 430.100m);
 
         _repository.GetAsync(Arg.Any<CancellationToken>())
             .Returns(existing);
@@ -74,11 +80,15 @@ public class CreateOrUpdateGeneralConfigurationCommandTests
         result.ShouldBeSuccess();
         existing.StartReflectorOnStartup.Should().BeTrue();
         existing.StartDefaultSalonOnStartup.Should().BeTrue();
+        existing.DefaultRxFrequency.Should().Be(430.100m);
+        existing.DefaultTxFrequency.Should().Be(430.100m);
 
         await _repository.Received(1).SaveAsync(
             Arg.Is<GeneralConfigurationAggregate>(a =>
                 a.StartReflectorOnStartup == true &&
-                a.StartDefaultSalonOnStartup == true),
+                a.StartDefaultSalonOnStartup == true &&
+                a.DefaultRxFrequency == 430.100m &&
+                a.DefaultTxFrequency == 430.100m),
             Arg.Any<CancellationToken>());
     }
 

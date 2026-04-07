@@ -13,7 +13,9 @@ namespace SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpd
 /// </summary>
 public record CreateOrUpdateGeneralConfigurationCommand(
     bool StartReflectorOnStartup,
-    bool StartDefaultSalonOnStartup) : IRequest<Validation<Error, Unit>>;
+    bool StartDefaultSalonOnStartup,
+    decimal DefaultRxFrequency = 145.550m,
+    decimal DefaultTxFrequency = 145.550m) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour CreateOrUpdateGeneralConfigurationCommand.
@@ -42,14 +44,17 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
         {
             var createResult = GeneralConfigurationAggregate.Create(
                 command.StartReflectorOnStartup,
-                command.StartDefaultSalonOnStartup);
+                command.StartDefaultSalonOnStartup,
+                command.DefaultRxFrequency,
+                command.DefaultTxFrequency);
 
             return await createResult.MatchAsync(
                 async aggregate =>
                 {
                     _logger.LogInformation(
-                        "Création de la configuration générale : StartReflector={StartReflector}, StartDefaultSalon={StartSalon}",
-                        command.StartReflectorOnStartup, command.StartDefaultSalonOnStartup);
+                        "Création de la configuration générale : StartReflector={StartReflector}, StartDefaultSalon={StartSalon}, RxFreq={RxFreq}, TxFreq={TxFreq}",
+                        command.StartReflectorOnStartup, command.StartDefaultSalonOnStartup,
+                        command.DefaultRxFrequency, command.DefaultTxFrequency);
 
                     return await _repository.SaveAsync(aggregate, cancellationToken);
                 },
@@ -58,14 +63,17 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
 
         var updateResult = existing.Update(
             command.StartReflectorOnStartup,
-            command.StartDefaultSalonOnStartup);
+            command.StartDefaultSalonOnStartup,
+            command.DefaultRxFrequency,
+            command.DefaultTxFrequency);
 
         return await updateResult.MatchAsync(
             async _ =>
             {
                 _logger.LogInformation(
-                    "Mise à jour de la configuration générale : StartReflector={StartReflector}, StartDefaultSalon={StartSalon}",
-                    command.StartReflectorOnStartup, command.StartDefaultSalonOnStartup);
+                    "Mise à jour de la configuration générale : StartReflector={StartReflector}, StartDefaultSalon={StartSalon}, RxFreq={RxFreq}, TxFreq={TxFreq}",
+                    command.StartReflectorOnStartup, command.StartDefaultSalonOnStartup,
+                    command.DefaultRxFrequency, command.DefaultTxFrequency);
 
                 return await _repository.SaveAsync(existing, cancellationToken);
             },
