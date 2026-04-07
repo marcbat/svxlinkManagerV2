@@ -529,4 +529,35 @@ public class ConnectedNodesTrackerTests
         tracker.ConnectedNodes.Should().HaveCount(10);
         tracker.ConnectedNodes.Select(n => n.Name).Should().OnlyHaveUniqueItems();
     }
+
+    [Fact]
+    public void Reset_ShouldRaiseOnResetEvent()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var resetEventFired = false;
+        tracker.OnReset += () => resetEventFired = true;
+
+        // Act
+        tracker.Reset();
+
+        // Assert
+        resetEventFired.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reset_ShouldRaiseOnResetBeforeOnNodesInitialized()
+    {
+        // Arrange
+        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var callOrder = new List<string>();
+        tracker.OnReset += () => callOrder.Add("OnReset");
+        tracker.OnNodesInitialized += _ => callOrder.Add("OnNodesInitialized");
+
+        // Act
+        tracker.Reset();
+
+        // Assert — OnReset doit être déclenché avant OnNodesInitialized
+        callOrder.Should().ContainInOrder("OnReset", "OnNodesInitialized");
+    }
 }

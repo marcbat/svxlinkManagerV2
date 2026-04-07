@@ -86,7 +86,6 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             if (stopResult.IsFail)
                 return Error.Validation("SVXLINK_STOP_ERROR", "Impossible d'arrêter le daemon SVXLink").ToFailure<Unit>();
 
-            _connectedNodesService.Reset();
             _tracker.SetActiveSalon(null);
         }
 
@@ -117,6 +116,9 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         var configResult = await _configurationService.GenerateAsync(aggregate, SvxLinkConfPath, cancellationToken);
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf").ToFailure<Unit>();
+
+        // Réinitialisation des nœuds connectés et armement du service d'annonce de connexion
+        _connectedNodesService.Reset();
 
         _logger.LogInformation("Redémarrage du daemon SVXLink");
         var daemonResult = await _daemonService.RestartAsync(cancellationToken);

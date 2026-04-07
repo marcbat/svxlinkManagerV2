@@ -8,7 +8,9 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// <summary>
 /// Service hébergé déployant le Logic.tcl SVXLink au démarrage de l'application.
 /// Le Logic.tcl est déployé une seule fois au démarrage (pas à chaque activation de salon).
-/// Il surcharge proc startup {} pour jouer l'annonce du salon (one-shot) au redémarrage du daemon.
+/// Il déploie le fichier qui gère les commandes DTMF (dont 398 et 399 pour les annonces sonores).
+/// L'annonce de connexion est désormais déclenchée par ReflectorConnectionAnnouncementService
+/// depuis .NET, une fois la connexion réelle au réflecteur confirmée dans les logs.
 /// </summary>
 public class LogicTclInitializerHostedService : IHostedService
 {
@@ -49,7 +51,7 @@ public class LogicTclInitializerHostedService : IHostedService
                 {
                     _logger.LogWarning(
                         "Échec du déploiement du Logic.tcl: {Errors}. " +
-                        "L'annonce one-shot ne sera pas jouée au prochain switch de salon.",
+                        "Les commandes DTMF d'annonce ne seront pas disponibles.",
                         string.Join(", ", errors.Select(e => e.Message)));
                     return LanguageExt.Prelude.unit;
                 });
@@ -59,7 +61,7 @@ public class LogicTclInitializerHostedService : IHostedService
             // Ne pas bloquer le démarrage de l'application
             _logger.LogWarning(
                 ex,
-                "Erreur lors du déploiement du Logic.tcl. L'application continue sans annonce one-shot.");
+                "Erreur lors du déploiement du Logic.tcl. L'application continue sans les commandes DTMF d'annonce.");
         }
     }
 

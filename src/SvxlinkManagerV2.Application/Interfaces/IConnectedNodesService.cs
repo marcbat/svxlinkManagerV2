@@ -40,6 +40,13 @@ public interface IConnectedNodesService
     event Action<ConnectedNodeInfo>? OnNodeTxStopped;
 
     /// <summary>
+    /// Événement déclenché lors de la réinitialisation de la liste des nœuds
+    /// (appelé avant chaque redémarrage du daemon SVXLink).
+    /// Sert à armer les services en attente de confirmation de connexion.
+    /// </summary>
+    event Action? OnReset;
+
+    /// <summary>
     /// Vide la liste des nœuds connectés (appelé lors de la déconnexion du salon).
     /// Déclenche OnNodesInitialized avec une liste vide pour mettre à jour l'UI.
     /// </summary>
