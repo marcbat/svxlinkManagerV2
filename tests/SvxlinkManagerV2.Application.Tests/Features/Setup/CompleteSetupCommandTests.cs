@@ -169,7 +169,9 @@ public class CompleteSetupCommandTests
             startReflectorOnStartup: true,
             startDefaultSalonOnStartup: true,
             defaultRxFrequency: 145.550m,
-            defaultTxFrequency: 145.550m).MatchUnsafe(a => a, _ => null!);
+            defaultTxFrequency: 145.550m).Match(
+                Succ: a => { a.ClearDomainEvents(); return a; },
+                Fail: _ => throw new InvalidOperationException("Failed to create test GeneralConfigurationAggregate"));
 
         var data = new SetupData
         {

@@ -149,8 +149,10 @@
         if (_rxFrequencyError != null || _txFrequencyError != null)
             return;
 
-        var rxCtcss = string.IsNullOrEmpty(_rxCtcssString) ? (decimal?)null : decimal.Parse(_rxCtcssString, System.Globalization.CultureInfo.InvariantCulture);
-        var txCtcss = string.IsNullOrEmpty(_txCtcssString) ? (decimal?)null : decimal.Parse(_txCtcssString, System.Globalization.CultureInfo.InvariantCulture);
+        var rxCtcss = string.IsNullOrEmpty(_rxCtcssString) ? (decimal?)null :
+            decimal.TryParse(_rxCtcssString, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rx) ? rx : (decimal?)null;
+        var txCtcss = string.IsNullOrEmpty(_txCtcssString) ? (decimal?)null :
+            decimal.TryParse(_txCtcssString, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tx) ? tx : (decimal?)null;
 
         WizardState.Data = WizardState.Data with
         {
