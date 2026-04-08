@@ -312,8 +312,8 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         }
 
         _logger.LogInformation("ConnectedNodesTracker réinitialisé - liste des nœuds vidée");
-        OnReset?.Invoke();
         OnNodesInitialized?.Invoke(Array.Empty<ConnectedNodeInfo>());
+        OnReset?.Invoke();
     }
 
     public void Dispose()
