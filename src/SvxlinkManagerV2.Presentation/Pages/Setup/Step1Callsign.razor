@@ -22,6 +22,7 @@
         <div class="form-group">
             <label class="form-label" for="callsign">
                 Indicatif réflecteur (Callsign)
+                <span class="form-required" aria-hidden="true">*</span>
                 <span class="form-label-hint">Login sur le serveur SVXLink</span>
             </label>
             <input id="callsign"
@@ -35,13 +36,14 @@
             {
                 <div class="form-error">@_callsignError</div>
             }
-            <div class="form-hint">Format : une à deux lettres + chiffre + lettres/chiffres (ex: F5ABC, W1AW, KB2XYZ-R)</div>
+            <div class="form-hint">Exemples : F5ABC, W1AW, HB9GXP, KB2XYZ-R</div>
         </div>
 
         <div class="form-group">
             <label class="form-label" for="simplex-callsign">
                 Indicatif simplex (SimplexCallsign)
-                <span class="form-label-hint">Identification radio locale</span>
+                <span class="form-required" aria-hidden="true">*</span>
+                <span class="form-label-hint">Annoncé en audio par SVXLink lors des connexions</span>
             </label>
             <input id="simplex-callsign"
                    type="text"
@@ -54,12 +56,12 @@
             {
                 <div class="form-error">@_simplexCallsignError</div>
             }
-            <div class="form-hint">Souvent le même indicatif avec un suffixe -L (Link) ou -R (Repeater)</div>
+            <div class="form-hint">C'est cet indicatif qui sera annoncé vocalement sur la fréquence radio</div>
         </div>
     </div>
 
     <div class="setup-card-footer">
-        <div></div>
+        <div class="form-required-legend"><span class="form-required">*</span> Champs obligatoires</div>
         <button class="btn btn-primary setup-btn-next"
                 @onclick="GoNext"
                 disabled="@(!IsValid)">
@@ -74,10 +76,6 @@
     private string _simplexCallsign = string.Empty;
     private string? _callsignError;
     private string? _simplexCallsignError;
-
-    private static readonly System.Text.RegularExpressions.Regex CallsignPattern =
-        new(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$",
-            System.Text.RegularExpressions.RegexOptions.Compiled);
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,8 +93,8 @@
     }
 
     private bool IsValid =>
-        CallsignPattern.IsMatch(_callsign.Trim().ToUpperInvariant()) &&
-        CallsignPattern.IsMatch(_simplexCallsign.Trim().ToUpperInvariant());
+        !string.IsNullOrWhiteSpace(_callsign) &&
+        !string.IsNullOrWhiteSpace(_simplexCallsign);
 
     private void GoNext()
     {
@@ -106,15 +104,15 @@
         var callsign = _callsign.Trim().ToUpperInvariant();
         var simplexCallsign = _simplexCallsign.Trim().ToUpperInvariant();
 
-        if (!CallsignPattern.IsMatch(callsign))
+        if (string.IsNullOrWhiteSpace(callsign))
         {
-            _callsignError = "Format d'indicatif invalide. Exemples valides : F5ABC, W1AW, KB2XYZ-R";
+            _callsignError = "L'indicatif réflecteur est obligatoire.";
             return;
         }
 
-        if (!CallsignPattern.IsMatch(simplexCallsign))
+        if (string.IsNullOrWhiteSpace(simplexCallsign))
         {
-            _simplexCallsignError = "Format d'indicatif invalide. Exemples valides : F5ABC-L, W1AW-R";
+            _simplexCallsignError = "L'indicatif simplex est obligatoire.";
             return;
         }
 
