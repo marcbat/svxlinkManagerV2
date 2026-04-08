@@ -1,0 +1,136 @@
+@page "/setup/summary"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Features.Setup
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Presentation.Services
+
+@inject IMediator Mediator
+@inject SetupWizardState WizardState
+@inject NavigationManager Nav
+@inject ToastService ToastService
+@inject ISetupStatusService SetupStatusService
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">fact_check</span>
+        <div>
+            <h2 class="setup-card-title">Récapitulatif</h2>
+            <p class="setup-card-desc">Vérifiez les informations avant de démarrer l'application.</p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        <div class="setup-summary">
+            <div class="setup-summary-section">
+                <div class="setup-summary-section-title">
+                    <span class="material-symbols-outlined">badge</span>
+                    Indicatifs
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">Callsign (réflecteur)</span>
+                    <span class="setup-summary-value">@WizardState.Data.Callsign</span>
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">Callsign simplex</span>
+                    <span class="setup-summary-value">@WizardState.Data.SimplexCallsign</span>
+                </div>
+            </div>
+
+            <div class="setup-summary-section">
+                <div class="setup-summary-section-title">
+                    <span class="material-symbols-outlined">settings_input_antenna</span>
+                    Fréquences
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">Réception (RX)</span>
+                    <span class="setup-summary-value">@WizardState.Data.RxFrequency.ToString("F3") MHz</span>
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">Émission (TX)</span>
+                    <span class="setup-summary-value">@WizardState.Data.TxFrequency.ToString("F3") MHz</span>
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">CTCSS réception</span>
+                    <span class="setup-summary-value">@(WizardState.Data.RxCtcss.HasValue ? $"{WizardState.Data.RxCtcss:F1} Hz" : "Aucun")</span>
+                </div>
+                <div class="setup-summary-row">
+                    <span class="setup-summary-label">CTCSS émission</span>
+                    <span class="setup-summary-value">@(WizardState.Data.TxCtcss.HasValue ? $"{WizardState.Data.TxCtcss:F1} Hz" : "Aucun")</span>
+                </div>
+            </div>
+
+            <div class="setup-summary-info">
+                <span class="material-symbols-outlined">info</span>
+                <span>Ces paramètres seront appliqués aux 6 salons pré-configurés (RRF, SSR, FON, Technique, Bavardage, Local).</span>
+            </div>
+        </div>
+
+        @if (_errorMessage != null)
+        {
+            <div class="alert alert-danger" style="margin-top:16px">
+                <span class="material-symbols-outlined">error</span>
+                @_errorMessage
+            </div>
+        }
+    </div>
+
+    <div class="setup-card-footer">
+        <button class="btn btn-secondary" @onclick="GoBack" disabled="@_isLoading">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Retour
+        </button>
+        <button class="btn btn-primary setup-btn-next setup-btn-finish"
+                @onclick="FinishSetup"
+                disabled="@_isLoading">
+            @if (_isLoading)
+            {
+                <span class="spinner-sm"></span>
+                <span>Initialisation en cours...</span>
+            }
+            else
+            {
+                <span class="material-symbols-outlined">rocket_launch</span>
+                <span>Démarrer l'application</span>
+            }
+        </button>
+    </div>
+</div>
+
+@code {
+    private bool _isLoading;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+        if (!setupRequired)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+            return;
+        }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/setup/frequencies");
+
+    private async Task FinishSetup()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        var command = new CompleteSetupCommand(WizardState.Data);
+        var result = await Mediator.Send(command);
+
+        result.Match(
+            Succ: _ =>
+            {
+                ToastService.ShowSuccess("Configuration initiale terminée. Bienvenue !");
+                Nav.NavigateTo("/", forceLoad: false);
+            },
+            Fail: errors =>
+            {
+                _errorMessage = string.Join(" | ", errors.Select(e => e.Message));
+                _isLoading = false;
+            });
+    }
+}

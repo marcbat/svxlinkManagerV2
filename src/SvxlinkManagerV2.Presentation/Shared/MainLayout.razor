@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
+@using SvxlinkManagerV2.Application.Interfaces
+@inject ISetupStatusService SetupStatusService
 
 <div class="app-layout @( _isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
     <nav class="sidebar">
@@ -90,8 +93,20 @@
         _isSidebarCollapsed = !_isSidebarCollapsed;
     }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        // Redirection vers le wizard si le setup est requis
+        var currentUri = Nav.Uri;
+        if (!currentUri.Contains("/setup"))
+        {
+            var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+            if (setupRequired)
+            {
+                Nav.NavigateTo("/setup", forceLoad: false);
+                return;
+            }
+        }
+
         var asm = System.Reflection.Assembly.GetEntryAssembly();
         if (asm is not null)
         {

@@ -1,0 +1,165 @@
+@page "/setup/frequencies"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Features.Setup
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Presentation.Services
+
+@inject SetupWizardState WizardState
+@inject NavigationManager Nav
+@inject ISetupStatusService SetupStatusService
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">settings_input_antenna</span>
+        <div>
+            <h2 class="setup-card-title">Fréquences radio</h2>
+            <p class="setup-card-desc">Configurez les fréquences de votre station. Les CTCSS sont optionnels.</p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        <div class="setup-freq-grid">
+            <div class="form-group">
+                <label class="form-label" for="rx-freq">
+                    Fréquence de réception (MHz)
+                </label>
+                <input id="rx-freq"
+                       type="number"
+                       class="form-control @(_rxFrequencyError != null ? "is-invalid" : "")"
+                       step="0.001"
+                       min="30"
+                       max="3000"
+                       placeholder="145.550"
+                       @bind="_rxFrequency"
+                       @bind:event="oninput" />
+                @if (_rxFrequencyError != null)
+                {
+                    <div class="form-error">@_rxFrequencyError</div>
+                }
+                <div class="form-hint">Plage valide : 30 à 3000 MHz</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="tx-freq">
+                    Fréquence d'émission (MHz)
+                </label>
+                <input id="tx-freq"
+                       type="number"
+                       class="form-control @(_txFrequencyError != null ? "is-invalid" : "")"
+                       step="0.001"
+                       min="30"
+                       max="3000"
+                       placeholder="145.550"
+                       @bind="_txFrequency"
+                       @bind:event="oninput" />
+                @if (_txFrequencyError != null)
+                {
+                    <div class="form-error">@_txFrequencyError</div>
+                }
+                <div class="form-hint">Plage valide : 30 à 3000 MHz</div>
+            </div>
+        </div>
+
+        <div class="setup-freq-grid" style="margin-top:8px">
+            <div class="form-group">
+                <label class="form-label" for="rx-ctcss">
+                    CTCSS réception
+                    <span class="form-label-hint">Optionnel</span>
+                </label>
+                <select id="rx-ctcss" class="form-control" @bind="_rxCtcssString">
+                    <option value="">Aucun</option>
+                    @foreach (var (freq, label) in CtcssDropdownService.GetCtcssOptions())
+                    {
+                        <option value="@freq">@label</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="tx-ctcss">
+                    CTCSS émission
+                    <span class="form-label-hint">Optionnel</span>
+                </label>
+                <select id="tx-ctcss" class="form-control" @bind="_txCtcssString">
+                    <option value="">Aucun</option>
+                    @foreach (var (freq, label) in CtcssDropdownService.GetCtcssOptions())
+                    {
+                        <option value="@freq">@label</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="setup-card-footer">
+        <button class="btn btn-secondary" @onclick="GoBack">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Retour
+        </button>
+        <button class="btn btn-primary setup-btn-next"
+                @onclick="GoNext">
+            Suivant
+            <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+    </div>
+</div>
+
+@code {
+    private decimal _rxFrequency = 145.550m;
+    private decimal _txFrequency = 145.550m;
+    private string _rxCtcssString = string.Empty;
+    private string _txCtcssString = string.Empty;
+    private string? _rxFrequencyError;
+    private string? _txFrequencyError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+        if (!setupRequired)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+            return;
+        }
+
+        // Pré-remplir depuis l'état du wizard si l'utilisateur revient en arrière
+        _rxFrequency = WizardState.Data.RxFrequency;
+        _txFrequency = WizardState.Data.TxFrequency;
+        _rxCtcssString = WizardState.Data.RxCtcss?.ToString() ?? string.Empty;
+        _txCtcssString = WizardState.Data.TxCtcss?.ToString() ?? string.Empty;
+    }
+
+    private void GoBack() => Nav.NavigateTo("/setup/wifi");
+
+    private void GoNext()
+    {
+        _rxFrequencyError = null;
+        _txFrequencyError = null;
+
+        if (_rxFrequency < 30 || _rxFrequency > 3000)
+        {
+            _rxFrequencyError = "La fréquence doit être entre 30 et 3000 MHz.";
+        }
+
+        if (_txFrequency < 30 || _txFrequency > 3000)
+        {
+            _txFrequencyError = "La fréquence doit être entre 30 et 3000 MHz.";
+        }
+
+        if (_rxFrequencyError != null || _txFrequencyError != null)
+            return;
+
+        var rxCtcss = string.IsNullOrEmpty(_rxCtcssString) ? (decimal?)null : decimal.Parse(_rxCtcssString, System.Globalization.CultureInfo.InvariantCulture);
+        var txCtcss = string.IsNullOrEmpty(_txCtcssString) ? (decimal?)null : decimal.Parse(_txCtcssString, System.Globalization.CultureInfo.InvariantCulture);
+
+        WizardState.Data = WizardState.Data with
+        {
+            RxFrequency = _rxFrequency,
+            TxFrequency = _txFrequency,
+            RxCtcss = rxCtcss,
+            TxCtcss = txCtcss
+        };
+
+        Nav.NavigateTo("/setup/summary");
+    }
+}

@@ -1,0 +1,129 @@
+@page "/setup"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Features.Setup
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Presentation.Services
+
+@inject SetupWizardState WizardState
+@inject NavigationManager Nav
+@inject ISetupStatusService SetupStatusService
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">badge</span>
+        <div>
+            <h2 class="setup-card-title">Indicatif radioamateur</h2>
+            <p class="setup-card-desc">Ces indicatifs identifient votre station sur le réseau SVXLink.</p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        <div class="form-group">
+            <label class="form-label" for="callsign">
+                Indicatif réflecteur (Callsign)
+                <span class="form-label-hint">Login sur le serveur SVXLink</span>
+            </label>
+            <input id="callsign"
+                   type="text"
+                   class="form-control @(_callsignError != null ? "is-invalid" : "")"
+                   placeholder="ex: F5ABC"
+                   @bind="_callsign"
+                   @bind:event="oninput"
+                   maxlength="20" />
+            @if (_callsignError != null)
+            {
+                <div class="form-error">@_callsignError</div>
+            }
+            <div class="form-hint">Format : une à deux lettres + chiffre + lettres/chiffres (ex: F5ABC, W1AW, KB2XYZ-R)</div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="simplex-callsign">
+                Indicatif simplex (SimplexCallsign)
+                <span class="form-label-hint">Identification radio locale</span>
+            </label>
+            <input id="simplex-callsign"
+                   type="text"
+                   class="form-control @(_simplexCallsignError != null ? "is-invalid" : "")"
+                   placeholder="ex: F5ABC-L"
+                   @bind="_simplexCallsign"
+                   @bind:event="oninput"
+                   maxlength="20" />
+            @if (_simplexCallsignError != null)
+            {
+                <div class="form-error">@_simplexCallsignError</div>
+            }
+            <div class="form-hint">Souvent le même indicatif avec un suffixe -L (Link) ou -R (Repeater)</div>
+        </div>
+    </div>
+
+    <div class="setup-card-footer">
+        <div></div>
+        <button class="btn btn-primary setup-btn-next"
+                @onclick="GoNext"
+                disabled="@(!IsValid)">
+            Suivant
+            <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+    </div>
+</div>
+
+@code {
+    private string _callsign = string.Empty;
+    private string _simplexCallsign = string.Empty;
+    private string? _callsignError;
+    private string? _simplexCallsignError;
+
+    private static readonly System.Text.RegularExpressions.Regex CallsignPattern =
+        new(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Si le setup n'est plus requis, rediriger vers le dashboard
+        var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+        if (!setupRequired)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+            return;
+        }
+
+        // Pré-remplir depuis l'état du wizard si l'utilisateur revient en arrière
+        _callsign = WizardState.Data.Callsign;
+        _simplexCallsign = WizardState.Data.SimplexCallsign;
+    }
+
+    private bool IsValid =>
+        CallsignPattern.IsMatch(_callsign.Trim().ToUpperInvariant()) &&
+        CallsignPattern.IsMatch(_simplexCallsign.Trim().ToUpperInvariant());
+
+    private void GoNext()
+    {
+        _callsignError = null;
+        _simplexCallsignError = null;
+
+        var callsign = _callsign.Trim().ToUpperInvariant();
+        var simplexCallsign = _simplexCallsign.Trim().ToUpperInvariant();
+
+        if (!CallsignPattern.IsMatch(callsign))
+        {
+            _callsignError = "Format d'indicatif invalide. Exemples valides : F5ABC, W1AW, KB2XYZ-R";
+            return;
+        }
+
+        if (!CallsignPattern.IsMatch(simplexCallsign))
+        {
+            _simplexCallsignError = "Format d'indicatif invalide. Exemples valides : F5ABC-L, W1AW-R";
+            return;
+        }
+
+        WizardState.Data = WizardState.Data with
+        {
+            Callsign = callsign,
+            SimplexCallsign = simplexCallsign
+        };
+
+        Nav.NavigateTo("/setup/wifi");
+    }
+}
