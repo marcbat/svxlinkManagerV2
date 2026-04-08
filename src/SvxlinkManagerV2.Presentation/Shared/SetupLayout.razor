@@ -1,0 +1,62 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+
+<div class="setup-layout">
+    <div class="setup-header">
+        <span class="material-symbols-outlined setup-logo-icon">settings_input_antenna</span>
+        <span class="setup-logo-text">SvxLink Manager V2</span>
+        <span class="setup-subtitle">Assistant de configuration</span>
+    </div>
+
+    <div class="setup-stepper">
+        <div class="setup-step @GetStepClass(1)">
+            <div class="setup-step-circle">
+                @if (CurrentStep > 1) { <span class="material-symbols-outlined">check</span> }
+                else { <span>1</span> }
+            </div>
+            <span class="setup-step-label">Indicatif</span>
+        </div>
+        <div class="setup-step-connector @(CurrentStep > 1 ? "active" : "")"></div>
+        <div class="setup-step @GetStepClass(2)">
+            <div class="setup-step-circle">
+                @if (CurrentStep > 2) { <span class="material-symbols-outlined">check</span> }
+                else { <span>2</span> }
+            </div>
+            <span class="setup-step-label">WiFi</span>
+        </div>
+        <div class="setup-step-connector @(CurrentStep > 2 ? "active" : "")"></div>
+        <div class="setup-step @GetStepClass(3)">
+            <div class="setup-step-circle">
+                @if (CurrentStep > 3) { <span class="material-symbols-outlined">check</span> }
+                else { <span>3</span> }
+            </div>
+            <span class="setup-step-label">Fréquences</span>
+        </div>
+        <div class="setup-step-connector @(CurrentStep > 3 ? "active" : "")"></div>
+        <div class="setup-step @GetStepClass(4)">
+            <div class="setup-step-circle"><span>4</span></div>
+            <span class="setup-step-label">Récapitulatif</span>
+        </div>
+    </div>
+
+    <div class="setup-body">
+        @Body
+    </div>
+</div>
+
+@code {
+    private int CurrentStep => Nav.Uri switch
+    {
+        var u when u.Contains("/setup/wifi") => 2,
+        var u when u.Contains("/setup/frequencies") => 3,
+        var u when u.Contains("/setup/summary") => 4,
+        _ => 1
+    };
+
+    private string GetStepClass(int step)
+    {
+        if (CurrentStep == step) return "active";
+        if (CurrentStep > step) return "completed";
+        return "";
+    }
+}

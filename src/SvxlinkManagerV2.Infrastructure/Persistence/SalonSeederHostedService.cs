@@ -10,21 +10,25 @@ namespace SvxlinkManagerV2.Infrastructure.Persistence;
 /// <summary>
 /// Service de seeding automatique des 6 salons originaux au premier démarrage de l'application.
 /// Idempotent : si des salons existent déjà, le seeding est ignoré.
+/// Si le wizard de configuration initiale est requis, le seeding est également ignoré.
 /// </summary>
 public class SalonSeederHostedService : IHostedService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SalonSeederHostedService> _logger;
     private readonly IHostEnvironment _environment;
+    private readonly ISetupStatusService _setupStatusService;
 
     public SalonSeederHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<SalonSeederHostedService> logger,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        ISetupStatusService setupStatusService)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _environment = environment;
+        _setupStatusService = setupStatusService;
     }
 
     /// <summary>
@@ -47,6 +51,15 @@ public class SalonSeederHostedService : IHostedService
                 _logger.LogInformation(
                     "Salons déjà existants ({Count}), initialisation ignorée.",
                     existingSalons.Count);
+                return;
+            }
+
+            // Si la base est vide, le wizard de configuration initiale prend en charge le seeding
+            var setupRequired = await _setupStatusService.IsSetupRequiredAsync(cancellationToken);
+            if (setupRequired)
+            {
+                _logger.LogInformation(
+                    "SalonSeederHostedService: wizard de configuration requis — seeding automatique ignoré.");
                 return;
             }
 

@@ -42,6 +42,9 @@ namespace SvxlinkManagerV2.Presentation
             // Tracker d'état actif (runtime, singleton)
             services.AddSingleton<IActiveSessionTracker, ActiveSessionTracker>();
 
+            // Détection du premier lancement (wizard de configuration)
+            services.AddSingleton<ISetupStatusService, SetupStatusService>();
+
             // Enregistrement des repositories
             services.AddScoped<ISA818Repository, SA818Repository>();
             services.AddScoped<ISalonRepository, SalonRepository>();
@@ -103,6 +106,7 @@ namespace SvxlinkManagerV2.Presentation
 
             // UI Services
             services.AddSingleton<ToastService>();
+            services.AddScoped<SetupWizardState>();
 
             services.AddRazorPages();
             services.AddServerSideBlazor();

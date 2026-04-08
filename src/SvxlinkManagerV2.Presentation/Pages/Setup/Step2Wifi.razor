@@ -1,0 +1,209 @@
+@page "/setup/wifi"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Features.Wifi
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Domain.Wifi
+@using SvxlinkManagerV2.Domain.Common
+@using SvxlinkManagerV2.Presentation.Pages.Wifi
+@using SvxlinkManagerV2.Presentation.Services
+
+@inject IMediator Mediator
+@inject SetupWizardState WizardState
+@inject NavigationManager Nav
+@inject ToastService ToastService
+@inject ISetupStatusService SetupStatusService
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">wifi</span>
+        <div>
+            <h2 class="setup-card-title">Connexion WiFi</h2>
+            <p class="setup-card-desc">Connectez votre appareil au réseau WiFi. Cette étape est optionnelle si vous utilisez une connexion Ethernet.</p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        @if (_isLoading)
+        {
+            <div class="card skeleton-card" style="margin-bottom:12px">
+                <div class="skeleton" style="height:60px"></div>
+            </div>
+            <div class="card skeleton-card">
+                <div class="skeleton" style="height:200px"></div>
+            </div>
+        }
+        else if (_errorMessage != null)
+        {
+            <div class="alert alert-danger">
+                <span class="material-symbols-outlined">error</span>
+                @_errorMessage
+            </div>
+        }
+        else if (_status != null)
+        {
+            @* Bannière de statut *@
+            <div class="card wifi-status-banner @(_status.IsConnected ? "wifi-status-banner--connected" : "wifi-status-banner--disconnected")" style="margin-bottom:12px">
+                <div class="wifi-status-content">
+                    <span class="material-symbols-outlined wifi-status-icon">
+                        @(_status.IsConnected ? "wifi" : "wifi_off")
+                    </span>
+                    <div class="wifi-status-text">
+                        @if (_status.IsConnected)
+                        {
+                            <strong>Connecté</strong>
+                            <span>@_status.ConnectedSsid</span>
+                        }
+                        else
+                        {
+                            <strong>Déconnecté</strong>
+                            <span>Aucun réseau WiFi actif</span>
+                        }
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-sm" @onclick="RefreshAsync" disabled="@_isLoading" style="margin-left:auto">
+                    <span class="material-symbols-outlined @(_isLoading ? "spin" : "")">refresh</span>
+                </button>
+            </div>
+
+            @* Liste des réseaux *@
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">wifi_find</span>
+                    Réseaux disponibles
+                    <span class="badge">@_status.Networks.Count</span>
+                </div>
+
+                @if (!_status.Networks.Any())
+                {
+                    <div class="empty-state">
+                        <span class="material-symbols-outlined">wifi_off</span>
+                        <p>Aucun réseau WiFi détecté. Cliquez sur Rafraîchir pour relancer le scan.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="wifi-network-list">
+                        @foreach (var network in _status.Networks)
+                        {
+                            <WifiNetworkCard
+                                Network="@network"
+                                IsLoading="@(_actionSsid == network.Ssid)"
+                                OnDisconnect="HandleDisconnect"
+                                OnActivate="HandleActivate"
+                                OnDelete="HandleDelete"
+                                OnConnectNew="HandleConnectNew" />
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="setup-card-footer">
+        <button class="btn btn-secondary" @onclick="GoBack">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Retour
+        </button>
+        <div class="setup-footer-actions">
+            <button class="btn btn-secondary" @onclick="Skip">
+                Passer
+                <span class="material-symbols-outlined">skip_next</span>
+            </button>
+            <button class="btn btn-primary setup-btn-next" @onclick="GoNext">
+                Suivant
+                <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private WifiStatus? _status;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _actionSsid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+        if (!setupRequired)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+            return;
+        }
+
+        await LoadStatusAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _errorMessage = null;
+        await LoadStatusAsync();
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        var result = await Mediator.Send(new GetWifiStatusQuery());
+        result.Match(
+            Succ: status => _status = status,
+            Fail: errors => _errorMessage = string.Join(", ", errors.Select(e => e.Message)));
+
+        _isLoading = false;
+    }
+
+    private async Task HandleDisconnect(WifiNetwork network)
+    {
+        if (network.ConnectionUuid == null) return;
+        await ExecuteWithLoadingAsync(network.Ssid,
+            () => Mediator.Send(new DeactivateWifiCommand(network.ConnectionUuid)),
+            $"Déconnecté de {network.Ssid}");
+    }
+
+    private async Task HandleActivate(WifiNetwork network)
+    {
+        if (network.ConnectionUuid == null) return;
+        await ExecuteWithLoadingAsync(network.Ssid,
+            () => Mediator.Send(new ActivateWifiCommand(network.ConnectionUuid)),
+            $"Connecté à {network.Ssid}");
+    }
+
+    private async Task HandleDelete(WifiNetwork network)
+    {
+        if (network.ConnectionUuid == null) return;
+        await ExecuteWithLoadingAsync(network.Ssid,
+            () => Mediator.Send(new DeleteWifiConnectionCommand(network.ConnectionUuid)),
+            $"Profil de {network.Ssid} supprimé");
+    }
+
+    private async Task HandleConnectNew((WifiNetwork Network, string Password) args)
+    {
+        await ExecuteWithLoadingAsync(args.Network.Ssid,
+            () => Mediator.Send(new ConnectToWifiCommand(args.Network.Ssid, args.Password)),
+            $"Connecté à {args.Network.Ssid}");
+    }
+
+    private async Task ExecuteWithLoadingAsync(
+        string ssid,
+        Func<Task<Validation<Error, Unit>>> action,
+        string successMessage)
+    {
+        _actionSsid = ssid;
+        StateHasChanged();
+
+        var result = await action();
+        result.Match(
+            Succ: _ => ToastService.ShowSuccess(successMessage),
+            Fail: errors => ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))));
+
+        _actionSsid = null;
+        await LoadStatusAsync();
+    }
+
+    private void GoBack() => Nav.NavigateTo("/setup");
+    private void GoNext() => Nav.NavigateTo("/setup/frequencies");
+    private void Skip() => Nav.NavigateTo("/setup/frequencies");
+}
