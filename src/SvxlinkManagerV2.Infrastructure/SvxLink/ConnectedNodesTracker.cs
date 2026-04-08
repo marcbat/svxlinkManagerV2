@@ -23,6 +23,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
     public event Action<IReadOnlyList<ConnectedNodeInfo>>? OnNodesInitialized;
     public event Action<ConnectedNodeInfo>? OnNodeTxStarted;
     public event Action<ConnectedNodeInfo>? OnNodeTxStopped;
+    public event Action? OnReset;
 
     public IReadOnlyList<ConnectedNodeInfo> ConnectedNodes
     {
@@ -311,6 +312,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         }
 
         _logger.LogInformation("ConnectedNodesTracker réinitialisé - liste des nœuds vidée");
+        OnReset?.Invoke();
         OnNodesInitialized?.Invoke(Array.Empty<ConnectedNodeInfo>());
     }
 

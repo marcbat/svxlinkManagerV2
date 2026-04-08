@@ -86,6 +86,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
             services.AddHostedService<DtmfAnnounceService>();
+            services.AddHostedService<ReflectorConnectionAnnouncementService>();
 
             // TTS et providers d'information pour les commandes DTMF 301-398
             services.AddSingleton<ITtsService, PicoTtsService>();

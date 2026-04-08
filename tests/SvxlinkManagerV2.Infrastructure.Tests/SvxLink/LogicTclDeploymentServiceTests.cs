@@ -50,18 +50,20 @@ public class LogicTclDeploymentServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeployAsync_ShouldWriteStartupProcContent()
+    public async Task DeployAsync_ShouldWriteStartupProcAndCommand398Content()
     {
         // Act
         await _service.DeployAsync();
 
-        // Assert — le fichier doit contenir proc startup {} jouant Name.wav
+        // Assert — le fichier doit contenir proc startup {} (vide) et la commande 398 pour jouer Name.wav
         var targetPath = Path.Combine(_testTargetDirectory, "Logic.tcl");
         var content = await File.ReadAllTextAsync(targetPath);
 
         content.Should().Contain("proc startup {}");
         content.Should().Contain("Name.wav");
         content.Should().Contain("playMsg");
+        content.Should().Contain("398",
+            "la commande 398 déclenche l'annonce de connexion réussie depuis .NET");
     }
 
     [Fact]

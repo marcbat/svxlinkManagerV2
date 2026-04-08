@@ -76,6 +76,42 @@ public class ActivateSalonCommandTests
     }
 
     [Fact]
+    public async Task Handle_WithValidSalon_ShouldResetConnectedNodesThenRestart()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId);
+        var command = new ActivateSalonCommand(salonId);
+        var sa818Config = CreateValidSA818Config();
+        var callOrder = new List<string>();
+
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(salon.ToSuccess());
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(sa818Config);
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _announcementService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _connectedNodesService.When(s => s.Reset()).Do(_ => callOrder.Add("Reset"));
+        _daemonService.When(s => s.RestartAsync(Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("Restart"));
+        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+        // Act
+        var result = await CallHandle(command);
+
+        // Assert — Reset() doit toujours être appelé avant RestartAsync()
+        result.ShouldBeSuccess();
+        _connectedNodesService.Received(1).Reset();
+        callOrder.Should().ContainInOrder("Reset", "Restart");
+    }
+
+    [Fact]
     public async Task Handle_WithValidSalon_ShouldPassExactValuesToConfigService()
     {
         // Arrange
