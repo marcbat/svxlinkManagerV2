@@ -435,6 +435,89 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         return path;
     }
 
+    [Fact]
+    public async Task GenerateStandaloneAsync_ShouldCreateValidConfigurationFile()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_standalone.conf");
+
+        // Act
+        var result = await _service.GenerateStandaloneAsync(145.550m, 145.550m, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        File.Exists(outputPath).Should().BeTrue();
+
+        var iniData = IniFile.Parse(outputPath);
+        iniData.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GenerateStandaloneAsync_ShouldSetLogicsToSimplexOnly()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_standalone_global.conf");
+
+        // Act
+        var result = await _service.GenerateStandaloneAsync(144.800m, 144.200m, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["GLOBAL"]["LOGICS"].Should().Be("SimplexLogic");
+        iniData["GLOBAL"]["LOGICS"].Should().NotContain("ReflectorLogic");
+    }
+
+    [Fact]
+    public async Task GenerateStandaloneAsync_ShouldNotHaveLinksKey()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_standalone_links.conf");
+
+        // Act
+        var result = await _service.GenerateStandaloneAsync(145.550m, 145.550m, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        // La clé LINKS ne doit pas être présente (mode simplex sans réflecteur)
+        iniData["GLOBAL"].ContainsKey("LINKS").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateStandaloneAsync_ShouldSetSimplexLogicDefaults()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_standalone_simplex.conf");
+
+        // Act
+        var result = await _service.GenerateStandaloneAsync(144.800m, 144.200m, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["SimplexLogic"]["TYPE"].Should().Be("Simplex");
+        iniData["SimplexLogic"]["RX"].Should().Be("Rx1");
+        iniData["SimplexLogic"]["TX"].Should().Be("Tx1");
+        iniData["SimplexLogic"]["CALLSIGN"].Should().Be("F0DTMF");
+        iniData["SimplexLogic"]["DEFAULT_LANG"].Should().Be("fr_FR");
+    }
+
+    [Fact]
+    public async Task GenerateStandaloneAsync_ShouldLeaveNoTempFile()
+    {
+        // Arrange
+        var outputPath = GetTestOutputPath("svxlink_standalone_atomic.conf");
+
+        // Act
+        await _service.GenerateStandaloneAsync(145.550m, 145.550m, outputPath);
+
+        // Assert
+        File.Exists(outputPath).Should().BeTrue();
+        var tempPath = $"{outputPath}.tmp";
+        File.Exists(tempPath).Should().BeFalse();
+    }
+
     public void Dispose()
     {
         // Nettoyer les fichiers de test

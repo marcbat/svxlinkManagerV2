@@ -58,6 +58,8 @@ public class SvxlinkDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.StartReflectorOnStartup);
             entity.Property(e => e.StartDefaultSalonOnStartup);
+            entity.Property(e => e.DefaultRxFrequency);
+            entity.Property(e => e.DefaultTxFrequency);
         });
     }
 }

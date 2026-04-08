@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
+using SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
 using SvxlinkManagerV2.Application.Interfaces;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
@@ -11,6 +12,8 @@ namespace SvxlinkManagerV2.Infrastructure.Persistence;
 /// <summary>
 /// Service d'activation automatique au démarrage selon la configuration générale.
 /// S'exécute après SA818InitializerHostedService (enregistré après dans le DI).
+/// Au démarrage, SVXLink est toujours lancé : soit avec le salon par défaut,
+/// soit en mode standalone (simplex sans réflecteur) pour l'écoute DTMF.
 /// </summary>
 public class StartupActivationHostedService : IHostedService
 {
@@ -35,20 +38,22 @@ public class StartupActivationHostedService : IHostedService
             var generalConfigRepo = scope.ServiceProvider.GetRequiredService<IGeneralConfigurationRepository>();
             var generalConfig = await generalConfigRepo.GetAsync(cancellationToken);
 
-            if (generalConfig is null)
-            {
-                _logger.LogInformation(
-                    "StartupActivationHostedService: Aucune configuration générale trouvée, activation automatique ignorée.");
-                return;
-            }
-
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-            if (generalConfig.StartReflectorOnStartup)
+            if (generalConfig is not null && generalConfig.StartReflectorOnStartup)
                 await TryActivateReflectorAsync(scope, mediator, cancellationToken);
 
-            if (generalConfig.StartDefaultSalonOnStartup)
-                await TryActivateDefaultSalonAsync(scope, mediator, cancellationToken);
+            if (generalConfig is not null && generalConfig.StartDefaultSalonOnStartup)
+            {
+                var salonActivated = await TryActivateDefaultSalonAsync(scope, mediator, cancellationToken);
+                if (salonActivated)
+                    return;
+            }
+
+            // Si aucun salon n'a été activé, démarrer en mode standalone pour l'écoute DTMF
+            _logger.LogInformation(
+                "StartupActivationHostedService: Démarrage de SVXLink en mode standalone (écoute DTMF sans réflecteur)...");
+            await TryActivateStandaloneModeAsync(mediator, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -91,7 +96,7 @@ public class StartupActivationHostedService : IHostedService
         }
     }
 
-    private async Task TryActivateDefaultSalonAsync(IServiceScope scope, IMediator mediator, CancellationToken cancellationToken)
+    private async Task<bool> TryActivateDefaultSalonAsync(IServiceScope scope, IMediator mediator, CancellationToken cancellationToken)
     {
         try
         {
@@ -101,7 +106,7 @@ public class StartupActivationHostedService : IHostedService
             if (defaultSalon is null || defaultSalon.IsDeleted)
             {
                 _logger.LogWarning("StartupActivationHostedService: Aucun salon par défaut disponible pour l'activation automatique.");
-                return;
+                return false;
             }
 
             _logger.LogInformation(
@@ -110,16 +115,44 @@ public class StartupActivationHostedService : IHostedService
 
             var result = await mediator.Send(new ActivateSalonCommand(defaultSalon.Id), cancellationToken);
 
-            result.Match(
-                _ => _logger.LogInformation(
-                    "StartupActivationHostedService: Salon {Id} activé avec succès.", defaultSalon.Id),
-                errors => _logger.LogError(
-                    "StartupActivationHostedService: Échec de l'activation du salon : {Errors}",
-                    string.Join(", ", errors.Select(e => e.Message))));
+            return result.Match(
+                _ =>
+                {
+                    _logger.LogInformation(
+                        "StartupActivationHostedService: Salon {Id} activé avec succès.", defaultSalon.Id);
+                    return true;
+                },
+                errors =>
+                {
+                    _logger.LogError(
+                        "StartupActivationHostedService: Échec de l'activation du salon : {Errors}",
+                        string.Join(", ", errors.Select(e => e.Message)));
+                    return false;
+                });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "StartupActivationHostedService: Erreur lors de l'activation du salon par défaut");
+            return false;
+        }
+    }
+
+    private async Task TryActivateStandaloneModeAsync(IMediator mediator, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await mediator.Send(new ActivateStandaloneModeCommand(), cancellationToken);
+
+            result.Match(
+                _ => _logger.LogInformation(
+                    "StartupActivationHostedService: Mode standalone activé avec succès."),
+                errors => _logger.LogError(
+                    "StartupActivationHostedService: Échec de l'activation du mode standalone : {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message))));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StartupActivationHostedService: Erreur lors de l'activation du mode standalone");
         }
     }
 }

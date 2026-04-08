@@ -24,6 +24,8 @@ public class GeneralConfigurationAggregateTests
             aggregate.Id.Should().Be(GeneralConfigurationAggregate.FixedId);
             aggregate.StartReflectorOnStartup.Should().BeFalse();
             aggregate.StartDefaultSalonOnStartup.Should().BeFalse();
+            aggregate.DefaultRxFrequency.Should().Be(145.550m);
+            aggregate.DefaultTxFrequency.Should().Be(145.550m);
             aggregate.DomainEvents.Should().ContainSingle()
                 .Which.Should().BeOfType<GeneralConfigurationCreated>();
         });
@@ -56,6 +58,22 @@ public class GeneralConfigurationAggregateTests
         {
             aggregate.StartReflectorOnStartup.Should().BeTrue();
             aggregate.StartDefaultSalonOnStartup.Should().BeTrue();
+        });
+    }
+
+    [Fact]
+    public void Create_WithCustomFrequencies_ShouldSetFrequencies()
+    {
+        // Act
+        var result = GeneralConfigurationAggregate.Create(
+            defaultRxFrequency: 144.800m,
+            defaultTxFrequency: 144.200m);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            aggregate.DefaultRxFrequency.Should().Be(144.800m);
+            aggregate.DefaultTxFrequency.Should().Be(144.200m);
         });
     }
 
@@ -119,6 +137,25 @@ public class GeneralConfigurationAggregateTests
     }
 
     [Fact]
+    public void Update_WithCustomFrequencies_ShouldChangeFrequencies()
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate(false, false);
+
+        // Act
+        var result = aggregate.Update(
+            startReflectorOnStartup: false,
+            startDefaultSalonOnStartup: false,
+            defaultRxFrequency: 430.100m,
+            defaultTxFrequency: 430.100m);
+
+        // Assert
+        result.ShouldBeSuccess();
+        aggregate.DefaultRxFrequency.Should().Be(430.100m);
+        aggregate.DefaultTxFrequency.Should().Be(430.100m);
+    }
+
+    [Fact]
     public void Update_ShouldEmitGeneralConfigurationUpdatedEvent()
     {
         // Arrange
@@ -167,7 +204,9 @@ public class GeneralConfigurationAggregateTests
         var evt = new GeneralConfigurationCreated(
             GeneralConfigurationAggregate.FixedId,
             startReflectorOnStartup: true,
-            startDefaultSalonOnStartup: true);
+            startDefaultSalonOnStartup: true,
+            defaultRxFrequency: 144.800m,
+            defaultTxFrequency: 144.200m);
 
         // Act
         aggregate.Apply(evt);
@@ -176,6 +215,8 @@ public class GeneralConfigurationAggregateTests
         aggregate.Id.Should().Be(GeneralConfigurationAggregate.FixedId);
         aggregate.StartReflectorOnStartup.Should().BeTrue();
         aggregate.StartDefaultSalonOnStartup.Should().BeTrue();
+        aggregate.DefaultRxFrequency.Should().Be(144.800m);
+        aggregate.DefaultTxFrequency.Should().Be(144.200m);
     }
 
     [Fact]
@@ -185,7 +226,9 @@ public class GeneralConfigurationAggregateTests
         var aggregate = CreateValidAggregate(false, false);
         var evt = new GeneralConfigurationUpdated(
             startReflectorOnStartup: true,
-            startDefaultSalonOnStartup: true);
+            startDefaultSalonOnStartup: true,
+            defaultRxFrequency: 430.500m,
+            defaultTxFrequency: 430.500m);
 
         // Act
         aggregate.Apply(evt);
@@ -193,6 +236,8 @@ public class GeneralConfigurationAggregateTests
         // Assert
         aggregate.StartReflectorOnStartup.Should().BeTrue();
         aggregate.StartDefaultSalonOnStartup.Should().BeTrue();
+        aggregate.DefaultRxFrequency.Should().Be(430.500m);
+        aggregate.DefaultTxFrequency.Should().Be(430.500m);
     }
 
     #endregion

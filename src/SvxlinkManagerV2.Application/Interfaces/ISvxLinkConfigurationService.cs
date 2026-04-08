@@ -23,6 +23,21 @@ public interface ISvxLinkConfigurationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Génère le fichier svxlink.conf en mode simplex (sans réflecteur) pour l'écoute DTMF.
+    /// SVXLink démarre uniquement avec SimplexLogic, sans connexion à un réflecteur.
+    /// </summary>
+    /// <param name="rxFrequency">Fréquence de réception en MHz (ex: 145.550)</param>
+    /// <param name="txFrequency">Fréquence de transmission en MHz (ex: 145.550)</param>
+    /// <param name="outputPath">Chemin complet du fichier de sortie (ex: /etc/svxlink/svxlink.conf)</param>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    /// <returns>Validation indiquant le succès ou l'erreur</returns>
+    Task<Validation<Error, Unit>> GenerateStandaloneAsync(
+        decimal rxFrequency,
+        decimal txFrequency,
+        string outputPath,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Valide la syntaxe d'un fichier svxlink.conf existant.
     /// </summary>
     /// <param name="configPath">Chemin du fichier à valider</param>

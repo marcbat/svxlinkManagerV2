@@ -87,6 +87,59 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     }
 
     /// <inheritdoc />
+    public async Task<Validation<Error, Unit>> GenerateStandaloneAsync(
+        decimal rxFrequency,
+        decimal txFrequency,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "Génération de la configuration SVXLink en mode standalone (RX: {RxFreq} MHz, TX: {TxFreq} MHz)",
+                rxFrequency, txFrequency);
+
+            // 1. Localiser et charger le template
+            var templatePath = GetTemplatePath();
+            if (!File.Exists(templatePath))
+            {
+                var error = Error.New($"Le fichier template '{templatePath}' est introuvable");
+                _logger.LogError("Template non trouvé: {TemplatePath}", templatePath);
+                return Validation<Error, Unit>.Fail(Seq1(error));
+            }
+
+            // 2. Charger le template INI
+            var iniData = await Task.Run(() => IniFile.Parse(templatePath), cancellationToken);
+
+            // 3. Mettre à jour les sections pour le mode standalone (simplex sans réflecteur)
+            UpdateGlobalSectionStandalone(iniData);
+            UpdateSimplexLogicSectionStandalone(iniData);
+
+            // 4. Écrire le fichier de manière atomique (temp + rename)
+            var writeResult = await WriteConfigurationAtomicallyAsync(iniData, outputPath, cancellationToken);
+
+            return writeResult.Match(
+                Succ: _ =>
+                {
+                    _logger.LogInformation(
+                        "Configuration SVXLink standalone générée avec succès: {OutputPath}", outputPath);
+                    return Success<Error, Unit>(unit);
+                },
+                Fail: errors =>
+                {
+                    _logger.LogError("Échec de l'écriture de la configuration standalone: {Errors}", errors);
+                    return Validation<Error, Unit>.Fail(errors);
+                });
+        }
+        catch (Exception ex)
+        {
+            var error = Error.New($"Erreur lors de la génération de la configuration standalone: {ex.Message}", ex);
+            _logger.LogError(ex, "Exception lors de la génération de la configuration SVXLink standalone");
+            return Validation<Error, Unit>.Fail(Seq1(error));
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<Validation<Error, bool>> ValidateAsync(
         string configPath,
         CancellationToken cancellationToken = default)
@@ -131,6 +184,23 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["GLOBAL"]["CARD_CHANNELS"] = config.CardChannels.ToString();
 
         _logger.LogDebug("Section [GLOBAL] mise à jour");
+    }
+
+    /// <summary>
+    /// Met à jour la section [GLOBAL] pour le mode standalone (simplex sans réflecteur).
+    /// </summary>
+    private void UpdateGlobalSectionStandalone(IniFile iniData)
+    {
+        iniData["GLOBAL"]["LOGICS"] = "SimplexLogic";
+        iniData["GLOBAL"]["CFG_DIR"] = "svxlink.d";
+        iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = "16000";
+        iniData["GLOBAL"]["CARD_CHANNELS"] = "1";
+
+        // Supprimer la clé LINKS (non nécessaire sans réflecteur)
+        if (iniData["GLOBAL"].ContainsKey("LINKS"))
+            iniData["GLOBAL"].Remove("LINKS");
+
+        _logger.LogDebug("Section [GLOBAL] mise à jour (mode standalone)");
     }
 
     /// <summary>
@@ -202,6 +272,29 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         }
 
         _logger.LogDebug("Section [SimplexLogic] mise à jour (Callsign: {Callsign})", config.SimplexCallsign);
+    }
+
+    /// <summary>
+    /// Met à jour la section [SimplexLogic] pour le mode standalone (simplex sans réflecteur).
+    /// Utilise des valeurs par défaut pour permettre l'écoute DTMF sans réflecteur.
+    /// </summary>
+    private void UpdateSimplexLogicSectionStandalone(IniFile iniData)
+    {
+        iniData["SimplexLogic"]["TYPE"] = "Simplex";
+        iniData["SimplexLogic"]["RX"] = "Rx1";
+        iniData["SimplexLogic"]["TX"] = "Tx1";
+        iniData["SimplexLogic"]["MODULES"] = "ModuleHelp";
+        iniData["SimplexLogic"]["CALLSIGN"] = "F0DTMF";
+        iniData["SimplexLogic"]["SHORT_IDENT_INTERVAL"] = "600";
+        iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = "3600";
+        iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
+        iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
+        iniData["SimplexLogic"]["DEFAULT_LANG"] = "fr_FR";
+        iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = "0";
+        iniData["SimplexLogic"]["DTMF_CTRL_PTY"] = DtmfPtyWriter.DefaultPtyPath;
+
+        _logger.LogDebug("Section [SimplexLogic] mise à jour (mode standalone)");
     }
 
     /// <summary>
