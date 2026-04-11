@@ -1,0 +1,152 @@
+@page "/setup"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Interfaces
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+@inject IUserAccountService UserAccountService
+@inject IPendingSetupLoginService PendingSetupLoginService
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">account_circle</span>
+        <div>
+            <h2 class="setup-card-title">Création du compte administrateur</h2>
+            <p class="setup-card-desc">Définissez le nom d'utilisateur et le mot de passe pour accéder à l'application.</p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        @if (_errorMessages.Any())
+        {
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach (var error in _errorMessages)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="form-group">
+            <label class="form-label" for="username">Nom d'utilisateur</label>
+            <input type="text" id="username" class="form-control"
+                   @bind="_username"
+                   placeholder="ex: admin"
+                   autocomplete="username" />
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="password">Mot de passe</label>
+            <input type="password" id="password" class="form-control"
+                   @bind="_password"
+                   autocomplete="new-password" />
+            <small class="form-text text-muted">Minimum 6 caractères.</small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="confirmPassword">Confirmer le mot de passe</label>
+            <input type="password" id="confirmPassword" class="form-control"
+                   @bind="_confirmPassword"
+                   autocomplete="new-password" />
+        </div>
+    </div>
+
+    <div class="setup-card-footer">
+        <button class="setup-btn-primary"
+                @onclick="Submit"
+                disabled="@(_isLoading || !IsValid)">
+            @if (_isLoading)
+            {
+                <span class="material-symbols-outlined spinning">sync</span>
+                <span>Création en cours...</span>
+            }
+            else
+            {
+                <span>Créer le compte</span>
+                <span class="material-symbols-outlined">arrow_forward</span>
+            }
+        </button>
+    </div>
+</div>
+
+@code {
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private bool _isLoading;
+    private List<string> _errorMessages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var hasUser = await UserAccountService.HasAnyUserAsync();
+
+        if (hasUser)
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+                Nav.NavigateTo("/setup/callsign", forceLoad: false);
+            else
+                Nav.NavigateTo("/login", forceLoad: true);
+        }
+    }
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(_username) &&
+        !string.IsNullOrWhiteSpace(_password) &&
+        _password.Length >= 6 &&
+        _password == _confirmPassword;
+
+    private async Task Submit()
+    {
+        _errorMessages.Clear();
+
+        if (string.IsNullOrWhiteSpace(_username))
+        {
+            _errorMessages.Add("Le nom d'utilisateur est obligatoire.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_password) || _password.Length < 6)
+        {
+            _errorMessages.Add("Le mot de passe doit contenir au moins 6 caractères.");
+            return;
+        }
+
+        if (_password != _confirmPassword)
+        {
+            _errorMessages.Add("Les mots de passe ne correspondent pas.");
+            return;
+        }
+
+        _isLoading = true;
+
+        try
+        {
+            var result = await UserAccountService.CreateUserAsync(_username.Trim(), _password);
+
+            result.Match(
+                Succ: _ =>
+                {
+                    var token = PendingSetupLoginService.GenerateToken(_username.Trim());
+                    Nav.NavigateTo($"/account/setup-complete?token={token}", forceLoad: true);
+                },
+                Fail: errors =>
+                {
+                    _errorMessages = errors
+                        .Select(e => e.Message)
+                        .ToList();
+                    _isLoading = false;
+                }
+            );
+        }
+        catch (Exception)
+        {
+            _errorMessages.Add("Une erreur inattendue s'est produite. Veuillez réessayer.");
+            _isLoading = false;
+        }
+    }
+}

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -49,20 +50,9 @@ namespace SvxlinkManagerV2.Presentation
                     Directory.GetCurrentDirectory(),
                     resolvedDbPath);
 
-                var dbFileExisted = File.Exists(resolvedDbPath);
-                logger.LogInformation("Fichier SQLite existant avant EnsureCreated: {DbFileExisted}", dbFileExisted);
-
                 var context = scope.ServiceProvider.GetRequiredService<SvxlinkDbContext>();
-                var created = context.Database.EnsureCreated();
-
-                if (created)
-                    logger.LogWarning(
-                        "EnsureCreated a créé un NOUVEAU schéma SQLite — la base était absente ou vide. Chemin: {DbPath}",
-                        resolvedDbPath);
-                else
-                    logger.LogInformation(
-                        "EnsureCreated: le schéma SQLite existait déjà, aucune action effectuée. Chemin: {DbPath}",
-                        resolvedDbPath);
+                await context.Database.MigrateAsync();
+                logger.LogInformation("Migrations SQLite appliquées avec succès. Chemin: {DbPath}", resolvedDbPath);
             }
 
             await host.RunAsync();

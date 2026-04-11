@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
@@ -6,7 +8,7 @@ using SvxlinkManagerV2.Domain.Aggregates.Salon;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
-public class SvxlinkDbContext : DbContext
+public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
 {
     public SvxlinkDbContext(DbContextOptions<SvxlinkDbContext> options) : base(options) { }
 
@@ -17,7 +19,7 @@ public class SvxlinkDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Ignore DomainEvents on all aggregate entities (not persisted in DB)
+        base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<SalonAggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<SA818Aggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<ReflectorAggregate>().Ignore(e => e.DomainEvents);

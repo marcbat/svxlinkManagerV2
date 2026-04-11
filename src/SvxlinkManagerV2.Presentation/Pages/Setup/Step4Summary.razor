@@ -125,7 +125,7 @@
             Succ: _ =>
             {
                 ToastService.ShowSuccess("Configuration initiale terminée. Bienvenue !");
-                Nav.NavigateTo("/", forceLoad: false);
+                Nav.NavigateTo("/login", forceLoad: true);
             },
             Fail: errors =>
             {

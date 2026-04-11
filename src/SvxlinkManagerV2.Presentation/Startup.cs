@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +36,41 @@ namespace SvxlinkManagerV2.Presentation
             var connectionString = Configuration.GetConnectionString("SQLite") ?? "Data Source=svxlinkmanager.db";
             services.AddDbContext<SvxlinkDbContext>(options =>
                 options.UseSqlite(connectionString));
+
+            // ASP.NET Identity
+            services.AddIdentity<IdentityUser, IdentityRole>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequiredLength = 6;
+                options.SignIn.RequireConfirmedAccount = false;
+            })
+            .AddEntityFrameworkStores<SvxlinkDbContext>()
+            .AddDefaultTokenProviders();
+
+            // Cookie authentication options
+            services.ConfigureApplicationCookie(options =>
+            {
+                options.LoginPath = "/login";
+                options.LogoutPath = "/account/logout";
+                options.SlidingExpiration = true;
+                options.ExpireTimeSpan = TimeSpan.FromHours(8);
+            });
+
+            // Authorization - fallback policy : toutes les routes requièrent une authentification
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = options.DefaultPolicy;
+            });
+
+            // Authentication state pour Blazor Server
+            services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
+
+            // User account service
+            services.AddScoped<IUserAccountService, UserAccountService>();
+            services.AddSingleton<IPendingSetupLoginService, PendingSetupLoginService>();
 
             // MediatR - découverte auto dans l'assembly Application
             services.AddMediatR(cfg =>
@@ -126,10 +163,14 @@ namespace SvxlinkManagerV2.Presentation
             app.UseStaticFiles();
             app.UseRouting();
 
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapBlazorHub();
                 endpoints.MapFallbackToPage("/_Host");
+                endpoints.MapRazorPages();
             });
         }
     }

@@ -1,14 +1,25 @@
-﻿<Router AppAssembly="@typeof(Program).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <div class="alert alert-warning text-center mt-5">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                <strong>Page non trouvée</strong>
-                <p class="mb-0">Désolé, cette page n'existe pas.</p>
-            </div>
-        </LayoutView>
-    </NotFound>
-</Router>
+﻿<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="d-flex justify-content-center mt-5">
+                        <span>Vérification en cours...</span>
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div class="alert alert-warning text-center mt-5">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Page non trouvée</strong>
+                    <p class="mb-0">Désolé, cette page n'existe pas.</p>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
