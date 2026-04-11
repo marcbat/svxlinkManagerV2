@@ -24,21 +24,25 @@ public class LoginModel : PageModel
 
     public string? ErrorMessage { get; set; }
     public string? ReturnUrl { get; set; }
-    public bool HasAnyUser { get; set; }
 
-    public async Task OnGetAsync(string? returnUrl = null)
+    public async Task<IActionResult> OnGetAsync(string? returnUrl = null)
     {
         ReturnUrl = returnUrl ?? "/";
-        HasAnyUser = await _userAccountService.HasAnyUserAsync();
+
+        // Si aucun compte n'existe, rediriger directement vers le wizard de configuration
+        var hasAnyUser = await _userAccountService.HasAnyUserAsync();
+        if (!hasAnyUser)
+            return Redirect("/setup");
 
         // Nettoyer les cookies externes existants
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(string? username, string? password, bool rememberMe = false, string? returnUrl = null)
     {
         ReturnUrl = returnUrl ?? "/";
-        HasAnyUser = await _userAccountService.HasAnyUserAsync();
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {

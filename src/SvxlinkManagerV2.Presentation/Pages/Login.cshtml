@@ -91,15 +91,6 @@
             font-size: 0.875rem;
             margin-bottom: 1rem;
         }
-        .alert-info {
-            background: rgba(79,142,247,0.15);
-            border: 1px solid rgba(79,142,247,0.4);
-            border-radius: 6px;
-            padding: 0.75rem;
-            color: #93c5fd;
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
     </style>
 </head>
 <body>
@@ -117,35 +108,25 @@
                 <div class="alert-danger">@Model.ErrorMessage</div>
             }
 
-            @if (!Model.HasAnyUser)
-            {
-                <div class="alert-info">
-                    Aucun compte n'a été configuré.
-                    <a href="/setup">Créez d'abord un compte</a> via l'assistant de configuration.
+            <form method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                <div class="form-group">
+                    <label class="form-label" for="username">Nom d'utilisateur</label>
+                    <input type="text" id="username" name="username" class="form-control"
+                           autocomplete="username" autofocus required />
                 </div>
-            }
-            else
-            {
-                <form method="post">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
-                    <div class="form-group">
-                        <label class="form-label" for="username">Nom d'utilisateur</label>
-                        <input type="text" id="username" name="username" class="form-control"
-                               autocomplete="username" autofocus required />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="password">Mot de passe</label>
-                        <input type="password" id="password" name="password" class="form-control"
-                               autocomplete="current-password" required />
-                    </div>
-                    <div class="form-check">
-                        <input type="checkbox" id="rememberMe" name="rememberMe" class="form-check-input" value="true" />
-                        <label class="form-check-label" for="rememberMe">Se souvenir de moi</label>
-                    </div>
-                    <button type="submit" class="btn-primary">Se connecter</button>
-                </form>
-            }
+                <div class="form-group">
+                    <label class="form-label" for="password">Mot de passe</label>
+                    <input type="password" id="password" name="password" class="form-control"
+                           autocomplete="current-password" required />
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="rememberMe" name="rememberMe" class="form-check-input" value="true" />
+                    <label class="form-check-label" for="rememberMe">Se souvenir de moi</label>
+                </div>
+                <button type="submit" class="btn-primary">Se connecter</button>
+            </form>
         </div>
     </div>
 </body>
