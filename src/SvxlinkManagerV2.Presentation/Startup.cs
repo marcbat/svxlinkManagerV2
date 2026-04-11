@@ -62,7 +62,9 @@ namespace SvxlinkManagerV2.Presentation
             // Authorization - fallback policy : toutes les routes requièrent une authentification
             services.AddAuthorization(options =>
             {
-                options.FallbackPolicy = options.DefaultPolicy;
+                options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
 
             // Authentication state pour Blazor Server

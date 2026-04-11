@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LanguageExt.UnitTesting;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -10,19 +11,24 @@ namespace SvxlinkManagerV2.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// Tests unitaires pour UserAccountService avec SQLite in-memory et ASP.NET Identity.
+/// Une connexion SQLite est maintenue ouverte pour toute la durée du test afin de
+/// conserver la base de données en mémoire entre les résolutions de DbContext par le DI.
 /// </summary>
 public class UserAccountServiceTests : IAsyncDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly ServiceProvider _serviceProvider;
     private readonly SvxlinkDbContext _dbContext;
 
     public UserAccountServiceTests()
     {
+        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection.Open();
+
         var services = new ServiceCollection();
 
-        var dbName = $"test-identity-{Guid.NewGuid():N}";
         services.AddDbContext<SvxlinkDbContext>(options =>
-            options.UseSqlite($"Data Source={dbName}.db"));
+            options.UseSqlite(_connection));
 
         services.AddIdentityCore<IdentityUser>(options =>
         {
@@ -52,6 +58,7 @@ public class UserAccountServiceTests : IAsyncDisposable
     {
         await _dbContext.DisposeAsync();
         await _serviceProvider.DisposeAsync();
+        await _connection.DisposeAsync();
     }
 
     [Fact]
