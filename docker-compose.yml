@@ -1,5 +1,5 @@
 services:
-  # Application .NET avec SVXLink 19.09.2
+  # Application .NET avec SVXLink 25.05
   svxlinkmanager-app:
     build:
       context: .
@@ -20,6 +20,7 @@ services:
       - ./data:/app/data
       - svxlink-spool:/var/spool/svxlink
       - svxlink-logs:/var/log/svxlink
+      - svxlink-pki-app:/var/lib/svxlink/pki
     depends_on:
       svxreflector:
         condition: service_started
@@ -50,6 +51,7 @@ services:
     container_name: svxreflector
     volumes:
       - ./svxreflector-config:/etc/svxlink:ro
+      - svxlink-pki-reflector:/var/lib/svxlink/pki
     networks:
       - svxlink-network
     restart: unless-stopped
@@ -62,4 +64,8 @@ volumes:
   svxlink-spool:
     driver: local
   svxlink-logs:
+    driver: local
+  svxlink-pki-app:
+    driver: local
+  svxlink-pki-reflector:
     driver: local

@@ -61,6 +61,8 @@ public class CompleteSetupCommandHandler
                 Callsign: data.Callsign,
                 AuthKey: authKey,
                 JitterBufferDelay: 0,
+                ReflectorProtocol: Domain.Aggregates.Salon.Enums.ReflectorProtocol.V2,
+                CertEmail: null,
                 SimplexCallsign: data.SimplexCallsign,
                 Modules: "ModuleHelp",
                 ShortIdentInterval: 600,

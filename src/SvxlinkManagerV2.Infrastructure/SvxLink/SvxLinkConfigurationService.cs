@@ -3,6 +3,7 @@ using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Common;
 using static LanguageExt.Prelude;
 
@@ -10,25 +11,30 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
 /// <summary>
 /// Service de génération du fichier de configuration SVXLink (svxlink.conf).
-/// Compatible avec SVXLink 19.09.2.
+/// Supporte SVXLink 25.05 (protocole V3) et SVXLink 19.09.2 (protocole V2 legacy).
 /// </summary>
 public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
     private readonly ILogger<SvxLinkConfigurationService> _logger;
+    private readonly ISvxLinkStrategyResolver _strategyResolver;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
     private const string SvxLinkConfigDir = "/etc/svxlink";
 
-    // Constructeur pour l'injection de dépendances (Wolverine/DI ne peut pas résoudre string? depuis le conteneur)
-    public SvxLinkConfigurationService(ILogger<SvxLinkConfigurationService> logger)
-        : this(logger, null) { }
+    // Constructeur pour l'injection de dépendances
+    public SvxLinkConfigurationService(
+        ILogger<SvxLinkConfigurationService> logger,
+        ISvxLinkStrategyResolver strategyResolver)
+        : this(logger, strategyResolver, null) { }
 
     // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
+        ISvxLinkStrategyResolver strategyResolver,
         string? templatePath)
     {
         _logger = logger;
+        _strategyResolver = strategyResolver;
         _templatePath = templatePath;
     }
 
@@ -219,22 +225,68 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
+    /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
     private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
+        var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
+        var eventHandlerPath = $"{strategy.EventsDirectory}/Logic.tcl";
 
-        iniData["ReflectorLogic"]["TYPE"] = "Reflector";
-        iniData["ReflectorLogic"]["HOST"] = config.Host;
-        iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
-        iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
-        iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey;
-        iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
-        iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
-        iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+        if (config.ReflectorProtocol == ReflectorProtocol.V2)
+        {
+            // Legacy protocol (SVXLink 19.09.2) — AUTH_KEY required, TYPE=Reflector (simple, pas V2/V3)
+            iniData["ReflectorLogic"]["TYPE"] = "Reflector";
+            iniData["ReflectorLogic"]["HOST"] = config.Host;
+            iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
+            iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
+            iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey!;
+            iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
+            iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
+            iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+            iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
 
-        _logger.LogDebug("Section [ReflectorLogic] mise à jour (Host: {Host}, Callsign: {Callsign})", 
-            config.Host, config.Callsign);
+            // Remove V3-specific keys that may exist in template
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
+
+            _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
+                config.Host, config.Callsign);
+        }
+        else
+        {
+            // Modern protocol (SVXLink 25.05) — X.509 certificates, TYPE=ReflectorV3
+            iniData["ReflectorLogic"]["TYPE"] = "ReflectorV3";
+            iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
+            iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
+            iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
+            iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
+            iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = "/var/lib/svxlink/pki";
+            iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
+
+            if (!string.IsNullOrWhiteSpace(config.CertEmail))
+            {
+                iniData["ReflectorLogic"]["CERT_EMAIL"] = config.CertEmail;
+            }
+
+            // Remove V2-specific keys that may exist in template
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "AUTH_KEY");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOST");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "PORT");
+
+            _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V3 (Hosts: {Host}:{Port}, Callsign: {Callsign})",
+                config.Host, config.Port, config.Callsign);
+        }
+    }
+
+    /// <summary>
+    /// Supprime une clé d'une section INI si elle existe.
+    /// </summary>
+    private static void RemoveKeyIfPresent(IniFile iniData, string section, string key)
+    {
+        if (iniData[section].ContainsKey(key))
+            iniData[section].Remove(key);
     }
 
     /// <summary>
@@ -245,6 +297,12 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
+        var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
+        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
+        var eventsTclPath = $"{eventsBasePath}/events.tcl";
 
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";
@@ -255,9 +313,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = config.LongIdentInterval.ToString();
         iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
         iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
-        // Chemin absolu requis — SVXLink résout le handler relatif au répertoire de travail, pas au SHARE_DIR
-        // events.tcl est le point d'entrée principal qui source tous les handlers de events.d/ (dont SimplexLogic.tcl)
-        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = eventsTclPath;
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
 
@@ -280,6 +336,14 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// </summary>
     private void UpdateSimplexLogicSectionStandalone(IniFile iniData)
     {
+        // Standalone = toujours legacy (V2)
+        var strategy = _strategyResolver.Resolve(ReflectorProtocol.V2);
+        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
+        var eventsTclPath = $"{eventsBasePath}/events.tcl";
+
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";
         iniData["SimplexLogic"]["TX"] = "Tx1";
@@ -289,7 +353,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = "3600";
         iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
         iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
-        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = eventsTclPath;
         iniData["SimplexLogic"]["DEFAULT_LANG"] = "fr_FR";
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = "0";
         iniData["SimplexLogic"]["DTMF_CTRL_PTY"] = DtmfPtyWriter.DefaultPtyPath;

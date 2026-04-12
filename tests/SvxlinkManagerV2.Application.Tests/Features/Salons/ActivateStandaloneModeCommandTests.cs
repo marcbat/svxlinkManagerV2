@@ -8,6 +8,7 @@ using SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 using LangExtError = LanguageExt.Common.Error;
@@ -55,7 +56,7 @@ public class ActivateStandaloneModeCommandTests
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
         _configurationService.GenerateStandaloneAsync(Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
         _tracker.ActiveSalonId.Returns((Guid?)null);
 
@@ -82,7 +83,7 @@ public class ActivateStandaloneModeCommandTests
             .Returns((SA818ConfigurationDto?)null);
         _configurationService.GenerateStandaloneAsync(Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
         _tracker.ActiveSalonId.Returns((Guid?)null);
 
@@ -114,7 +115,7 @@ public class ActivateStandaloneModeCommandTests
             .Returns((SA818ConfigurationDto?)null);
         _configurationService.GenerateStandaloneAsync(Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
 
         // Act
@@ -186,7 +187,7 @@ public class ActivateStandaloneModeCommandTests
             .Returns((SA818ConfigurationDto?)null);
         _configurationService.GenerateStandaloneAsync(Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Validation<LangExtError, Unit>.Fail(Seq1<LangExtError>(LangExtError.New("Erreur restart")))));
         _tracker.ActiveSalonId.Returns((Guid?)null);
 
@@ -212,7 +213,7 @@ public class ActivateStandaloneModeCommandTests
             .Returns((SA818ConfigurationDto?)null);
         _configurationService.GenerateStandaloneAsync(Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
         _tracker.ActiveSalonId.Returns((Guid?)null);
 

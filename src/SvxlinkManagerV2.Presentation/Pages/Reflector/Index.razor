@@ -157,13 +157,29 @@ else
         "TIMESTAMP_FORMAT=\"%c\"\r\n" +
         "LISTEN_PORT=5300\r\n" +
         "CODECS=OPUS\r\n" +
+        "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
+        "TG_FOR_V1_CLIENTS=0\r\n" +
+        "\r\n" +
+        "[ROOT_CA]\r\n" +
+        "COMMON_NAME=SvxReflector Root CA\r\n" +
+        "\r\n" +
+        "[ISSUING_CA]\r\n" +
+        "COMMON_NAME=SvxReflector Issuing CA\r\n" +
+        "\r\n" +
+        "[SERVER_CERT]\r\n" +
+        "COMMON_NAME=svxreflector\r\n" +
+        "\r\n" +
+        "[TG#0]\r\n" +
+        "AUTO_QSY_AFTER=0\r\n" +
+        "ALLOW=.*\r\n" +
+        "SHOW_ACTIVITY=1\r\n" +
         "\r\n" +
         "[USERS]\r\n" +
-        "# Exemple : CALLSIGN=GroupeMotDePasse\r\n" +
+        "# Clients V2 (AUTH_KEY) — Exemple : CALLSIGN=GroupeMotDePasse\r\n" +
         "# F5ZZZ-L=Noeuds\r\n" +
         "\r\n" +
         "[PASSWORDS]\r\n" +
-        "# Exemple : GroupeMotDePasse=\"MotDePasse\"\r\n" +
+        "# Mots de passe V2 — Exemple : GroupeMotDePasse=\"MotDePasse\"\r\n" +
         "# Noeuds=\"Passw0rd\"\r\n";
 
     protected override async Task OnInitializedAsync()

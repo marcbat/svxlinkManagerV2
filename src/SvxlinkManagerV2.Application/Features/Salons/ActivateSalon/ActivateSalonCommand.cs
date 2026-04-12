@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -120,8 +121,8 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         // Réinitialisation des nœuds connectés et armement du service d'annonce de connexion
         _connectedNodesService.Reset();
 
-        _logger.LogInformation("Redémarrage du daemon SVXLink");
-        var daemonResult = await _daemonService.RestartAsync(cancellationToken);
+        _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol})", aggregate.Configuration.ReflectorProtocol);
+        var daemonResult = await _daemonService.RestartAsync(aggregate.Configuration.ReflectorProtocol, cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de redémarrer le daemon SVXLink").ToFailure<Unit>();
 

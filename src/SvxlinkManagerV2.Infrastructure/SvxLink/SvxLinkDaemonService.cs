@@ -4,6 +4,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
@@ -16,16 +17,21 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
 {
     private readonly ILogger<SvxLinkDaemonService> _logger;
     private readonly ISvxLinkLogService _logService;
+    private readonly ISvxLinkStrategyResolver _strategyResolver;
     private const int TimeoutSeconds = 30;
     private const string SvxLinkConfigPath = "/etc/svxlink/svxlink.conf";
     private Process? _svxlinkProcess;
     private readonly object _processLock = new();
     private bool _disposed;
 
-    public SvxLinkDaemonService(ILogger<SvxLinkDaemonService> logger, ISvxLinkLogService logService)
+    public SvxLinkDaemonService(
+        ILogger<SvxLinkDaemonService> logger,
+        ISvxLinkLogService logService,
+        ISvxLinkStrategyResolver strategyResolver)
     {
         _logger = logger;
         _logService = logService;
+        _strategyResolver = strategyResolver;
     }
 
     public void Dispose()
@@ -106,9 +112,10 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
         }
     }
 
-    public async Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default)
+    public async Task<Validation<Error, Unit>> RestartAsync(ReflectorProtocol protocol, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Redémarrage du daemon SVXLink");
+        var strategy = _strategyResolver.Resolve(protocol);
+        _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol}, binaire: {Binary})", protocol, strategy.BinaryPath);
 
         try
         {
@@ -158,16 +165,20 @@ public class SvxLinkDaemonService : ISvxLinkDaemonService, IDisposable
                 }
             }
             
-            // 3. Démarrer SVXLink via /bin/bash (comme le legacy) pour garantir le PATH
-            //    et l'encodage UTF8. SVXLink écrit TOUT sur stderr (logs normaux inclus).
+            // 3. Démarrer SVXLink via le binaire spécifique à la version.
+            //    LD_LIBRARY_PATH est critique car les .so sont incompatibles entre versions.
+            //    SVXLink écrit TOUT sur stderr (logs normaux inclus).
             _logger.LogInformation("Démarrage de SVXLink");
+
+            var envVars = string.Join(" ", strategy.EnvironmentVariables.Select(kv => $"{kv.Key}={kv.Value}"));
+            var svxlinkCommand = $"{envVars} {strategy.BinaryPath} --config={SvxLinkConfigPath}";
 
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "/bin/bash",
-                    Arguments = $"-c \"svxlink --config={SvxLinkConfigPath}\"",
+                    Arguments = $"-c \"{svxlinkCommand}\"",
                     RedirectStandardOutput = true,
                     StandardOutputEncoding = Encoding.UTF8,
                     RedirectStandardError = true,

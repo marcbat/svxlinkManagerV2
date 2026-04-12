@@ -15,6 +15,7 @@ using SvxlinkManagerV2.Infrastructure.Reflector;
 using SvxlinkManagerV2.Infrastructure.Runtime;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
+using SvxlinkManagerV2.Infrastructure.SvxLink.Strategies;
 using SvxlinkManagerV2.Presentation.Services;
 
 namespace SvxlinkManagerV2.Presentation
@@ -77,6 +78,11 @@ namespace SvxlinkManagerV2.Presentation
             services.Configure<ApplicationUpdateOptions>(Configuration.GetSection(ApplicationUpdateOptions.SectionName));
             services.AddHttpClient<IApplicationUpdateService, GitHubReleaseUpdateService>();
             services.AddSingleton<IApplicationUpdateWorkflowService, ApplicationUpdateWorkflowService>();
+
+            // SVXLink version strategies (dual install: 19.09.2 legacy + 25.05 modern)
+            services.AddSingleton<ISvxLinkVersionStrategy, SvxLinkLegacyStrategy>();
+            services.AddSingleton<ISvxLinkVersionStrategy, SvxLinkModernStrategy>();
+            services.AddSingleton<ISvxLinkStrategyResolver, SvxLinkStrategyResolver>();
 
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();

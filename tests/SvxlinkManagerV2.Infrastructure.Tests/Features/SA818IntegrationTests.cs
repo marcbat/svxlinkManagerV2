@@ -8,6 +8,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
@@ -68,6 +69,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "fr_FR", 0,
             rxFrequency, txFrequency, rxCtcss, txCtcss);

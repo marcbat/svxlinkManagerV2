@@ -7,6 +7,7 @@ using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 using Unit = LanguageExt.Unit;
@@ -184,6 +185,8 @@ public class UpdateSalonDtmfCodeCommandTests
         Callsign: "F5ABC-L",
         AuthKey: "test-auth-key-123",
         JitterBufferDelay: 0,
+        ReflectorProtocol: ReflectorProtocol.V2,
+        CertEmail: null,
         SimplexCallsign: "F5ABC",
         Modules: "ModuleHelp,ModuleParrot",
         ShortIdentInterval: 60,

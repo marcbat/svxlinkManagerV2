@@ -2,6 +2,7 @@ using FluentAssertions;
 using LanguageExt.UnitTesting;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 
 namespace SvxlinkManagerV2.Domain.Tests.Aggregates.Salon;
@@ -92,6 +93,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -132,6 +135,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -176,6 +181,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -218,6 +225,8 @@ public class SalonAggregateTests
             invalidCallsign, // Callsign vide
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -258,6 +267,8 @@ public class SalonAggregateTests
             config.Callsign,
             "", // AuthKey vide
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -298,6 +309,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -338,6 +351,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -378,6 +393,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -418,6 +435,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -461,6 +480,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -988,6 +1009,8 @@ public class SalonAggregateTests
             Callsign: "F5ABC-L",
             AuthKey: "test-auth-key-123",
             JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V2,
+            CertEmail: null,
             // Section SimplexLogic
             SimplexCallsign: "F5ABC",
             Modules: "ModuleHelp,ModuleParrot",

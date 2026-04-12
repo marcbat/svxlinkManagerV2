@@ -6,6 +6,7 @@ using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using Xunit;
@@ -147,6 +148,8 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
                 Callsign: "NOCALL",
                 AuthKey: "TestKey123",
                 JitterBufferDelay: 0,
+                ReflectorProtocol: ReflectorProtocol.V2,
+                CertEmail: null,
                 SimplexCallsign: "F0ABC",
                 Modules: "ModuleHelp",
                 ShortIdentInterval: 600,
@@ -305,6 +308,8 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
                 Callsign: "F0XYZ",
                 AuthKey: "MaClePersonnalisee",
                 JitterBufferDelay: 0,
+                ReflectorProtocol: ReflectorProtocol.V2,
+                CertEmail: null,
                 SimplexCallsign: "F0XYZ",
                 Modules: "ModuleHelp",
                 ShortIdentInterval: 600,

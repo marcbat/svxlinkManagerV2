@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -130,6 +131,7 @@ public class DeleteSalonCommandTests
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key",
             0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp",
             60, 60,
             null,

@@ -151,6 +151,8 @@ public class SetupStatusServiceTests
                 Callsign: "F5ABC",
                 AuthKey: "TestKey",
                 JitterBufferDelay: 0,
+                ReflectorProtocol: Domain.Aggregates.Salon.Enums.ReflectorProtocol.V2,
+                CertEmail: null,
                 SimplexCallsign: "F5ABC-L",
                 Modules: "ModuleHelp",
                 ShortIdentInterval: 600,
