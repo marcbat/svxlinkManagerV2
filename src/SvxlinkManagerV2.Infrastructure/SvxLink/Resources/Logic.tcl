@@ -60,4 +60,16 @@ proc dtmf_cmd_received {cmd} {
     return 1
 }
 
+#
+# Executed when the connection status to a reflector changes (SVXLink 25.05+)
+#   status - 1 if connected, 0 if disconnected
+#
+proc reflector_connection_status_update {status} {
+    if {$status == 1} {
+        puts "REFLECTOR_CONNECTED"
+    } else {
+        puts "REFLECTOR_DISCONNECTED"
+    }
+}
+
 } ;# namespace eval Logic

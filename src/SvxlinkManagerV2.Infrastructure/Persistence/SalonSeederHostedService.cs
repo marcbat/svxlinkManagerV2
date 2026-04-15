@@ -87,6 +87,8 @@ public class SalonSeederHostedService : IHostedService
                     Callsign: "NOCALL",
                     AuthKey: authKey,
                     JitterBufferDelay: 0,
+                    ReflectorProtocol: Domain.Aggregates.Salon.Enums.ReflectorProtocol.V2,
+                    CertEmail: null,
                     SimplexCallsign: "F0ABC",
                     Modules: "ModuleHelp",
                     ShortIdentInterval: 600,

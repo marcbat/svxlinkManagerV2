@@ -1,5 +1,6 @@
 using LanguageExt;
 using LanguageExt.Common;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Application.Interfaces;
 
@@ -10,11 +11,12 @@ namespace SvxlinkManagerV2.Application.Interfaces;
 public interface ISvxLinkDaemonService
 {
     /// <summary>
-    /// Redémarre le daemon SVXLink via systemctl.
+    /// Redémarre le daemon SVXLink en utilisant la version correspondant au protocole spécifié.
     /// </summary>
+    /// <param name="protocol">Le protocole réflecteur qui détermine quelle version de SVXLink utiliser</param>
     /// <param name="cancellationToken">Token d'annulation</param>
     /// <returns>Validation indiquant le succès ou l'erreur</returns>
-    Task<Validation<Error, Unit>> RestartAsync(CancellationToken cancellationToken = default);
+    Task<Validation<Error, Unit>> RestartAsync(ReflectorProtocol protocol, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Arrête le daemon SVXLink.

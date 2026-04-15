@@ -1,5 +1,6 @@
 using LanguageExt;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
@@ -51,6 +52,11 @@ public class SalonAggregate : AggregateRoot
     /// Exemples valides: F5ABC, F5ABC-L, W1AW, KB2XYZ-R
     /// </summary>
     private static readonly Regex CallsignPattern = new(@"^[A-Z]{1,2}\d[A-Z0-9]{1,4}(-[A-Z0-9]{1,2})?$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Pattern regex pour validation basique du format email (certificat X.509)
+    /// </summary>
+    private static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
 
     /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
@@ -311,12 +317,23 @@ public class SalonAggregate : AggregateRoot
                 "L'indicatif est obligatoire"));
         }
 
-        // Validation AuthKey (obligatoire)
-        if (string.IsNullOrWhiteSpace(config.AuthKey))
+        // Validation AuthKey (obligatoire uniquement pour le protocole V2 legacy)
+        if (config.ReflectorProtocol == ReflectorProtocol.V2 
+            && string.IsNullOrWhiteSpace(config.AuthKey))
         {
             errors.Add(Error.Validation(
                 "SALON_AUTHKEY_REQUIRED",
-                "La clé d'authentification est obligatoire"));
+                "La clé d'authentification est obligatoire pour le protocole legacy (V2)"));
+        }
+
+        // Validation CertEmail (format email si défini et protocole V3)
+        if (config.ReflectorProtocol == ReflectorProtocol.V3
+            && !string.IsNullOrWhiteSpace(config.CertEmail)
+            && !EmailPattern.IsMatch(config.CertEmail))
+        {
+            errors.Add(Error.Validation(
+                "SALON_CERT_EMAIL_INVALID",
+                "Le format de l'adresse email du certificat est invalide"));
         }
 
         // Validation RxFrequency (obligatoire, plage 30-3000 MHz)

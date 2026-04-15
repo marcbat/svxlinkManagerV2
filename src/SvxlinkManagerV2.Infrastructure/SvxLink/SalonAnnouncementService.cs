@@ -10,25 +10,33 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// <summary>
 /// Service de génération de l'annonce sonore du salon via pico2wave.
 /// Génère Name.wav à partir du nom du salon à l'activation.
-/// Compatible avec SVXLink 19.09.2.
+/// Déploie dans les répertoires de sons des deux versions de SVXLink.
 /// </summary>
 public class SalonAnnouncementService : ISalonAnnouncementService
 {
     private readonly ITtsService _ttsService;
     private readonly ILogger<SalonAnnouncementService> _logger;
-    private readonly string _deployDirectory;
+    private readonly IReadOnlyList<string> _deployDirectories;
 
     private const string DefaultDeployDirectory = "/usr/share/svxlink/sounds/fr_FR/svxlinkmanager";
     private const string AnnounceFileName = "Name.wav";
 
-    public SalonAnnouncementService(ITtsService ttsService, ILogger<SalonAnnouncementService> logger)
-        : this(ttsService, logger, null) { }
+    public SalonAnnouncementService(
+        ITtsService ttsService,
+        ILogger<SalonAnnouncementService> logger,
+        ISvxLinkStrategyResolver strategyResolver)
+        : this(ttsService, logger, strategyResolver.GetAll().Select(s => s.SoundsDirectory).ToList()) { }
 
-    public SalonAnnouncementService(ITtsService ttsService, ILogger<SalonAnnouncementService> logger, string? deployDirectory)
+    public SalonAnnouncementService(
+        ITtsService ttsService,
+        ILogger<SalonAnnouncementService> logger,
+        IReadOnlyList<string> deployDirectories)
     {
         _ttsService = ttsService;
         _logger = logger;
-        _deployDirectory = string.IsNullOrEmpty(deployDirectory) ? DefaultDeployDirectory : deployDirectory;
+        _deployDirectories = deployDirectories.Count > 0
+            ? deployDirectories
+            : new[] { DefaultDeployDirectory };
     }
 
     /// <inheritdoc />
@@ -36,14 +44,16 @@ public class SalonAnnouncementService : ISalonAnnouncementService
     {
         try
         {
-            if (!Directory.Exists(_deployDirectory))
-                Directory.CreateDirectory(_deployDirectory);
+            // Générer le WAV dans un répertoire temporaire, puis copier vers toutes les destinations
+            var tempDir = Path.Combine(Path.GetTempPath(), "svxlink-tts");
+            if (!Directory.Exists(tempDir))
+                Directory.CreateDirectory(tempDir);
 
-            var outputPath = Path.Combine(_deployDirectory, AnnounceFileName);
+            var tempPath = Path.Combine(tempDir, AnnounceFileName);
             var announcementText = $"Bienvenue sur le {salonName}";
-            _logger.LogInformation("Génération de l'annonce TTS pour le salon « {SalonName} » → {OutputPath}", salonName, outputPath);
+            _logger.LogInformation("Génération de l'annonce TTS pour le salon « {SalonName} »", salonName);
 
-            var result = await _ttsService.GenerateWavAsync(announcementText, outputPath, cancellationToken);
+            var result = await _ttsService.GenerateWavAsync(announcementText, tempPath, cancellationToken);
 
             if (result.IsFail)
             {
@@ -54,7 +64,21 @@ public class SalonAnnouncementService : ISalonAnnouncementService
                 return Error.Validation("TTS_GENERATION_FAILED", $"Échec pico2wave : {ttsErrors}").ToFailure<Unit>();
             }
 
-            _logger.LogInformation("Annonce générée avec succès : {OutputPath}", outputPath);
+            // Déployer dans chaque répertoire de sons
+            foreach (var dir in _deployDirectories)
+            {
+                if (!Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                var targetPath = Path.Combine(dir, AnnounceFileName);
+                File.Copy(tempPath, targetPath, overwrite: true);
+                _logger.LogInformation("Annonce déployée : {OutputPath}", targetPath);
+            }
+
+            // Nettoyage du fichier temporaire
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+
             return unit.ToSuccess();
         }
         catch (Exception ex)
@@ -69,11 +93,14 @@ public class SalonAnnouncementService : ISalonAnnouncementService
     {
         try
         {
-            var filePath = Path.Combine(_deployDirectory, AnnounceFileName);
-            if (File.Exists(filePath))
+            foreach (var dir in _deployDirectories)
             {
-                File.Delete(filePath);
-                _logger.LogInformation("Fichier d'annonce supprimé : {FilePath}", filePath);
+                var filePath = Path.Combine(dir, AnnounceFileName);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    _logger.LogInformation("Fichier d'annonce supprimé : {FilePath}", filePath);
+                }
             }
             return Task.FromResult(unit.ToSuccess());
         }

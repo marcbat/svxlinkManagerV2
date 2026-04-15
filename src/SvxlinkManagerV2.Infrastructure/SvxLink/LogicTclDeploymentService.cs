@@ -8,33 +8,35 @@ using static LanguageExt.Prelude;
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
 /// <summary>
-/// Service de déploiement du fichier Logic.tcl vers le répertoire d'événements SVXLink local.
+/// Service de déploiement du fichier Logic.tcl vers les répertoires d'événements SVXLink.
 /// Le fichier Logic.tcl est embarqué dans l'assembly Infrastructure comme ressource.
 /// Il surcharge proc startup {} pour jouer Name.wav une seule fois au démarrage du daemon.
-/// Compatible SVXLink 19.09.2.
+/// Déploie dans les répertoires events.d/local des deux versions de SVXLink.
 /// </summary>
 public class LogicTclDeploymentService : ILogicTclDeploymentService
 {
     private readonly ILogger<LogicTclDeploymentService> _logger;
-    private readonly string _targetDirectory;
+    private readonly IReadOnlyList<string> _targetDirectories;
 
     private const string DefaultTargetDirectory = "/usr/share/svxlink/events.d/local";
     private const string LogicTclFileName = "Logic.tcl";
     private const string EmbeddedResourceName = "SvxlinkManagerV2.Infrastructure.SvxLink.Resources.Logic.tcl";
 
     // Constructeur pour l'injection de dépendances
-    public LogicTclDeploymentService(ILogger<LogicTclDeploymentService> logger)
-        : this(logger, null) { }
-
-    // Constructeur complet pour les tests (passage du répertoire cible)
     public LogicTclDeploymentService(
         ILogger<LogicTclDeploymentService> logger,
-        string? targetDirectory)
+        ISvxLinkStrategyResolver strategyResolver)
+        : this(logger, strategyResolver.GetAll().Select(s => s.EventsDirectory).ToList()) { }
+
+    // Constructeur complet pour les tests (passage des répertoires cible)
+    public LogicTclDeploymentService(
+        ILogger<LogicTclDeploymentService> logger,
+        IReadOnlyList<string> targetDirectories)
     {
         _logger = logger;
-        _targetDirectory = string.IsNullOrEmpty(targetDirectory)
-            ? DefaultTargetDirectory
-            : targetDirectory;
+        _targetDirectories = targetDirectories.Count > 0
+            ? targetDirectories
+            : new[] { DefaultTargetDirectory };
     }
 
     /// <inheritdoc />
@@ -43,7 +45,7 @@ public class LogicTclDeploymentService : ILogicTclDeploymentService
         try
         {
             _logger.LogInformation(
-                "Déploiement du Logic.tcl vers {TargetDirectory}", _targetDirectory);
+                "Déploiement du Logic.tcl vers {Count} répertoire(s)", _targetDirectories.Count);
 
             // 1. Lire la ressource embarquée
             var assembly = Assembly.GetExecutingAssembly();
@@ -59,32 +61,33 @@ public class LogicTclDeploymentService : ILogicTclDeploymentService
             using var reader = new StreamReader(resourceStream);
             var content = await reader.ReadToEndAsync(cancellationToken);
 
-            // 2. S'assurer que le répertoire cible existe
-            if (!Directory.Exists(_targetDirectory))
+            // 2. Déployer dans chaque répertoire
+            foreach (var targetDirectory in _targetDirectories)
             {
-                Directory.CreateDirectory(_targetDirectory);
-                _logger.LogDebug("Répertoire cible créé: {Directory}", _targetDirectory);
-            }
+                if (!Directory.Exists(targetDirectory))
+                {
+                    Directory.CreateDirectory(targetDirectory);
+                    _logger.LogDebug("Répertoire cible créé: {Directory}", targetDirectory);
+                }
 
-            // 3. Écrire le fichier Logic.tcl (écrasement atomique via tmp + rename)
-            var targetPath = Path.Combine(_targetDirectory, LogicTclFileName);
-            var tempPath = $"{targetPath}.tmp";
+                var targetPath = Path.Combine(targetDirectory, LogicTclFileName);
+                var tempPath = $"{targetPath}.tmp";
 
-            try
-            {
-                await File.WriteAllTextAsync(tempPath, content, cancellationToken);
-                File.Move(tempPath, targetPath, overwrite: true);
-            }
-            catch
-            {
-                // Nettoyage du fichier temporaire en cas d'erreur
-                if (File.Exists(tempPath))
-                    File.Delete(tempPath);
-                throw;
-            }
+                try
+                {
+                    await File.WriteAllTextAsync(tempPath, content, cancellationToken);
+                    File.Move(tempPath, targetPath, overwrite: true);
+                }
+                catch
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                    throw;
+                }
 
-            _logger.LogInformation(
-                "Logic.tcl déployé avec succès: {TargetPath}", targetPath);
+                _logger.LogInformation(
+                    "Logic.tcl déployé avec succès: {TargetPath}", targetPath);
+            }
 
             return Success<Error, Unit>(unit);
         }

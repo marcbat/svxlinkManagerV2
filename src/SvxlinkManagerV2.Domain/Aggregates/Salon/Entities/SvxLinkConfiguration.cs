@@ -1,3 +1,5 @@
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
+
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 
 /// <summary>
@@ -16,8 +18,17 @@ public record SvxLinkConfiguration(
     string Host,
     int Port,
     string Callsign,
-    string AuthKey,
+    string? AuthKey,
     int JitterBufferDelay,
+    /// <summary>
+    /// Protocol version for the reflector connection.
+    /// V3 = modern (25.05+, X.509 certificates), V2 = legacy (19.09.2, AUTH_KEY).
+    /// </summary>
+    ReflectorProtocol ReflectorProtocol,
+    /// <summary>
+    /// Email address for the X.509 certificate (V3 protocol only). Optional.
+    /// </summary>
+    string? CertEmail,
     // Section SimplexLogic
     string SimplexCallsign,
     string Modules,

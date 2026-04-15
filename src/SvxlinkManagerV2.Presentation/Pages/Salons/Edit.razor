@@ -5,6 +5,7 @@
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -195,11 +196,32 @@ else if (_salon is not null)
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Clé d'authentification <span class="required">*</span></label>
-                        <InputText class="form-control" @bind-Value="_model.AuthKey"
-                                   type="password" disabled="@_salonIsActive" />
-                        <ValidationMessage For="() => _model.AuthKey" class="field-error" />
+                        <label class="form-label">Protocole réflecteur</label>
+                        <InputSelect class="form-control" @bind-Value="_model.ReflectorProtocol"
+                                     disabled="@_salonIsActive">
+                            <option value="@ReflectorProtocol.V2">Legacy (19.09.2 — AUTH_KEY)</option>
+                            <option value="@ReflectorProtocol.V3">Moderne (25.05+ — Certificats X.509)</option>
+                        </InputSelect>
                     </div>
+
+                    @if (_model.ReflectorProtocol == ReflectorProtocol.V2)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Clé d'authentification <span class="required">*</span></label>
+                            <InputText class="form-control" @bind-Value="_model.AuthKey"
+                                       type="password" disabled="@_salonIsActive" />
+                            <ValidationMessage For="() => _model.AuthKey" class="field-error" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Email certificat</label>
+                            <InputText class="form-control" @bind-Value="_model.CertEmail"
+                                       placeholder="ex: f1abc@example.com (optionnel)"
+                                       disabled="@_salonIsActive" />
+                        </div>
+                    }
                 </div>
 
                 <!-- Section avancée SVXLink (collapsible) -->
@@ -528,7 +550,9 @@ else if (_salon is not null)
         _model.Host               = cfg.Host;
         _model.Port               = cfg.Port;
         _model.Callsign           = cfg.Callsign;
-        _model.AuthKey            = cfg.AuthKey;
+        _model.AuthKey            = cfg.AuthKey ?? "";
+        _model.ReflectorProtocol  = cfg.ReflectorProtocol;
+        _model.CertEmail          = cfg.CertEmail ?? "";
         _model.SimplexCallsign    = cfg.SimplexCallsign;
         _model.ShortIdentInterval = cfg.ShortIdentInterval;
         _model.LongIdentInterval  = cfg.LongIdentInterval;
@@ -557,8 +581,14 @@ else if (_salon is not null)
                 Host:                _model.Host.Trim(),
                 Port:                _model.Port,
                 Callsign:            _model.Callsign.Trim().ToUpperInvariant(),
-                AuthKey:             _model.AuthKey,
+                AuthKey:             _model.ReflectorProtocol == ReflectorProtocol.V2
+                                         ? _model.AuthKey
+                                         : null,
                 JitterBufferDelay:   existingCfg.JitterBufferDelay,
+                ReflectorProtocol:   _model.ReflectorProtocol,
+                CertEmail:           _model.ReflectorProtocol == ReflectorProtocol.V3
+                                         ? (string.IsNullOrWhiteSpace(_model.CertEmail) ? null : _model.CertEmail.Trim())
+                                         : null,
                 SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
                                          ? _model.Callsign.Trim().ToUpperInvariant()
                                          : _model.SimplexCallsign.Trim().ToUpperInvariant(),
@@ -656,8 +686,11 @@ else if (_salon is not null)
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Le callsign est obligatoire.")]
         public string Callsign { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La clé d'authentification est obligatoire.")]
         public string AuthKey { get; set; } = "";
+
+        public ReflectorProtocol ReflectorProtocol { get; set; } = ReflectorProtocol.V2;
+
+        public string CertEmail { get; set; } = "";
 
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;

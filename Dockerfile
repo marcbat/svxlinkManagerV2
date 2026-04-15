@@ -26,21 +26,91 @@ RUN dotnet build -c Release -o /app/build
 # Publish
 RUN dotnet publish -c Release -o /app/publish -p:InformationalVersion=${APP_VERSION}
 
-# Stage 2: Final runtime image
+# Stage 2a: Build SVXLink 19.09.2 (legacy) from source
+FROM debian:bookworm AS svxlink-legacy-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake g++ make ca-certificates \
+    libsigc++-2.0-dev libgsm1-dev libpopt-dev tcl8.6-dev \
+    libgcrypt20-dev libspeex-dev libasound2-dev libopus-dev \
+    libcurl4-openssl-dev libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch 19.09.2 \
+    https://github.com/sm0svx/svxlink.git /svxlink-src
+
+RUN mkdir /svxlink-build && cd /svxlink-build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/opt/svxlink-legacy \
+          -DUSE_QT=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          /svxlink-src/src && \
+    make -j$(nproc) && \
+    make install DESTDIR=/svxlink-install
+
+# Stage 2b: Build SVXLink 25.05 (modern) from source
+FROM debian:bookworm AS svxlink-modern-builder
+
+ARG SVXLINK_VERSION=25.05
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake g++ make ca-certificates \
+    libsigc++-2.0-dev libgsm1-dev libpopt-dev tcl8.6-dev \
+    libgcrypt20-dev libspeex-dev libasound2-dev libopus-dev \
+    libcurl4-openssl-dev libssl-dev libjsoncpp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch ${SVXLINK_VERSION} \
+    https://github.com/sm0svx/svxlink.git /svxlink-src
+
+RUN mkdir /svxlink-build && cd /svxlink-build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/opt/svxlink-modern \
+          -DUSE_QT=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          /svxlink-src/src && \
+    make -j$(nproc) && \
+    make install DESTDIR=/svxlink-install
+
+# Stage 3: Final runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 
 # Set timezone
 ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Install SVXLink server via apt-get (plus simple que la compilation)
-RUN apt-get update && apt-get install -qq -y \
-    svxlink-server \
-    svxreflector \
-    procps \
-    alsa-utils \
+# Install SVXLink runtime dependencies (both versions)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsigc++-2.0-0v5 libgsm1 libpopt0 tcl8.6 libgcrypt20 \
+    libspeex1 libasound2 libopus0 libcurl4 libssl3 libjsoncpp25 \
+    procps alsa-utils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy SVXLink legacy (19.09.2) from builder → /opt/svxlink-legacy
+COPY --from=svxlink-legacy-builder /svxlink-install/opt/svxlink-legacy /opt/svxlink-legacy
+
+# Copy SVXLink modern (25.05) from builder → /opt/svxlink-modern
+COPY --from=svxlink-modern-builder /svxlink-install/opt/svxlink-modern /opt/svxlink-modern
+
+# Copy Logic.tcl event handler into both version trees
+RUN mkdir -p /opt/svxlink-legacy/share/svxlink/events.d/local \
+             /opt/svxlink-modern/share/svxlink/events.d/local
+COPY src/SvxlinkManagerV2.Infrastructure/SvxLink/Resources/Logic.tcl /opt/svxlink-legacy/share/svxlink/events.d/local/Logic.tcl
+COPY src/SvxlinkManagerV2.Infrastructure/SvxLink/Resources/Logic.tcl /opt/svxlink-modern/share/svxlink/events.d/local/Logic.tcl
+
+# Register shared libraries for both versions
+RUN echo "/opt/svxlink-legacy/lib" > /etc/ld.so.conf.d/svxlink-legacy.conf && \
+    echo "/opt/svxlink-modern/lib" > /etc/ld.so.conf.d/svxlink-modern.conf && \
+    ldconfig
+
+# Create required directories
+RUN mkdir -p /var/spool/svxlink /var/log/svxlink /var/lib/svxlink/pki \
+    /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager \
+    /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager \
+    /etc/svxlink
+
+# Copy svxreflector CA hook for auto-signing certificates (dev mode)
+COPY deploy/docker/dev-ca-hook.sh /usr/local/bin/dev-ca-hook.sh
+RUN chmod +x /usr/local/bin/dev-ca-hook.sh
 
 # Copy .NET application
 WORKDIR /app

@@ -9,6 +9,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using Xunit;
 using static LanguageExt.Prelude;
@@ -371,6 +372,7 @@ public class DtmfAnnounceServiceTests
             Guid.NewGuid(),
             "SimplexLogic,ReflectorLogic", "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300, "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F4XYZ", "ModuleHelp", 60, 60,
             null, "fr_FR", 0,
             145.600m, 145.000m, null, null);
@@ -407,6 +409,7 @@ public class DtmfAnnounceServiceTests
             "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);

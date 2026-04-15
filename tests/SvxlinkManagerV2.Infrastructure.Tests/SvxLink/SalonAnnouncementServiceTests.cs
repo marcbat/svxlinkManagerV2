@@ -26,7 +26,7 @@ public class SalonAnnouncementServiceTests : IDisposable
         _ttsService = Substitute.For<ITtsService>();
         _logger = Substitute.For<ILogger<SalonAnnouncementService>>();
         _testDeployDirectory = Path.Combine(Path.GetTempPath(), $"salon-announce-tests-{Guid.NewGuid()}");
-        _service = new SalonAnnouncementService(_ttsService, _logger, _testDeployDirectory);
+        _service = new SalonAnnouncementService(_ttsService, _logger, new[] { _testDeployDirectory });
     }
 
     public void Dispose()
@@ -41,16 +41,22 @@ public class SalonAnnouncementServiceTests : IDisposable
         // Arrange
         var salonName = "Salon Test";
         var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
-        var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
-            .Returns(expectedPath);
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                // Create the temp file so Copy succeeds
+                var path = callInfo.ArgAt<string>(1);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, new byte[] { 1, 2, 3 });
+                return path;
+            });
 
         // Act
         var result = await _service.GenerateAsync(salonName);
 
         // Assert
         result.ShouldBeSuccess();
-        await _ttsService.Received(1).GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>());
+        await _ttsService.Received(1).GenerateWavAsync(expectedAnnouncementText, Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -59,9 +65,14 @@ public class SalonAnnouncementServiceTests : IDisposable
         // Arrange
         var salonName = "Salon Test";
         var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
-        var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
-            .Returns(expectedPath);
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var path = callInfo.ArgAt<string>(1);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, new byte[] { 1, 2, 3 });
+                return path;
+            });
 
         Directory.Exists(_testDeployDirectory).Should().BeFalse();
 
@@ -78,8 +89,7 @@ public class SalonAnnouncementServiceTests : IDisposable
         // Arrange
         var salonName = "Salon Test";
         var expectedAnnouncementText = $"Bienvenue sur le {salonName}";
-        var expectedPath = Path.Combine(_testDeployDirectory, "Name.wav");
-        _ttsService.GenerateWavAsync(expectedAnnouncementText, expectedPath, Arg.Any<CancellationToken>())
+        _ttsService.GenerateWavAsync(expectedAnnouncementText, Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(
                 Validation<LangExtError, string>.Fail(
                     Seq1(LangExtError.New("pico2wave a échoué")))));

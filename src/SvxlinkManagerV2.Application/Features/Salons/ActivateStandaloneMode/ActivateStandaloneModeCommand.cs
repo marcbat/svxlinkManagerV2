@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -105,8 +106,8 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf en mode standalone").ToFailure<Unit>();
 
-        _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone");
-        var daemonResult = await _daemonService.RestartAsync(cancellationToken);
+        _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone (version legacy)");
+        var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V2, cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de démarrer le daemon SVXLink en mode standalone").ToFailure<Unit>();
 
