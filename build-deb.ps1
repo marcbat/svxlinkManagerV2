@@ -83,7 +83,7 @@ Section: misc
 Priority: optional
 Architecture: $DebArchitecture
 Maintainer: SvxlinkManager Team
-Depends: libc6 (>= 2.31), libsigc++-2.0-0v5, libgsm1, libpopt0, tcl8.6, libgcrypt20, libspeex1, libasound2, libopus0, libcurl4, libssl3, libjsoncpp25
+Depends: libc6 (>= 2.31), libsigc++-2.0-0v5, libgsm1, libpopt0, tcl8.6, libgcrypt20, libspeex1, libasound2, libopus0, libcurl4
 Description: SvxlinkManagerV2 (framework-dependent) for Armbian Focal armhf
  SvxlinkManagerV2 with systemd service for Orange Pi.
  Requires .NET 8 runtime (linux-arm) already installed on target.
