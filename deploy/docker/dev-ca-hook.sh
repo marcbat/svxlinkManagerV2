@@ -40,7 +40,9 @@ case "${CA_OP}" in
         CERT_OUT="${CERTS_DIR}/${CN}.crt"
         CSR_OUT="${CSRS_DIR}/${CN}.csr"
 
-        # Signer le CSR avec l'Issuing CA (copie les extensions du CSR)
+        # Signer le CSR avec l'Issuing CA
+        # Note: -copy_extensions n'est disponible qu'en OpenSSL 3.0+
+        # Pour compatibilité OpenSSL 1.1.1 (Ubuntu Focal/Armbian), on l'omet.
         openssl x509 -req \
             -in "${CSR_TMP}" \
             -CA "${CA_CRT}" \
@@ -48,7 +50,6 @@ case "${CA_OP}" in
             -CAcreateserial \
             -out "${CERT_OUT}" \
             -days 365 \
-            -copy_extensions copy \
             2>/dev/null
 
         # Ajouter le certificat de l'Issuing CA pour la chaîne de vérification
