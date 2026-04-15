@@ -235,7 +235,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
         if (config.ReflectorProtocol == ReflectorProtocol.V2)
         {
-            // Legacy protocol (SVXLink 19.09.2) — AUTH_KEY required, TYPE=Reflector (simple, pas V2/V3)
+            // V2 protocol — AUTH_KEY authentication
+            // SVXLink 19.09.2 (legacy): TYPE=Reflector uses ReflectorLogic.so (v1.0 protocol with AUTH_KEY)
             iniData["ReflectorLogic"]["TYPE"] = "Reflector";
             iniData["ReflectorLogic"]["HOST"] = config.Host;
             iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
@@ -249,14 +250,16 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             // Remove V3-specific keys that may exist in template
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
 
             _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
                 config.Host, config.Callsign);
         }
         else
         {
-            // Modern protocol (SVXLink 25.05) — X.509 certificates, TYPE=ReflectorV3
-            iniData["ReflectorLogic"]["TYPE"] = "ReflectorV3";
+            // V3 protocol (SVXLink 25.05) — X.509 certificates, TYPE=Reflector
+            // ReflectorLogic.so handles v3.0 protocol with PKI
+            iniData["ReflectorLogic"]["TYPE"] = "Reflector";
             iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
             iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
             iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";

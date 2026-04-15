@@ -173,7 +173,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         // Assert
         var iniData = IniFile.Parse(outputPath);
 
-        iniData["ReflectorLogic"]["TYPE"].Should().Be("ReflectorV3"); // V3 protocol uses "ReflectorV3" type
+        iniData["ReflectorLogic"]["TYPE"].Should().Be("Reflector"); // V3 protocol uses "Reflector" type (same as V2, but different config)
         iniData["ReflectorLogic"]["HOSTS"].Should().Be("ref.example.com:5300");
         iniData["ReflectorLogic"]["CALLSIGN"].Should().Be("F5TEST-L");
         iniData["ReflectorLogic"]["AUDIO_CODEC"].Should().Be("OPUS");
@@ -182,8 +182,10 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["ReflectorLogic"]["CERT_PKI_DIR"].Should().Be("/var/lib/svxlink/pki");
         iniData["ReflectorLogic"]["CERT_EMAIL"].Should().Be("test@example.com");
         
-        // V3 should not have AUTH_KEY
+        // V3 should not have V2-specific keys
         iniData["ReflectorLogic"].ContainsKey("AUTH_KEY").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("HOST").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("PORT").Should().BeFalse();
     }
 
     [Fact]

@@ -108,6 +108,10 @@ RUN mkdir -p /var/spool/svxlink /var/log/svxlink /var/lib/svxlink/pki \
     /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager \
     /etc/svxlink
 
+# Copy svxreflector CA hook for auto-signing certificates (dev mode)
+COPY deploy/docker/dev-ca-hook.sh /usr/local/bin/dev-ca-hook.sh
+RUN chmod +x /usr/local/bin/dev-ca-hook.sh
+
 # Copy .NET application
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
