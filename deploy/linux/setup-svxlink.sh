@@ -44,15 +44,32 @@ if ! curl -s --max-time 5 https://github.com > /dev/null 2>&1; then
 fi
 
 # =============================================================================
-# Désactivation du service systemd svxlink installé par apt (si présent).
-# SvxlinkManagerV2 pilote directement ses propres processus svxlink — un service
-# systemd concurrent provoquerait des conflits (pgrep/pkill affecteraient les
-# deux processus).
+# Désinstallation complète du svxlink installé par apt (si présent).
+# SvxlinkManagerV2 pilote directement ses propres processus via les binaires
+# dans /opt/svxlink-{legacy,modern}. Laisser le paquet apt en place entraîne :
+#   - Conflits de processus (pgrep/pkill affectent les deux processus)
+#   - Fichiers de config dans /etc/svxlink/ qui peuvent interférer
+#   - Service systemd qui redémarre svxlink de façon autonome
 # =============================================================================
-if systemctl is-enabled svxlink.service > /dev/null 2>&1; then
-  log "Désactivation du service systemd svxlink.service (installé par apt)"
-  systemctl disable --now svxlink.service || true
-  log "Service svxlink.service désactivé. Le binaire apt reste disponible dans /usr/bin/svxlink."
+SVXLINK_APT_PACKAGES="svxlink-server svxlink-sounds-en-us svxlink-sounds-fr svxlink"
+INSTALLED=""
+for pkg in $SVXLINK_APT_PACKAGES; do
+  if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+    INSTALLED="$INSTALLED $pkg"
+  fi
+done
+
+if [ -n "$INSTALLED" ]; then
+  log "Désinstallation complète des paquets SVXLink apt :$INSTALLED"
+  # Arrêt du service avant purge pour éviter les erreurs dpkg
+  systemctl stop svxlink.service 2>/dev/null || true
+  systemctl disable svxlink.service 2>/dev/null || true
+  # Purge : supprime les binaires, les fichiers de config dpkg ET les conffiles
+  apt-get purge -y $INSTALLED
+  apt-get autoremove -y
+  log "Paquets SVXLink apt supprimés."
+else
+  log "Aucun paquet SVXLink apt détecté — rien à désinstaller."
 fi
 
 log "Installation des dépendances de compilation"
@@ -152,7 +169,7 @@ log "Installation terminée"
 printf '\nRésumé:\n'
 printf '  SVXLink %s (legacy)  : %s/bin/svxlink\n' "$LEGACY_VERSION" "$LEGACY_PREFIX"
 printf '  SVXLink %s (moderne) : %s/bin/svxlink\n' "$MODERN_VERSION" "$MODERN_PREFIX"
-printf '  SVXLink apt          : %s (service désactivé, binaire conservé)\n' "$(which svxlink 2>/dev/null || echo '/usr/bin/svxlink')"
+printf '  SVXLink apt          : désinstallé (purge)\n'
 printf '\nProchaine étape: installez le paquet .deb de SvxlinkManagerV2.\n'
 
 LEGACY_VERSION="19.09.2"
