@@ -18,6 +18,12 @@ mkdir -p /var/lib/svxlink/pki/csrs
 mkdir -p /var/lib/svxlink/pki/certs
 mkdir -p /var/lib/svxlink/pki/ca
 mkdir -p /etc/svxlink
+mkdir -p /etc/svxlink/svxlink.d
+
+# Template de configuration SVXLink (requis par SvxLinkConfigurationService)
+if [ -f "$APP_DIR/svxlink-config/svxlink.conf" ] && [ ! -f /etc/svxlink/svxlink.conf ]; then
+  cp "$APP_DIR/svxlink-config/svxlink.conf" /etc/svxlink/svxlink.conf
+fi
 
 # Répertoires sons pour les deux versions SVXLink
 mkdir -p /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager

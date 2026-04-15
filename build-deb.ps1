@@ -76,6 +76,10 @@ Copy-Item (Join-Path $repoRoot "deploy/linux/install-update.sh") $helperPath -Fo
 Copy-Item (Join-Path $repoRoot "deploy/docker/dev-ca-hook.sh") (Join-Path $appRoot "dev-ca-hook.sh") -Force
 Copy-Item (Join-Path $repoRoot "deploy/linux/setup-svxlink.sh") (Join-Path $appRoot "setup-svxlink.sh") -Force
 
+$svxlinkConfigDest = Join-Path $appRoot "svxlink-config"
+New-Item -ItemType Directory -Path $svxlinkConfigDest -Force | Out-Null
+Copy-Item (Join-Path $repoRoot "svxlink-config/svxlink.conf") $svxlinkConfigDest -Force
+
 $controlContent = @"
 Package: $PackageName
 Version: $PackageVersion
