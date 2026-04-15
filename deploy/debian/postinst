@@ -10,7 +10,49 @@ mkdir -p "$APP_DIR/data"
 # Le seed automatique au démarrage recrée les données par défaut.
 rm -f "$APP_DIR/data/svxlinkmanager.db"
 
-# dpkg s'exécute avec un PATH restreint — chercher dotnet dans les emplacements connus
+# --- Répertoires SVXLink requis par les deux versions ---
+mkdir -p /var/spool/svxlink
+mkdir -p /var/log/svxlink
+mkdir -p /var/lib/svxlink/pki/pending_csrs
+mkdir -p /var/lib/svxlink/pki/csrs
+mkdir -p /var/lib/svxlink/pki/certs
+mkdir -p /var/lib/svxlink/pki/ca
+mkdir -p /etc/svxlink
+
+# Répertoires sons pour les deux versions SVXLink
+mkdir -p /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager
+mkdir -p /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager
+mkdir -p /opt/svxlink-legacy/share/svxlink/events.d/local
+mkdir -p /opt/svxlink-modern/share/svxlink/events.d/local
+
+# --- Enregistrement des bibliothèques partagées SVXLink ---
+if [ -d /opt/svxlink-legacy/lib ]; then
+  echo "/opt/svxlink-legacy/lib" > /etc/ld.so.conf.d/svxlink-legacy.conf
+fi
+if [ -d /opt/svxlink-modern/lib ]; then
+  echo "/opt/svxlink-modern/lib" > /etc/ld.so.conf.d/svxlink-modern.conf
+fi
+ldconfig 2>/dev/null || true
+
+# --- Hook de signature automatique des certificats X.509 (SVXLink 25.05 / protocole V3) ---
+HOOK_SRC="$APP_DIR/dev-ca-hook.sh"
+HOOK_DST="/usr/local/bin/dev-ca-hook.sh"
+if [ -f "$HOOK_SRC" ]; then
+  cp "$HOOK_SRC" "$HOOK_DST"
+  chmod +x "$HOOK_DST"
+fi
+
+# --- Vérification des installations SVXLink ---
+if [ ! -f /opt/svxlink-legacy/bin/svxlink ]; then
+  echo "ATTENTION: SVXLink 19.09.2 (legacy) introuvable dans /opt/svxlink-legacy."
+  echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+fi
+if [ ! -f /opt/svxlink-modern/bin/svxlink ]; then
+  echo "ATTENTION: SVXLink 25.05 (moderne) introuvable dans /opt/svxlink-modern."
+  echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+fi
+
+# --- Vérification .NET runtime ---
 DOTNET_BIN=""
 for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/dotnet; do
   if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
