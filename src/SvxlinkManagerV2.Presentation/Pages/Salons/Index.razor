@@ -38,9 +38,6 @@
     <button class="filter-pill @(_filterDefault ? "active" : "")" @onclick="() => { _filterDefault = !_filterDefault; }">
         <span class="dot dot-accent"></span> Défaut
     </button>
-    <button class="filter-pill @(_filterTemp    ? "active" : "")" @onclick="() => { _filterTemp    = !_filterTemp;    }">
-        <span class="dot dot-warning"></span> Temporisé
-    </button>
 </div>
 
 <!-- ── Salon Cards ───────────────────────────────────────────── -->
@@ -94,13 +91,6 @@ else
                             <span class="badge badge-accent">
                                 <span class="material-symbols-outlined">star</span>
                                 Défaut
-                            </span>
-                        }
-                        @if (salon.IsTemporized)
-                        {
-                            <span class="badge badge-warning">
-                                <span class="material-symbols-outlined">timer</span>
-                                Temporisé
                             </span>
                         }
                     </div>
@@ -375,7 +365,6 @@ else
 
     private bool _filterActif;
     private bool _filterDefault;
-    private bool _filterTemp;
 
     private IEnumerable<SalonAggregate> FilteredSalons
     {
@@ -384,7 +373,6 @@ else
             var list = _salons.AsEnumerable();
             if (_filterActif)   list = list.Where(s => Tracker.IsSalonActive(s.Id));
             if (_filterDefault) list = list.Where(s => s.IsDefault);
-            if (_filterTemp)    list = list.Where(s => s.IsTemporized);
             return list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase);
         }
     }

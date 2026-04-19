@@ -80,7 +80,6 @@ public class CompleteSetupCommandHandler
                 id: id,
                 name: name,
                 isDefault: false,
-                isTemporized: false,
                 configuration: configuration);
 
             await createResult.Match(

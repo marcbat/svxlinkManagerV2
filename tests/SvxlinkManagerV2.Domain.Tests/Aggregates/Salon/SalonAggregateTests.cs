@@ -23,7 +23,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, isDefault: true, isTemporized: false, config);
+        var result = SalonAggregate.Create(id, name, isDefault: true, config);
 
         // Assert
         result.ShouldBeSuccess(aggregate =>
@@ -31,7 +31,6 @@ public class SalonAggregateTests
             aggregate.Id.Should().Be(id);
             aggregate.Name.Should().Be(name);
             aggregate.IsDefault.Should().BeTrue();
-            aggregate.IsTemporized.Should().BeFalse();
             aggregate.IsDeleted.Should().BeFalse();
             aggregate.Configuration.Should().Be(config);
             aggregate.DomainEvents.Should().ContainSingle()
@@ -48,7 +47,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -66,7 +65,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -108,7 +107,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -150,7 +149,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -196,7 +195,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -240,7 +239,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -282,7 +281,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -310,7 +309,7 @@ public class SalonAggregateTests
         };
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -330,7 +329,7 @@ public class SalonAggregateTests
         };
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -353,7 +352,7 @@ public class SalonAggregateTests
         };
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -380,7 +379,7 @@ public class SalonAggregateTests
         };
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -419,7 +418,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -461,7 +460,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -503,7 +502,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -545,7 +544,7 @@ public class SalonAggregateTests
             50m); // TxCtcss invalide (hors plage 67.0-250.3 Hz)
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -590,7 +589,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -706,7 +705,7 @@ public class SalonAggregateTests
         var aggregate = new SalonAggregate();
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var @event = new SalonCreated(id, "Salon Test", true, false, config);
+        var @event = new SalonCreated(id, "Salon Test", true, config);
 
         // Act
         aggregate.Apply(@event);
@@ -715,7 +714,6 @@ public class SalonAggregateTests
         aggregate.Id.Should().Be(id);
         aggregate.Name.Should().Be("Salon Test");
         aggregate.IsDefault.Should().BeTrue();
-        aggregate.IsTemporized.Should().BeFalse();
         aggregate.IsDeleted.Should().BeFalse();
         aggregate.Configuration.Should().Be(config);
     }
@@ -757,7 +755,7 @@ public class SalonAggregateTests
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
 
-        var createdEvent = new SalonCreated(id, "Salon Initial", true, false, config);
+        var createdEvent = new SalonCreated(id, "Salon Initial", true, config);
         var updatedEvent = new SalonConfigurationUpdated(id, CreateValidConfiguration());
 
         // Act - Rejouer les événements
@@ -899,7 +897,7 @@ public class SalonAggregateTests
         var aggregate = new SalonAggregate();
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        aggregate.Apply(new SalonCreated(id, "Salon Test", isDefault: true, isTemporized: false, config));
+        aggregate.Apply(new SalonCreated(id, "Salon Test", isDefault: true, config));
 
         var @event = new SalonUnsetDefault(id);
 
@@ -1128,7 +1126,6 @@ public class SalonAggregateTests
             Guid.NewGuid(),
             "Salon Test",
             isDefault: false,
-            isTemporized: false,
             CreateValidConfiguration());
 
         return result.Match(
@@ -1139,3 +1136,6 @@ public class SalonAggregateTests
 
     #endregion
 }
+
+
+

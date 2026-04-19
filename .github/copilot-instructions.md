@@ -76,7 +76,7 @@ L'environnement de travail contient plusieurs dossiers critiques auxquels vous d
 
 ### Pattern DDD - Agrégats
 Le domaine utilise des **Agrégats** qui émettent des **Événements de Domaine** (non persistés dans la base de données, mais dispatché via MediatR en tant que Notifications) :
-*   `SalonAggregate` : Représente une connexion à un réflecteur SVXLink. Propriétés clés : `Name`, `IsDefault`, `IsTemporized`, `IsActive`, `IsDeleted`, `DtmfCode`, `Configuration` (owned entity JSON).
+*   `SalonAggregate` : Représente une connexion à un réflecteur SVXLink. Propriétés clés : `Name`, `IsDefault`, `IsActive`, `IsDeleted`, `DtmfCode`, `Configuration` (owned entity JSON).
 *   `SA818Aggregate` : Configuration du radio-émetteur SA818 (Volume, Squelch, Bandwidth, CTCSS, etc.).
 *   `ReflectorAggregate` : Configuration du démon SVXReflector local (`Name`, `Config` INI brut, `IsActive`, `IsDeleted`).
 *   `GeneralConfigurationAggregate` : Configuration générale de l'application.
@@ -106,7 +106,6 @@ Le domaine utilise des **Agrégats** qui émettent des **Événements de Domaine
 *   Salon par défaut : activé automatiquement au démarrage (`StartupActivationHostedService`).
 *   Mode autonome (Standalone) : connexion sans réflecteur.
 *   Code DTMF optionnel (1-299) pour changer de salon par commande radio.
-*   Plages horaires de temporisation (`IsTemporized`).
 
 ### SA818 (Radio SA818/SA868)
 *   Configuration de l'émetteur-récepteur VHF/UHF SA818 via port série.

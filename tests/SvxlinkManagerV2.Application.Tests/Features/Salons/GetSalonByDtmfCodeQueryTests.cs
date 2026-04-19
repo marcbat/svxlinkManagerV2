@@ -106,7 +106,6 @@ public class GetSalonByDtmfCodeQueryTests
             Guid.NewGuid(),
             name,
             isDefault: false,
-            isTemporized: false,
             CreateValidConfiguration());
 
         return result.Match(

@@ -44,7 +44,7 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         // Arrange
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon National France", true, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon National France", true, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         // Act
@@ -59,7 +59,6 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
             reloaded.Id.Should().Be(salonId);
             reloaded.Name.Should().Be("Salon National France");
             reloaded.IsDefault.Should().BeTrue();
-            reloaded.IsTemporized.Should().BeFalse();
             reloaded.Configuration.Host.Should().Be(config.Host);
             reloaded.Configuration.Port.Should().Be(config.Port);
             reloaded.Configuration.Callsign.Should().Be(config.Callsign);
@@ -89,7 +88,7 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         // Arrange
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon Config Update Test", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon Config Update Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
         await _repository.SaveAsync(salon, CancellationToken.None);
 
@@ -113,7 +112,7 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
         // Arrange
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon Delete Test", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon Delete Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
         await _repository.SaveAsync(salon, CancellationToken.None);
 
@@ -130,11 +129,11 @@ public class SalonRepositoryIntegrationTests : IAsyncLifetime
     public async Task GetAllAsync_ShouldReturnOnlyNonDeletedSalons()
     {
         // Arrange - each salon needs its own config instance to avoid EF Core tracking conflicts
-        var salon1 = SalonAggregate.Create(Guid.NewGuid(), "Salon 1", false, false, CreateValidConfiguration())
+        var salon1 = SalonAggregate.Create(Guid.NewGuid(), "Salon 1", false, CreateValidConfiguration())
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-        var salon2 = SalonAggregate.Create(Guid.NewGuid(), "Salon 2", false, false, CreateValidConfiguration())
+        var salon2 = SalonAggregate.Create(Guid.NewGuid(), "Salon 2", false, CreateValidConfiguration())
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
-        var salon3 = SalonAggregate.Create(Guid.NewGuid(), "Salon 3 (Deleted)", false, false, CreateValidConfiguration())
+        var salon3 = SalonAggregate.Create(Guid.NewGuid(), "Salon 3 (Deleted)", false, CreateValidConfiguration())
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         (await _repository.SaveAsync(salon1, CancellationToken.None)).ShouldBeSuccess();

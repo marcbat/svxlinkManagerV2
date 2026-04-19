@@ -116,20 +116,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsTemporizedFalse()
-    {
-        // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
-
-        // Act
-        await service.StartAsync(CancellationToken.None);
-
-        // Assert
-        var salons = await _repository.GetAllAsync();
-        salons.Should().AllSatisfy(s => s.IsTemporized.Should().BeFalse());
-    }
-
-    [Fact]
     public async Task StartAsync_WhenSalonsAlreadyExist_ShouldBeIdempotent()
     {
         // Arrange - Créer un salon existant manuellement
@@ -137,7 +123,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             id: Guid.NewGuid(),
             name: "Salon Existant",
             isDefault: false,
-            isTemporized: false,
             configuration: new SvxLinkConfiguration(
                 Id: Guid.NewGuid(),
                 Logics: "SimplexLogic,ReflectorLogic",
@@ -320,7 +305,6 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             id: Guid.NewGuid(),
             name: "Mon Salon Personnalisé",
             isDefault: true,
-            isTemporized: false,
             configuration: new SvxLinkConfiguration(
                 Id: Guid.NewGuid(),
                 Logics: "SimplexLogic,ReflectorLogic",

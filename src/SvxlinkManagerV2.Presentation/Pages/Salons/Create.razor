@@ -59,14 +59,6 @@
                         <InputCheckbox @bind-Value="_model.IsDefault" class="toggle-input" id="chk-default" />
                         <label class="toggle-switch" for="chk-default"></label>
                     </label>
-                    <label class="toggle-row">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Temporisé</span>
-                            <span class="toggle-desc">Déconnexion automatique après inactivité</span>
-                        </div>
-                        <InputCheckbox @bind-Value="_model.IsTemporized" class="toggle-input" id="chk-temp" />
-                        <label class="toggle-switch" for="chk-temp"></label>
-                    </label>
                 </div>
             </div>
 
@@ -572,7 +564,6 @@
                 Id:           Guid.NewGuid(),
                 Name:         _model.Name.Trim(),
                 IsDefault:    _model.IsDefault,
-                IsTemporized: _model.IsTemporized,
                 RxFrequency:  _model.RxFrequency,
                 TxFrequency:  _model.TxFrequency,
                 RxCtcss:      ParseCtcss(_model.RxCtcssStr),
@@ -643,7 +634,6 @@
         public string Name { get; set; } = "";
 
         public bool IsDefault { get; set; }
-        public bool IsTemporized { get; set; }
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La fréquence RX est obligatoire.")]
         [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]

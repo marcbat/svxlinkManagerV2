@@ -165,7 +165,6 @@ public class UpdateSalonDtmfCodeCommandTests
             id ?? Guid.NewGuid(),
             name,
             isDefault: false,
-            isTemporized: false,
             CreateValidConfiguration());
 
         return result.Match(

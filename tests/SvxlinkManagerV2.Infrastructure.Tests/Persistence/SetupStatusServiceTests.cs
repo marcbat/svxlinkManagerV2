@@ -139,7 +139,6 @@ public class SetupStatusServiceTests
             id: Guid.NewGuid(),
             name: "Salon Test",
             isDefault: false,
-            isTemporized: false,
             configuration: new Domain.Aggregates.Salon.Entities.SvxLinkConfiguration(
                 Id: Guid.NewGuid(),
                 Logics: "SimplexLogic,ReflectorLogic",

@@ -28,7 +28,6 @@ public class SvxlinkDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name);
             entity.Property(e => e.IsDefault);
-            entity.Property(e => e.IsTemporized);
             entity.Property(e => e.IsDeleted);
             entity.Property(e => e.DtmfCode);
             entity.OwnsOne(e => e.Configuration, cfg => cfg.ToJson());

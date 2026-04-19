@@ -132,7 +132,7 @@ public class DtmfAnnounceServiceTests
     {
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon National France", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon National France", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
@@ -180,7 +180,7 @@ public class DtmfAnnounceServiceTests
     {
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon Test", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
@@ -355,7 +355,7 @@ public class DtmfAnnounceServiceTests
     {
         // RxFrequency == TxFrequency → pas d'annonce de fréquence
         var config = CreateValidConfiguration(); // 145.550 / 145.550
-        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Test", false, false, config)
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var text = DtmfAnnounceService.BuildAnnounceText(salon);
@@ -376,7 +376,7 @@ public class DtmfAnnounceServiceTests
             "F4XYZ", "ModuleHelp", 60, 60,
             null, "fr_FR", 0,
             145.600m, 145.000m, null, null);
-        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Split", false, false, config)
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Split", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var text = DtmfAnnounceService.BuildAnnounceText(salon);

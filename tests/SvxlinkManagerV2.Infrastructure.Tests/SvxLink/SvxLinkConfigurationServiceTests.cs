@@ -440,7 +440,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
@@ -482,7 +481,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test V3",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
@@ -505,7 +503,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test V3 TG",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
@@ -547,7 +544,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test avec CTCSS",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
@@ -589,7 +585,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Sans CTCSS",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 

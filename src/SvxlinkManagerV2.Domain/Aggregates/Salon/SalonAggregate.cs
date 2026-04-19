@@ -27,11 +27,6 @@ public class SalonAggregate : AggregateRoot
     public bool IsDefault { get; private set; }
 
     /// <summary>
-    /// Indique si le salon est temporisé (activation automatique selon planning horaire)
-    /// </summary>
-    public bool IsTemporized { get; private set; }
-
-    /// <summary>
     /// Configuration complète SVXLink pour ce salon
     /// </summary>
     public SvxLinkConfiguration Configuration { get; private set; } = null!;
@@ -77,14 +72,12 @@ public class SalonAggregate : AggregateRoot
     /// <param name="id">Identifiant unique du salon</param>
     /// <param name="name">Nom du salon</param>
     /// <param name="isDefault">Si c'est le salon par défaut</param>
-    /// <param name="isTemporized">Si le salon est temporisé</param>
     /// <param name="configuration">Configuration SVXLink complète</param>
     /// <returns>Validation contenant l'aggregate ou les erreurs de validation</returns>
     public static Validation<Error, SalonAggregate> Create(
         Guid id,
         string name,
         bool isDefault,
-        bool isTemporized,
         SvxLinkConfiguration configuration)
     {
         // Validation de l'identifiant
@@ -107,7 +100,6 @@ public class SalonAggregate : AggregateRoot
                     validId,
                     validName,
                     isDefault,
-                    isTemporized,
                     validConfig);
 
                 aggregate.Apply(@event);
@@ -235,7 +227,6 @@ public class SalonAggregate : AggregateRoot
         Id = @event.Id;
         Name = @event.Name;
         IsDefault = @event.IsDefault;
-        IsTemporized = @event.IsTemporized;
         Configuration = @event.Configuration;
         IsDeleted = false;
     }

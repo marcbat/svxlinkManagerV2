@@ -14,7 +14,6 @@ public record CreateSalonCommand(
     Guid Id,
     string Name,
     bool IsDefault,
-    bool IsTemporized,
     decimal RxFrequency,
     decimal TxFrequency,
     decimal? RxCtcss,
@@ -49,7 +48,6 @@ public class CreateSalonCommandHandler : IRequestHandler<CreateSalonCommand, Val
             command.Id,
             command.Name,
             command.IsDefault,
-            command.IsTemporized,
             configurationWithRadio);
 
         if (aggregateResult.IsFail)

@@ -138,7 +138,7 @@ public class DeleteSalonCommandTests
             "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);
 
-        var result = SalonAggregate.Create(id, "Salon Test", isDefault, false, config);
+        var result = SalonAggregate.Create(id, "Salon Test", isDefault, config);
         return result.Match(
             Succ: a => { a.ClearDomainEvents(); return a; },
             Fail: _ => throw new InvalidOperationException("Failed to create test aggregate"));

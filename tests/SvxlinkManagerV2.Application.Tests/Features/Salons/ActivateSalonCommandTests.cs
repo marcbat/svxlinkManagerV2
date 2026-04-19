@@ -373,7 +373,7 @@ public class ActivateSalonCommandTests
             145.550m,
             136.5m,
             136.5m);
-        var result = SalonAggregate.Create(id, "Salon Test", false, false, config);
+        var result = SalonAggregate.Create(id, "Salon Test", false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));

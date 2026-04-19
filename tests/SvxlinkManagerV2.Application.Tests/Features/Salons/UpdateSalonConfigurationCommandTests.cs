@@ -265,7 +265,6 @@ public class UpdateSalonConfigurationCommandTests
             id,
             "Salon Test",
             false,
-            false,
             config);
 
         return result.Match(

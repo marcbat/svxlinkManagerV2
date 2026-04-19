@@ -32,7 +32,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon National France",
             IsDefault: true,
-            IsTemporized: false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 136.5m,
@@ -89,7 +88,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 136.5m,
@@ -115,7 +113,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
@@ -145,7 +142,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 5000m, // Invalide - hors plage
             TxFrequency: 145.550m,
             RxCtcss: null,
@@ -171,7 +167,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 10m, // Invalide - en dessous de 30 MHz
@@ -199,7 +194,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 300m, // Invalide - au-dessus de 250.3 Hz
@@ -226,7 +220,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: null,
@@ -252,7 +245,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Sans CTCSS",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
@@ -302,3 +294,4 @@ public class CreateSalonCommandTests
             null);           // TxCtcss - sera remplacée par la Command
     }
 }
+

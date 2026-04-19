@@ -197,7 +197,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             txFrequency: 145.775m,
             rxCtcss: 88.5m,
             txCtcss: 88.5m);
-        var salon = SalonAggregate.Create(salonId, "Salon Test", false, false, salonConfig)
+        var salon = SalonAggregate.Create(salonId, "Salon Test", false, salonConfig)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var salonRepository = new SalonRepository(_context);
@@ -235,7 +235,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             txFrequency: 145.550m,
             rxCtcss: null,
             txCtcss: null);
-        var salon = SalonAggregate.Create(salonId, "Salon Sans CTCSS", false, false, salonConfig)
+        var salon = SalonAggregate.Create(salonId, "Salon Sans CTCSS", false, salonConfig)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var salonRepository = new SalonRepository(_context);

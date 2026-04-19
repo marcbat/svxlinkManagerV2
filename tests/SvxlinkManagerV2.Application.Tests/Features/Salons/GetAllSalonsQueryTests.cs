@@ -87,7 +87,7 @@ public class GetAllSalonsQueryTests
             136.5m,   // RxCtcss
             136.5m);  // TxCtcss
 
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));

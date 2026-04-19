@@ -108,7 +108,6 @@ public class SalonSeederHostedService : IHostedService
                     id: id,
                     name: name,
                     isDefault: false,
-                    isTemporized: false,
                     configuration: configuration);
 
                 await createResult.Match(

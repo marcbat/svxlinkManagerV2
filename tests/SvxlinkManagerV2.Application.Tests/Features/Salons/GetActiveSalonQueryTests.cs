@@ -134,7 +134,7 @@ public class GetActiveSalonQueryTests
             136.5m,
             136.5m);
 
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));
