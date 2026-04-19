@@ -57,6 +57,11 @@ public class SalonAggregate : AggregateRoot
     /// Pattern regex pour validation basique du format email (certificat X.509)
     /// </summary>
     private static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+    
+    /// <summary>
+    /// Pattern regex pour validation d'une entrée TG individuelle (nombre avec suffixe '+' optionnel)
+    /// </summary>
+    private static readonly Regex TalkGroupEntryPattern = new(@"^\d+\+?$", RegexOptions.Compiled);
 
     /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
@@ -334,6 +339,63 @@ public class SalonAggregate : AggregateRoot
             errors.Add(Error.Validation(
                 "SALON_CERT_EMAIL_INVALID",
                 "Le format de l'adresse email du certificat est invalide"));
+        }
+
+        // Validations TalkGroups (protocole V3 uniquement)
+        if (config.ReflectorProtocol == ReflectorProtocol.V3)
+        {
+            if (config.DefaultTg < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_DEFAULT_TG_INVALID",
+                    "DEFAULT_TG doit être supérieur ou égal à 0"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.MonitorTgs))
+            {
+                var monitorTgEntries = config.MonitorTgs
+                    .Split(',', StringSplitOptions.TrimEntries)
+                    .ToArray();
+
+                var hasInvalidMonitorTgs = monitorTgEntries.Length == 0
+                    || monitorTgEntries.Any(string.IsNullOrWhiteSpace)
+                    || monitorTgEntries.Any(entry => !TalkGroupEntryPattern.IsMatch(entry));
+
+                if (hasInvalidMonitorTgs)
+                {
+                    errors.Add(Error.Validation(
+                        "SALON_MONITOR_TGS_INVALID",
+                        "MONITOR_TGS doit être une liste CSV de nombres avec suffixe '+' optionnel"));
+                }
+            }
+
+            if (config.TgSelectTimeout <= 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TG_SELECT_TIMEOUT_INVALID",
+                    "TG_SELECT_TIMEOUT doit être strictement supérieur à 0"));
+            }
+
+            if (config.TgSelectInhibitTimeout.HasValue && config.TgSelectInhibitTimeout.Value < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TG_SELECT_INHIBIT_TIMEOUT_INVALID",
+                    "TG_SELECT_INHIBIT_TIMEOUT doit être supérieur ou égal à 0"));
+            }
+
+            if (config.TmpMonitorTimeout < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TMP_MONITOR_TIMEOUT_INVALID",
+                    "TMP_MONITOR_TIMEOUT doit être supérieur ou égal à 0"));
+            }
+
+            if (config.QsyPendingTimeout < -1)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_QSY_PENDING_TIMEOUT_INVALID",
+                    "QSY_PENDING_TIMEOUT doit être supérieur ou égal à -1"));
+            }
         }
 
         // Validation RxFrequency (obligatoire, plage 30-3000 MHz)

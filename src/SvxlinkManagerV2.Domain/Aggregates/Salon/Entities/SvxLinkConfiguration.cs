@@ -53,5 +53,14 @@ public record SvxLinkConfiguration(
     /// <summary>
     /// Tonalité CTCSS de transmission en Hz (format: 136.5). Plage valide: 67.0-250.3 Hz. Null = aucun CTCSS.
     /// </summary>
-    decimal? TxCtcss
+    decimal? TxCtcss,
+    // Section ReflectorLogic (SVXLink 25.05+ / protocole V3)
+    int DefaultTg = 0,
+    string? MonitorTgs = null,
+    int TgSelectTimeout = 30,
+    int? TgSelectInhibitTimeout = null,
+    bool MuteFirstTxLoc = true,
+    bool MuteFirstTxRem = false,
+    int TmpMonitorTimeout = 3600,
+    int QsyPendingTimeout = -1
 );

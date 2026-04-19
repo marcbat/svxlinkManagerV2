@@ -251,6 +251,14 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "DEFAULT_TG");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_INHIBIT_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_LOC");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_REM");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TMP_MONITOR_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "QSY_PENDING_TIMEOUT");
 
             _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
                 config.Host, config.Callsign);
@@ -267,10 +275,38 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
             iniData["ReflectorLogic"]["CERT_PKI_DIR"] = "/var/lib/svxlink/pki";
             iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
+            iniData["ReflectorLogic"]["DEFAULT_TG"] = config.DefaultTg.ToString();
+            iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"] = config.TgSelectTimeout.ToString();
+            iniData["ReflectorLogic"]["MUTE_FIRST_TX_LOC"] = config.MuteFirstTxLoc ? "1" : "0";
+            iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"] = config.MuteFirstTxRem ? "1" : "0";
+            iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"] = config.TmpMonitorTimeout.ToString();
+            iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"] = config.QsyPendingTimeout.ToString();
 
             if (!string.IsNullOrWhiteSpace(config.CertEmail))
             {
                 iniData["ReflectorLogic"]["CERT_EMAIL"] = config.CertEmail;
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.MonitorTgs))
+            {
+                iniData["ReflectorLogic"]["MONITOR_TGS"] = config.MonitorTgs;
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
+            }
+
+            if (config.TgSelectInhibitTimeout.HasValue)
+            {
+                iniData["ReflectorLogic"]["TG_SELECT_INHIBIT_TIMEOUT"] = config.TgSelectInhibitTimeout.Value.ToString();
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_INHIBIT_TIMEOUT");
             }
 
             // Remove V2-specific keys that may exist in template

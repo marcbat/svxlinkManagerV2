@@ -179,6 +179,75 @@
                 }
             </div>
 
+            @if (_model.ReflectorProtocol == ReflectorProtocol.V3)
+            {
+                <div class="card" style="margin-bottom:18px">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">groups</span>
+                        Talk Groups
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TG par défaut</label>
+                            <InputNumber class="form-control" @bind-Value="_model.DefaultTg" />
+                            <ValidationMessage For="() => _model.DefaultTg" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Monitor TGs (CSV)</label>
+                            <InputText class="form-control" @bind-Value="_model.MonitorTgs"
+                                       placeholder="ex: 91,208,226+,228+" />
+                            <ValidationMessage For="() => _model.MonitorTgs" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TG Select Timeout (s)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.TgSelectTimeout" />
+                            <ValidationMessage For="() => _model.TgSelectTimeout" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">TG Select Inhibit Timeout (s)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.TgSelectInhibitTimeout" />
+                            <ValidationMessage For="() => _model.TgSelectInhibitTimeout" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TMP Monitor Timeout (s)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.TmpMonitorTimeout" />
+                            <ValidationMessage For="() => _model.TmpMonitorTimeout" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">QSY Pending Timeout (s)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.QsyPendingTimeout" />
+                            <ValidationMessage For="() => _model.QsyPendingTimeout" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="toggles-group">
+                        <label class="toggle-row">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Mute first TX local</span>
+                                <span class="toggle-desc">Mute la première TX locale après sélection TG</span>
+                            </div>
+                            <InputCheckbox @bind-Value="_model.MuteFirstTxLoc" class="toggle-input" id="chk-mute-first-tx-loc" />
+                            <label class="toggle-switch" for="chk-mute-first-tx-loc"></label>
+                        </label>
+                        <label class="toggle-row">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Mute first TX distant</span>
+                                <span class="toggle-desc">Mute la première TX distante après sélection TG</span>
+                            </div>
+                            <InputCheckbox @bind-Value="_model.MuteFirstTxRem" class="toggle-input" id="chk-mute-first-tx-rem" />
+                            <label class="toggle-switch" for="chk-mute-first-tx-rem"></label>
+                        </label>
+                    </div>
+                </div>
+            }
+
             <!-- Section avancée SVXLink (collapsible) -->
             <div class="card card-advanced">
                 <button type="button" class="advanced-toggle" @onclick="() => _showAdvanced = !_showAdvanced">
@@ -484,7 +553,19 @@
                 RxFrequency:         _model.RxFrequency,
                 TxFrequency:         _model.TxFrequency,
                 RxCtcss:             ParseCtcss(_model.RxCtcssStr),
-                TxCtcss:             ParseCtcss(_model.TxCtcssStr)
+                TxCtcss:             ParseCtcss(_model.TxCtcssStr),
+                DefaultTg:           _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.DefaultTg : 0,
+                MonitorTgs:          _model.ReflectorProtocol == ReflectorProtocol.V3 && !string.IsNullOrWhiteSpace(_model.MonitorTgs)
+                                         ? _model.MonitorTgs.Trim()
+                                         : null,
+                TgSelectTimeout:     _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.TgSelectTimeout : 30,
+                TgSelectInhibitTimeout: _model.ReflectorProtocol == ReflectorProtocol.V3
+                                         ? _model.TgSelectInhibitTimeout
+                                         : null,
+                MuteFirstTxLoc:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxLoc : true,
+                MuteFirstTxRem:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxRem : false,
+                TmpMonitorTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.TmpMonitorTimeout : 3600,
+                QsyPendingTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.QsyPendingTimeout : -1
             );
 
             var command = new CreateSalonCommand(
@@ -589,6 +670,27 @@
         public ReflectorProtocol ReflectorProtocol { get; set; } = ReflectorProtocol.V2;
 
         public string CertEmail { get; set; } = "";
+        
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TG par défaut doit être supérieur ou égal à 0.")]
+        public int DefaultTg { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.CustomValidation(typeof(SalonFormModel), nameof(ValidateMonitorTgs))]
+        public string MonitorTgs { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Le timeout de sélection TG doit être supérieur à 0.")]
+        public int TgSelectTimeout { get; set; } = 30;
+
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le timeout d'inhibition TG doit être supérieur ou égal à 0.")]
+        public int? TgSelectInhibitTimeout { get; set; }
+
+        public bool MuteFirstTxLoc { get; set; } = true;
+        public bool MuteFirstTxRem { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TMP monitor timeout doit être supérieur ou égal à 0.")]
+        public int TmpMonitorTimeout { get; set; } = 3600;
+
+        [System.ComponentModel.DataAnnotations.Range(-1, int.MaxValue, ErrorMessage = "Le QSY pending timeout doit être supérieur ou égal à -1.")]
+        public int QsyPendingTimeout { get; set; } = -1;
 
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;
@@ -598,5 +700,20 @@
 
         [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
         public int? DtmfCode { get; set; }
+
+        public static System.ComponentModel.DataAnnotations.ValidationResult? ValidateMonitorTgs(string? value, System.ComponentModel.DataAnnotations.ValidationContext context)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return System.ComponentModel.DataAnnotations.ValidationResult.Success;
+
+            var entries = value.Split(',', StringSplitOptions.TrimEntries);
+            var hasInvalidEntry = entries.Length == 0
+                || entries.Any(string.IsNullOrWhiteSpace)
+                || entries.Any(entry => !System.Text.RegularExpressions.Regex.IsMatch(entry, @"^\d+\+?$"));
+
+            return hasInvalidEntry
+                ? new System.ComponentModel.DataAnnotations.ValidationResult("Le format doit être un CSV de nombres avec suffixe '+' optionnel (ex: 91,208,226+).")
+                : System.ComponentModel.DataAnnotations.ValidationResult.Success;
+        }
     }
 }
