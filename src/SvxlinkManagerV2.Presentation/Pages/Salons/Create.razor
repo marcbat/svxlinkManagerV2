@@ -674,8 +674,7 @@
         [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TG par défaut doit être supérieur ou égal à 0.")]
         public int DefaultTg { get; set; } = 0;
 
-        [System.ComponentModel.DataAnnotations.RegularExpression(@"^\s*\d+\+?(\s*,\s*\d+\+?)*\s*$",
-            ErrorMessage = "Le format doit être un CSV de nombres avec suffixe '+' optionnel (ex: 91,208,226+).")]
+        [System.ComponentModel.DataAnnotations.CustomValidation(typeof(SalonFormModel), nameof(ValidateMonitorTgs))]
         public string MonitorTgs { get; set; } = "";
 
         [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Le timeout de sélection TG doit être supérieur à 0.")]
@@ -701,5 +700,20 @@
 
         [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
         public int? DtmfCode { get; set; }
+
+        public static System.ComponentModel.DataAnnotations.ValidationResult? ValidateMonitorTgs(string? value, System.ComponentModel.DataAnnotations.ValidationContext context)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return System.ComponentModel.DataAnnotations.ValidationResult.Success;
+
+            var entries = value.Split(',', StringSplitOptions.TrimEntries);
+            var hasInvalidEntry = entries.Length == 0
+                || entries.Any(string.IsNullOrWhiteSpace)
+                || entries.Any(entry => !System.Text.RegularExpressions.Regex.IsMatch(entry, @"^\d+\+?$"));
+
+            return hasInvalidEntry
+                ? new System.ComponentModel.DataAnnotations.ValidationResult("Le format doit être un CSV de nombres avec suffixe '+' optionnel (ex: 91,208,226+).")
+                : System.ComponentModel.DataAnnotations.ValidationResult.Success;
+        }
     }
 }
