@@ -291,6 +291,101 @@ public class SalonAggregateTests
         });
     }
 
+    [Fact]
+    public void Create_WithV3TalkGroupConfiguration_ShouldSucceed()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            DefaultTg = 208,
+            MonitorTgs = "91,208,226+,228+",
+            TgSelectTimeout = 45,
+            TgSelectInhibitTimeout = 10,
+            TmpMonitorTimeout = 1200,
+            QsyPendingTimeout = -1
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Create_WithInvalidV3MonitorTgs_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            MonitorTgs = "91,abc"
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_MONITOR_TGS_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidV3TgSelectTimeout_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            TgSelectTimeout = 0
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TG_SELECT_TIMEOUT_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidTalkGroupValuesInV2_ShouldIgnoreTalkGroupValidation()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V2";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V2,
+            DefaultTg = -1,
+            MonitorTgs = "bad-value",
+            TgSelectTimeout = 0,
+            TgSelectInhibitTimeout = -1,
+            TmpMonitorTimeout = -1,
+            QsyPendingTimeout = -2
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, false, config);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+    }
+
         [Fact]
     public void Create_WithInvalidRxFrequency_ShouldFail()
     {

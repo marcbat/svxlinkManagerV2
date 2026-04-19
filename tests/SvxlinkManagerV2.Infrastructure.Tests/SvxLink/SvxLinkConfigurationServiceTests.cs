@@ -189,6 +189,66 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_V3_ShouldSetTalkGroupParameters()
+    {
+        // Arrange
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_reflector_v3_tg.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"]["DEFAULT_TG"].Should().Be("0");
+        iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"].Should().Be("30");
+        iniData["ReflectorLogic"]["MUTE_FIRST_TX_LOC"].Should().Be("1");
+        iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"].Should().Be("0");
+        iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"].Should().Be("3600");
+        iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"].Should().Be("-1");
+        iniData["ReflectorLogic"].ContainsKey("MONITOR_TGS").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_INHIBIT_TIMEOUT").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_V2_ShouldNotSetTalkGroupParameters()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_reflector_v2_tg.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"].ContainsKey("DEFAULT_TG").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MONITOR_TGS").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_INHIBIT_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MUTE_FIRST_TX_LOC").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MUTE_FIRST_TX_REM").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TMP_MONITOR_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("QSY_PENDING_TIMEOUT").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_V3_WithMonitorTgs_ShouldSetMonitorTgs()
+    {
+        // Arrange
+        var salon = CreateTestSalonV3WithTalkGroups("91,208,226+", 15);
+        var outputPath = GetTestOutputPath("svxlink_reflector_v3_monitor_tgs.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"]["MONITOR_TGS"].Should().Be("91,208,226+");
+        iniData["ReflectorLogic"]["TG_SELECT_INHIBIT_TIMEOUT"].Should().Be("15");
+    }
+
+    [Fact]
     public async Task GenerateAsync_ShouldUpdateSimplexLogicSection()
     {
         // Arrange
@@ -429,6 +489,29 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         return result.Match(
             Succ: salon => salon,
             Fail: errors => throw new Exception($"Impossible de créer le Salon de test V3: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestSalonV3WithTalkGroups(string monitorTgs, int? tgSelectInhibitTimeout)
+    {
+        var baseConfig = CreateTestSalonV3().Configuration;
+        var configuration = baseConfig with
+        {
+            MonitorTgs = monitorTgs,
+            TgSelectInhibitTimeout = tgSelectInhibitTimeout
+        };
+
+        var result = SalonAggregate.Create(
+            id: Guid.NewGuid(),
+            name: "Salon Test V3 TG",
+            isDefault: false,
+            isTemporized: false,
+            configuration: configuration
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon de test V3 TG: {errors}")
         );
     }
 
