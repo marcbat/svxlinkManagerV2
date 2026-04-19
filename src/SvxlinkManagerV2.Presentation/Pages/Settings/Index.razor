@@ -64,7 +64,18 @@ else
             <div class="card">
                 <div class="section-header">
                     <span class="material-symbols-outlined">settings_input_antenna</span>
-                    Configuration sans réflecteur
+                    Configuration sans réflecteur (mode autonome)
+                </div>
+
+                <div class="standalone-info">
+                    <span class="material-symbols-outlined">info</span>
+                    <p>
+                        En mode autonome, SVXLink démarre <strong>sans se connecter à un réflecteur</strong>.
+                        Le nœud reste opérationnel localement : il écoute sur la fréquence configurée,
+                        répond aux commandes DTMF et peut émettre des annonces, mais aucun audio
+                        n'est acheminé vers un réseau distant. Ce mode est utile pour tester le matériel
+                        ou exploiter le nœud de façon indépendante.
+                    </p>
                 </div>
 
                 <div class="filter-list">
@@ -318,6 +329,35 @@ else
     }
 
     .filter-list { display: flex; flex-direction: column; gap: 0; }
+
+    .standalone-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        background: rgba(116, 185, 255, .07);
+        border: 1px solid rgba(116, 185, 255, .25);
+        color: var(--text-muted);
+        margin-bottom: 14px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+
+        .standalone-info .material-symbols-outlined {
+            font-size: 18px;
+            color: #74b9ff;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .standalone-info p {
+            margin: 0;
+        }
+
+        .standalone-info strong {
+            color: var(--text);
+        }
 
     .filter-row {
         display: flex;
