@@ -64,7 +64,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenNoSalonsExist_ShouldCreate8Salons()
+    public async Task StartAsync_WhenNoSalonsExist_ShouldCreate7Salons()
     {
         // Arrange
         var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
@@ -74,7 +74,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
 
         // Assert
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(6);
+        salons.Should().HaveCount(7);
     }
 
     [Fact]
@@ -90,6 +90,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             new Guid("a749ffe5-16c7-45da-809d-c048908f115c"),
             new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"),
             new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"),
+            new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"),
         };
 
         // Act
@@ -178,7 +179,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate6SalonsOnFirstCallOnly()
+    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate7SalonsOnFirstCallOnly()
     {
         // Arrange
         var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
@@ -189,9 +190,9 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act - Second démarrage (même service, base non-vide maintenant)
         await service.StartAsync(CancellationToken.None);
 
-        // Assert - Toujours 6 salons (pas de doublons)
+        // Assert - Toujours 7 salons (pas de doublons)
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(6);
+        salons.Should().HaveCount(7);
     }
 
     [Fact]
@@ -229,6 +230,28 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_WhenNoSalonsExist_ShouldContainReflecteurLocalSalon()
+    {
+        // Arrange
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert - Vérifier la présence du salon Réflecteur Local (V3, localhost)
+        var reflecteurLocalId = new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04");
+        var salons = await _repository.GetAllAsync();
+        var reflecteurLocal = salons.FirstOrDefault(s => s.Id == reflecteurLocalId);
+        reflecteurLocal.Should().NotBeNull();
+        reflecteurLocal!.Name.Should().Be("Réflecteur Local");
+        reflecteurLocal.Configuration.Host.Should().Be("127.0.0.1");
+        reflecteurLocal.Configuration.Port.Should().Be(5300);
+        reflecteurLocal.Configuration.ReflectorProtocol.Should().Be(ReflectorProtocol.V3);
+        reflecteurLocal.Configuration.AuthKey.Should().BeNull();
+        reflecteurLocal.DtmfCode.Should().Be(210);
+    }
+
+    [Fact]
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveDtmfCodeAssigned()
     {
         // Arrange
@@ -247,6 +270,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         bySalon["Salon Technique"].DtmfCode.Should().Be(98);
         bySalon["Salon Bavardage"].DtmfCode.Should().Be(100);
         bySalon["Salon Local"].DtmfCode.Should().Be(101);
+        bySalon["Réflecteur Local"].DtmfCode.Should().Be(210);
     }
 
     /// <summary>

@@ -4,13 +4,16 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
 /// <summary>
-/// Service de seeding automatique des 6 salons originaux au premier démarrage de l'application.
+/// Service de seeding automatique des 7 salons originaux au premier démarrage de l'application.
 /// Idempotent : si des salons existent déjà, le seeding est ignoré.
 /// Si le wizard de configuration initiale est requis, le seeding est également ignoré.
+/// Les 6 premiers salons utilisent le protocole V2 (réflecteurs distants),
+/// le 7ème ("Réflecteur Local") utilise le protocole V3 (réflecteur local, certificats X.509).
 /// </summary>
 public class SalonSeederHostedService : IHostedService
 {
@@ -33,7 +36,7 @@ public class SalonSeederHostedService : IHostedService
 
     /// <summary>
     /// Exécuté au démarrage de l'application.
-    /// Sème les 6 salons originaux si la base est vide (idempotent).
+    /// Sème les 7 salons originaux si la base est vide (idempotent).
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -71,10 +74,10 @@ public class SalonSeederHostedService : IHostedService
             }
             else
             {
-                _logger.LogInformation("Aucun salon trouvé, seeding des 6 salons originaux...");
+                _logger.LogInformation("Aucun salon trouvé, seeding des 7 salons originaux...");
             }
 
-            foreach (var (id, name, host, port, authKey, dtmfCode) in GetOriginalSalons())
+            foreach (var (id, name, host, port, authKey, dtmfCode, protocol) in GetOriginalSalons())
             {
                 var configuration = new SvxLinkConfiguration(
                     Id: Guid.NewGuid(),
@@ -87,7 +90,7 @@ public class SalonSeederHostedService : IHostedService
                     Callsign: "NOCALL",
                     AuthKey: authKey,
                     JitterBufferDelay: 0,
-                    ReflectorProtocol: Domain.Aggregates.Salon.Enums.ReflectorProtocol.V2,
+                    ReflectorProtocol: protocol,
                     CertEmail: null,
                     SimplexCallsign: "F0ABC",
                     Modules: "ModuleHelp",
@@ -160,15 +163,17 @@ public class SalonSeederHostedService : IHostedService
     }
 
     /// <summary>
-    /// Retourne les 6 salons originaux avec leurs GUIDs fixes (compatibilité migration legacy).
+    /// Retourne les 7 salons originaux avec leurs GUIDs fixes (compatibilité migration legacy).
+    /// Les 6 premiers sont des réflecteurs distants (protocole V2), le 7ème est le réflecteur local (protocole V3).
     /// </summary>
-    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string AuthKey, int? DtmfCode)> GetOriginalSalons()
+    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string? AuthKey, int? DtmfCode, ReflectorProtocol Protocol)> GetOriginalSalons()
     {
-        yield return (new Guid("235a4521-15a1-4e02-a540-91ee600452ac"), "Réseau des Répéteurs Francophones", "rrf2.f5nlg.ovh", 5300, "Magnifique123456789!", 96);
-        yield return (new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"), "Salon Suisse Romand", "salonsuisseromand.hbspot.ch", 5300, "xD9wW5gO7yD9hN5o", 200);
-        yield return (new Guid("0f669a03-dcf1-4277-9b07-54f6a0fd3037"), "French Open Network", "serveur.f1tzo.com", 5300, "FON-F1TZO", 97);
-        yield return (new Guid("a749ffe5-16c7-45da-809d-c048908f115c"), "Salon Technique", "rrf3.f5nlg.ovh", 5301, "Magnifique123456789!", 98);
-        yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO", 100);
-        yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO", 101);
+        yield return (new Guid("235a4521-15a1-4e02-a540-91ee600452ac"), "Réseau des Répéteurs Francophones", "rrf2.f5nlg.ovh", 5300, "Magnifique123456789!", 96, ReflectorProtocol.V2);
+        yield return (new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"), "Salon Suisse Romand", "salonsuisseromand.hbspot.ch", 5300, "xD9wW5gO7yD9hN5o", 200, ReflectorProtocol.V2);
+        yield return (new Guid("0f669a03-dcf1-4277-9b07-54f6a0fd3037"), "French Open Network", "serveur.f1tzo.com", 5300, "FON-F1TZO", 97, ReflectorProtocol.V2);
+        yield return (new Guid("a749ffe5-16c7-45da-809d-c048908f115c"), "Salon Technique", "rrf3.f5nlg.ovh", 5301, "Magnifique123456789!", 98, ReflectorProtocol.V2);
+        yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO", 100, ReflectorProtocol.V2);
+        yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO", 101, ReflectorProtocol.V2);
+        yield return (new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"), "Réflecteur Local", "127.0.0.1", 5300, null, 210, ReflectorProtocol.V3);
     }
 }

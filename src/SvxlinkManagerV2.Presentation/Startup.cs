@@ -58,6 +58,9 @@ namespace SvxlinkManagerV2.Presentation
             // Seeding des salons originaux
             services.AddHostedService<SalonSeederHostedService>();
 
+            // Seeding du réflecteur local par défaut
+            services.AddHostedService<ReflectorSeederHostedService>();
+
             // Activation automatique au démarrage
             services.AddHostedService<StartupActivationHostedService>();
 

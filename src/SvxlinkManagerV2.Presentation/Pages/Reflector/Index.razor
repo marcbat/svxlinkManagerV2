@@ -156,18 +156,22 @@ else
         "[GLOBAL]\r\n" +
         "TIMESTAMP_FORMAT=\"%c\"\r\n" +
         "LISTEN_PORT=5300\r\n" +
+        "ACCEPT_CALLSIGN=.*\r\n" +
         "CODECS=OPUS\r\n" +
         "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
         "TG_FOR_V1_CLIENTS=0\r\n" +
         "\r\n" +
         "[ROOT_CA]\r\n" +
         "COMMON_NAME=SvxReflector Root CA\r\n" +
+        "COUNTRY=CH\r\n" +
         "\r\n" +
         "[ISSUING_CA]\r\n" +
         "COMMON_NAME=SvxReflector Issuing CA\r\n" +
+        "COUNTRY=CH\r\n" +
         "\r\n" +
         "[SERVER_CERT]\r\n" +
         "COMMON_NAME=svxreflector\r\n" +
+        "SUBJECT_ALT_NAME=DNS:localhost,IP:127.0.0.1\r\n" +
         "\r\n" +
         "[TG#0]\r\n" +
         "AUTO_QSY_AFTER=0\r\n" +
