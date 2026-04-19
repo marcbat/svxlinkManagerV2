@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -u
 
 APP_DIR="${APP_DIR:-/opt/svxlinkmanagerv2}"
 SERVICE_NAME="${SERVICE_NAME:-svxlinkmanagerv2}"
@@ -33,8 +33,13 @@ install_package() {
 
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update >> "$LOG_FILE" 2>&1
-    apt-get install -y "$package_path" >> "$LOG_FILE" 2>&1
-    return
+    if apt-get install -y "$package_path" >> "$LOG_FILE" 2>&1; then
+      log "apt-get install réussi pour $package_path"
+      return 0
+    else
+      log "ERREUR: apt-get install a échoué (code $?) pour $package_path"
+      return 1
+    fi
   fi
 
   if command -v dpkg >/dev/null 2>&1; then
@@ -42,17 +47,22 @@ install_package() {
     if command -v apt-get >/dev/null 2>&1; then
       apt-get install -f -y >> "$LOG_FILE" 2>&1
     fi
-    return
+    return 0
   fi
 
+  log "ERREUR: Ni apt-get ni dpkg ne sont disponibles pour installer le paquet."
   echo "Ni apt-get ni dpkg ne sont disponibles pour installer le paquet." >&2
-  exit 1
+  return 1
 }
 
 restart_service_if_possible() {
   if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >> "$LOG_FILE" 2>&1 || true
-    systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
+    if systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1; then
+      log "Service $SERVICE_NAME redémarré avec succès"
+    else
+      log "ERREUR: Échec du redémarrage du service $SERVICE_NAME (code $?)"
+    fi
     return
   fi
 
@@ -62,6 +72,7 @@ restart_service_if_possible() {
 stop_service_if_possible() {
   if command -v systemctl >/dev/null 2>&1; then
     systemctl stop "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+    log "Service $SERVICE_NAME arrêté"
     return
   fi
 
@@ -74,7 +85,7 @@ run_install() {
   ensure_root
 
   if [ ! -f "$package_path" ]; then
-    log "Paquet introuvable: $package_path"
+    log "ERREUR: Paquet introuvable: $package_path"
     exit 1
   fi
 
@@ -82,10 +93,16 @@ run_install() {
   sleep "$RUNNER_DELAY_SECONDS"
 
   stop_service_if_possible
-  install_package "$package_path"
-  restart_service_if_possible
 
-  log "Installation terminée avec succès pour $package_path"
+  if install_package "$package_path"; then
+    log "Installation terminée avec succès pour $package_path"
+  else
+    log "ERREUR: Installation échouée pour $package_path — tentative de redémarrage du service malgré l'échec"
+  fi
+
+  # Toujours tenter le redémarrage, même si l'installation a échoué,
+  # pour éviter de laisser le service mort indéfiniment.
+  restart_service_if_possible
 }
 
 spawn_runner() {

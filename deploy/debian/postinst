@@ -1,35 +1,73 @@
 #!/bin/sh
-set -e
+# postinst — script exécuté après l'installation/mise à jour du paquet .deb
+# Toutes les étapes sont logguées dans $LOG_FILE pour diagnostic post-mortem.
 
 APP_DIR="/opt/svxlinkmanagerv2"
 SERVICE_NAME="svxlinkmanagerv2"
+LOG_DIR="$APP_DIR/logs"
+LOG_FILE="$LOG_DIR/postinst.log"
+
+mkdir -p "$LOG_DIR"
+
+log() {
+  printf '%s [postinst] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$LOG_FILE"
+}
+
+log_and_echo() {
+  log "$1"
+  echo "$1"
+}
+
+fail() {
+  log "ERREUR FATALE: $1"
+  echo "ERREUR: $1" >&2
+  exit 1
+}
+
+# Créer un répertoire de manière robuste : si le chemin existe en tant que fichier,
+# le supprimer avant de créer le répertoire.
+ensure_directory() {
+  target="$1"
+  if [ -e "$target" ] && [ ! -d "$target" ]; then
+    log "ATTENTION: $target existe mais n'est pas un répertoire, suppression"
+    rm -f "$target"
+  fi
+  mkdir -p "$target" 2>>"$LOG_FILE"
+}
+
+log "========== Début postinst $(cat "$APP_DIR/version.txt" 2>/dev/null || echo 'version inconnue') =========="
 
 mkdir -p "$APP_DIR/data"
+log "Répertoire data créé/vérifié"
 
 # Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
 # Le seed automatique au démarrage recrée les données par défaut.
 rm -f "$APP_DIR/data/svxlinkmanager.db"
+log "Base SQLite supprimée (sera recréée au démarrage)"
 
 # --- Répertoires SVXLink requis par les deux versions ---
-mkdir -p /var/spool/svxlink
-mkdir -p /var/log/svxlink
-mkdir -p /var/lib/svxlink/pki/pending_csrs
-mkdir -p /var/lib/svxlink/pki/csrs
-mkdir -p /var/lib/svxlink/pki/certs
-mkdir -p /var/lib/svxlink/pki/ca
-mkdir -p /etc/svxlink
-mkdir -p /etc/svxlink/svxlink.d
+log "Création des répertoires SVXLink..."
+ensure_directory /var/spool/svxlink
+ensure_directory /var/log/svxlink
+ensure_directory /var/lib/svxlink/pki/pending_csrs
+ensure_directory /var/lib/svxlink/pki/csrs
+ensure_directory /var/lib/svxlink/pki/certs
+ensure_directory /var/lib/svxlink/pki/ca
+ensure_directory /etc/svxlink
+ensure_directory /etc/svxlink/svxlink.d
 
 # Template de configuration SVXLink (requis par SvxLinkConfigurationService)
 if [ -f "$APP_DIR/svxlink-config/svxlink.conf" ] && [ ! -f /etc/svxlink/svxlink.conf ]; then
   cp "$APP_DIR/svxlink-config/svxlink.conf" /etc/svxlink/svxlink.conf
+  log "Template svxlink.conf copié vers /etc/svxlink/"
 fi
 
 # Répertoires sons pour les deux versions SVXLink
-mkdir -p /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager
-mkdir -p /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager
-mkdir -p /opt/svxlink-legacy/share/svxlink/events.d/local
-mkdir -p /opt/svxlink-modern/share/svxlink/events.d/local
+ensure_directory /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager
+ensure_directory /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager
+ensure_directory /opt/svxlink-legacy/share/svxlink/events.d/local
+ensure_directory /opt/svxlink-modern/share/svxlink/events.d/local
+log "Répertoires sons et events créés"
 
 # --- Enregistrement des bibliothèques partagées SVXLink ---
 if [ -d /opt/svxlink-legacy/lib ]; then
@@ -39,6 +77,7 @@ if [ -d /opt/svxlink-modern/lib ]; then
   echo "/opt/svxlink-modern/lib" > /etc/ld.so.conf.d/svxlink-modern.conf
 fi
 ldconfig 2>/dev/null || true
+log "ldconfig exécuté"
 
 # --- Hook de signature automatique des certificats X.509 (SVXLink 25.05 / protocole V3) ---
 HOOK_SRC="$APP_DIR/dev-ca-hook.sh"
@@ -46,16 +85,17 @@ HOOK_DST="/usr/local/bin/dev-ca-hook.sh"
 if [ -f "$HOOK_SRC" ]; then
   cp "$HOOK_SRC" "$HOOK_DST"
   chmod +x "$HOOK_DST"
+  log "Hook X.509 installé"
 fi
 
 # --- Vérification des installations SVXLink ---
 if [ ! -f /opt/svxlink-legacy/bin/svxlink ]; then
-  echo "ATTENTION: SVXLink 19.09.2 (legacy) introuvable dans /opt/svxlink-legacy."
-  echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+  log_and_echo "ATTENTION: SVXLink 19.09.2 (legacy) introuvable dans /opt/svxlink-legacy."
+  log_and_echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
 fi
 if [ ! -f /opt/svxlink-modern/bin/svxlink ]; then
-  echo "ATTENTION: SVXLink 25.05 (moderne) introuvable dans /opt/svxlink-modern."
-  echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+  log_and_echo "ATTENTION: SVXLink 25.05 (moderne) introuvable dans /opt/svxlink-modern."
+  log_and_echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
 fi
 
 # --- Vérification .NET runtime ---
@@ -68,20 +108,26 @@ for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/
 done
 
 if [ -z "$DOTNET_BIN" ]; then
-  echo "Erreur: dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
-  exit 1
+  fail "dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
 fi
 
 if ! "$DOTNET_BIN" --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 8\.'; then
-  echo "Erreur: .NET 8 runtime est requis. Runtimes detectes:"
-  "$DOTNET_BIN" --list-runtimes 2>/dev/null || true
-  exit 1
+  log "Runtimes .NET détectés:"
+  "$DOTNET_BIN" --list-runtimes 2>>"$LOG_FILE" >> "$LOG_FILE" || true
+  fail ".NET 8 runtime est requis mais absent."
 fi
+log ".NET 8 runtime détecté: $DOTNET_BIN"
 
 chmod +x "$APP_DIR/SvxlinkManagerV2.Presentation" 2>/dev/null || true
 
 if command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload || true
-  systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
-  systemctl restart "$SERVICE_NAME" || true
+  log "Activation et redémarrage du service $SERVICE_NAME..."
+  systemctl daemon-reload >> "$LOG_FILE" 2>&1 || true
+  systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+  systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+  log "Service $SERVICE_NAME redémarré"
+else
+  log "ATTENTION: systemctl indisponible, le service n'a pas été redémarré"
 fi
+
+log "========== Fin postinst (succès) =========="
