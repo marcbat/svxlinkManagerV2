@@ -25,307 +25,352 @@
 else
 {
     <EditForm Model="_model" OnValidSubmit="SaveAsync">
-        <div class="settings-grid">
+        <div class="settings-two-col">
 
-            <!-- Démarrage automatique -->
-            <div class="card">
-                <div class="section-header">
-                    <span class="material-symbols-outlined">rocket_launch</span>
-                    Démarrage automatique
-                </div>
+            <!-- ── Colonne gauche : Paramètres ───────────────────── -->
+            <div class="settings-col">
 
-                <div class="filter-list">
-
-                    <div class="filter-row">
-                        <div class="filter-info">
-                            <span class="filter-name">Démarrer le réflecteur au démarrage</span>
-                            <span class="filter-desc">Active automatiquement le SvxReflector lors du lancement de l'application.</span>
-                        </div>
-                        <div class="filter-toggle">
-                            <InputCheckbox @bind-Value="_model.StartReflectorOnStartup" class="toggle-input" id="chk-reflector" />
-                            <label class="toggle-switch" for="chk-reflector"></label>
-                        </div>
+                <!-- Démarrage automatique -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">rocket_launch</span>
+                        Démarrage automatique
                     </div>
 
-                    <div class="filter-row">
-                        <div class="filter-info">
-                            <span class="filter-name">Démarrer le salon par défaut au démarrage</span>
-                            <span class="filter-desc">Active automatiquement le salon marqué comme défaut lors du lancement de l'application.</span>
+                    <div class="filter-list">
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Démarrer le réflecteur au démarrage</span>
+                                <span class="filter-desc">Active automatiquement le SvxReflector lors du lancement de l'application.</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.StartReflectorOnStartup" class="toggle-input" id="chk-reflector" />
+                                <label class="toggle-switch" for="chk-reflector"></label>
+                            </div>
                         </div>
-                        <div class="filter-toggle">
-                            <InputCheckbox @bind-Value="_model.StartDefaultSalonOnStartup" class="toggle-input" id="chk-salon" />
-                            <label class="toggle-switch" for="chk-salon"></label>
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Démarrer le salon par défaut au démarrage</span>
+                                <span class="filter-desc">Active automatiquement le salon marqué comme défaut lors du lancement de l'application.</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.StartDefaultSalonOnStartup" class="toggle-input" id="chk-salon" />
+                                <label class="toggle-switch" for="chk-salon"></label>
+                            </div>
                         </div>
+
+                    </div>
+                </div>
+
+                <!-- Configuration sans réflecteur -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        Configuration sans réflecteur (mode autonome)
                     </div>
 
+                    <div class="standalone-info">
+                        <span class="material-symbols-outlined">info</span>
+                        <p>
+                            En mode autonome, SVXLink démarre <strong>sans se connecter à un réflecteur</strong>.
+                            Le nœud reste opérationnel localement : il écoute sur la fréquence configurée,
+                            répond aux commandes DTMF et peut émettre des annonces, mais aucun audio
+                            n'est acheminé vers un réseau distant. Ce mode est utile pour tester le matériel
+                            ou exploiter le nœud de façon indépendante.
+                        </p>
+                    </div>
+
+                    <div class="filter-list">
+                        <div class="filter-row freq-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Fréquence RX par défaut (MHz)</span>
+                                <span class="filter-desc">Fréquence de réception utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                            </div>
+                            <div class="freq-input-wrap">
+                                <InputNumber @bind-Value="_model.DefaultRxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
+                            </div>
+                        </div>
+
+                        <div class="filter-row freq-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Fréquence TX par défaut (MHz)</span>
+                                <span class="filter-desc">Fréquence de transmission utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                            </div>
+                            <div class="freq-input-wrap">
+                                <InputNumber @bind-Value="_model.DefaultTxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Erreurs globales -->
+                @if (_errors.Any())
+                {
+                    <div class="global-errors">
+                        @foreach (var err in _errors)
+                        {
+                            <div class="global-error-item">
+                                <span class="material-symbols-outlined">error</span>
+                                @err
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Bouton Enregistrer -->
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+                        @if (_isSubmitting)
+                        {
+                            <span class="material-symbols-outlined spin">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">save</span>
+                        }
+                        Enregistrer
+                    </button>
+                </div>
+
             </div>
 
-            <div class="card">
-                <div class="section-header">
-                    <span class="material-symbols-outlined">settings_input_antenna</span>
-                    Configuration sans réflecteur (mode autonome)
-                </div>
-
-                <div class="standalone-info">
-                    <span class="material-symbols-outlined">info</span>
-                    <p>
-                        En mode autonome, SVXLink démarre <strong>sans se connecter à un réflecteur</strong>.
-                        Le nœud reste opérationnel localement : il écoute sur la fréquence configurée,
-                        répond aux commandes DTMF et peut émettre des annonces, mais aucun audio
-                        n'est acheminé vers un réseau distant. Ce mode est utile pour tester le matériel
-                        ou exploiter le nœud de façon indépendante.
-                    </p>
-                </div>
-
-                <div class="filter-list">
-                    <div class="filter-row freq-row">
-                        <div class="filter-info">
-                            <span class="filter-name">Fréquence RX par défaut (MHz)</span>
-                            <span class="filter-desc">Fréquence de réception utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
-                        </div>
-                        <div class="freq-input-wrap">
-                            <InputNumber @bind-Value="_model.DefaultRxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
-                        </div>
+            <!-- ── Colonne droite : Mises à jour ──────────────────── -->
+            <div class="settings-col">
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">system_update</span>
+                        Mises à jour
                     </div>
 
-                    <div class="filter-row freq-row">
-                        <div class="filter-info">
-                            <span class="filter-name">Fréquence TX par défaut (MHz)</span>
-                            <span class="filter-desc">Fréquence de transmission utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
-                        </div>
-                        <div class="freq-input-wrap">
-                            <InputNumber @bind-Value="_model.DefaultTxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
-                        </div>
-                    </div>
-                </div>
-            </div>
+                    <div class="update-panel">
 
-            <div class="card">
-                <div class="section-header">
-                    <span class="material-symbols-outlined">system_update</span>
-                    Mises à jour
-                </div>
-
-                <div class="update-panel">
-                    <div class="update-summary-grid">
-                        <div class="update-summary-item">
-                            <span class="update-label">Version installée</span>
-                            <span class="update-value">@(_updateWorkflowStatus?.UpdateStatus.CurrentVersion ?? "-")</span>
+                        <!-- Sous-section : Statut actuel -->
+                        <p class="update-subsection-title">Statut actuel</p>
+                        <div class="update-summary-grid">
+                            <div class="update-summary-item">
+                                <span class="update-label">Version installée</span>
+                                <span class="update-value">@(_updateWorkflowStatus?.UpdateStatus.CurrentVersion ?? "-")</span>
+                            </div>
+                            <div class="update-summary-item">
+                                <span class="update-label">Canal</span>
+                                <span class="update-value">@GetChannelLabel(_selectedUpdateChannel)</span>
+                            </div>
+                            <div class="update-summary-item">
+                                <span class="update-label">État</span>
+                                <span class="update-value">@GetOperationStateLabel(_updateWorkflowStatus?.OperationState ?? ApplicationUpdateOperationState.Idle)</span>
+                            </div>
                         </div>
-                        <div class="update-summary-item">
-                            <span class="update-label">Canal</span>
-                            <span class="update-value">@GetChannelLabel(_selectedUpdateChannel)</span>
+
+                        @if (_updateWorkflowStatus?.UpdateStatus.LatestRelease is not null)
+                        {
+                            <div class="update-release-card @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "available" : "current")">
+                                <div class="update-release-header">
+                                    <div>
+                                        <div class="update-release-version">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Version</div>
+                                        <div class="update-release-meta">
+                                            Publiée le @_updateWorkflowStatus.UpdateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
+                                        </div>
+                                    </div>
+                                    <span class="update-badge @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
+                                        @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
+                                    </span>
+                                </div>
+
+                                <div class="update-release-details">
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Tag</span>
+                                        <span class="update-value">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Tag</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Paquet</span>
+                                        <span class="update-value">@(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
+                                    </div>
+                                </div>
+
+                                <div class="update-links">
+                                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl))
+                                    {
+                                        <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
+                                            Voir la release GitHub
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl))
+                                    {
+                                        <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
+                                            Télécharger le paquet
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (_updateWorkflowStatus?.DownloadedPackage is not null)
+                        {
+                            <div class="update-release-card current">
+                                <div class="update-release-header">
+                                    <div>
+                                        <div class="update-release-version">Paquet prêt</div>
+                                        <div class="update-release-meta">
+                                            @_updateWorkflowStatus.DownloadedPackage.FileName
+                                        </div>
+                                    </div>
+                                    <span class="update-badge update-badge-current">Téléchargé</span>
+                                </div>
+
+                                <div class="update-release-details">
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Version</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.Version</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Taille</span>
+                                        <span class="update-value">@FormatFileSize(_updateWorkflowStatus.DownloadedPackage.FileSizeBytes)</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Téléchargé le</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.DownloadedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Chemin local</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.FilePath</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Séparateur -->
+                        <div class="update-section-divider"></div>
+
+                        <!-- Sous-section : Actions -->
+                        <p class="update-subsection-title">Actions</p>
+
+                        <div class="update-controls">
+                            <label class="update-channel-picker" for="update-channel">Canal consulté</label>
+                            <select id="update-channel" class="form-select" @onchange="OnChannelChangedAsync">
+                                @foreach (var channel in Enum.GetValues<ApplicationUpdateChannel>())
+                                {
+                                    <option value="@channel" selected="@(channel == _selectedUpdateChannel)">@GetChannelLabel(channel)</option>
+                                }
+                            </select>
+
+                            <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
+                                @if (_isCheckingUpdates)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">refresh</span>
+                                }
+                                Vérifier
+                            </button>
+
+                            <button type="button" class="btn btn-primary" @onclick="DownloadUpdateAsync" disabled="@(!(_updateWorkflowStatus?.CanDownload ?? false) || _isRunningUpdateAction)">
+                                @if (_isRunningUpdateAction && _updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                                {
+                                    <span class="material-symbols-outlined spin">download</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">download</span>
+                                }
+                                Télécharger le .deb
+                            </button>
+
+                            <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!CanInstallLatestVersion || _isRunningUpdateAction)">
+                                <span class="material-symbols-outlined">install_desktop</span>
+                                Installer la dernière version
+                            </button>
                         </div>
-                        <div class="update-summary-item">
-                            <span class="update-label">État</span>
-                            <span class="update-value">@GetOperationStateLabel(_updateWorkflowStatus?.OperationState ?? ApplicationUpdateOperationState.Idle)</span>
-                        </div>
-                    </div>
 
-                    <div class="update-controls">
-                        <label class="update-channel-picker" for="update-channel">Canal consulté</label>
-                        <select id="update-channel" class="form-select" @onchange="OnChannelChangedAsync">
-                            @foreach (var channel in Enum.GetValues<ApplicationUpdateChannel>())
-                            {
-                                <option value="@channel" selected="@(channel == _selectedUpdateChannel)">@GetChannelLabel(channel)</option>
-                            }
-                        </select>
-
-                        <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
-                            @if (_isCheckingUpdates)
-                            {
-                                <span class="material-symbols-outlined spin">progress_activity</span>
-                            }
-                            else
-                            {
-                                <span class="material-symbols-outlined">refresh</span>
-                            }
-                            Vérifier
-                        </button>
-
-                        <button type="button" class="btn btn-primary" @onclick="DownloadUpdateAsync" disabled="@(!(_updateWorkflowStatus?.CanDownload ?? false) || _isRunningUpdateAction)">
-                            @if (_isRunningUpdateAction && _updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
-                            {
-                                <span class="material-symbols-outlined spin">download</span>
-                            }
-                            else
-                            {
+                        @if (!CanInstallLatestVersion)
+                        {
+                            <div class="update-inline-hint">
                                 <span class="material-symbols-outlined">download</span>
-                            }
-                            Télécharger le .deb
-                        </button>
+                                Téléchargez d'abord la dernière version disponible pour activer l'installation.
+                            </div>
+                        }
 
-                        <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!CanInstallLatestVersion || _isRunningUpdateAction)">
-                            <span class="material-symbols-outlined">install_desktop</span>
-                            Installer la dernière version
-                        </button>
+                        @if (!string.IsNullOrWhiteSpace(_updateError))
+                        {
+                            <div class="update-alert update-alert-error">
+                                <span class="material-symbols-outlined">error</span>
+                                @_updateError
+                            </div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.UpdateStatus.Message))
+                        {
+                            <div class="update-alert @(_updateWorkflowStatus?.UpdateStatus.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
+                                <span class="material-symbols-outlined">info</span>
+                                @_updateWorkflowStatus?.UpdateStatus.Message
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.LastOperationMessage))
+                        {
+                            <div class="update-alert @(_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Failed ? "update-alert-error" : "update-alert-muted")">
+                                <span class="material-symbols-outlined">history</span>
+                                @_updateWorkflowStatus?.LastOperationMessage
+                            </div>
+                        }
+
+                        @if (_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                        {
+                            <div class="update-progress-card">
+                                <div class="update-progress-header">
+                                    <span>Téléchargement en cours</span>
+                                    <span>@(_updateWorkflowStatus.DownloadProgressPercent?.ToString() ?? "...")%</span>
+                                </div>
+                                <div class="update-progress-track">
+                                    <div class="update-progress-fill" style="width:@(_updateWorkflowStatus.DownloadProgressPercent ?? 0)%"></div>
+                                </div>
+                            </div>
+                        }
+
                     </div>
-
-                    @if (!CanInstallLatestVersion)
-                    {
-                        <div class="update-inline-hint">
-                            <span class="material-symbols-outlined">download</span>
-                            Téléchargez d'abord la dernière version disponible pour activer l'installation.
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(_updateError))
-                    {
-                        <div class="update-alert update-alert-error">
-                            <span class="material-symbols-outlined">error</span>
-                            @_updateError
-                        </div>
-                    }
-                    else if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.UpdateStatus.Message))
-                    {
-                        <div class="update-alert @(_updateWorkflowStatus?.UpdateStatus.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
-                            <span class="material-symbols-outlined">info</span>
-                            @_updateWorkflowStatus?.UpdateStatus.Message
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.LastOperationMessage))
-                    {
-                        <div class="update-alert @(_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Failed ? "update-alert-error" : "update-alert-muted")">
-                            <span class="material-symbols-outlined">history</span>
-                            @_updateWorkflowStatus?.LastOperationMessage
-                        </div>
-                    }
-
-                    @if (_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
-                    {
-                        <div class="update-progress-card">
-                            <div class="update-progress-header">
-                                <span>Téléchargement en cours</span>
-                                <span>@(_updateWorkflowStatus.DownloadProgressPercent?.ToString() ?? "...")%</span>
-                            </div>
-                            <div class="update-progress-track">
-                                <div class="update-progress-fill" style="width:@(_updateWorkflowStatus.DownloadProgressPercent ?? 0)%"></div>
-                            </div>
-                        </div>
-                    }
-
-                    @if (_updateWorkflowStatus?.DownloadedPackage is not null)
-                    {
-                        <div class="update-release-card current">
-                            <div class="update-release-header">
-                                <div>
-                                    <div class="update-release-version">Paquet prêt</div>
-                                    <div class="update-release-meta">
-                                        @_updateWorkflowStatus.DownloadedPackage.FileName
-                                    </div>
-                                </div>
-                                <span class="update-badge update-badge-current">Téléchargé</span>
-                            </div>
-
-                            <div class="update-release-details">
-                                <div class="update-detail-item">
-                                    <span class="update-label">Version</span>
-                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.Version</span>
-                                </div>
-                                <div class="update-detail-item">
-                                    <span class="update-label">Taille</span>
-                                    <span class="update-value">@FormatFileSize(_updateWorkflowStatus.DownloadedPackage.FileSizeBytes)</span>
-                                </div>
-                                <div class="update-detail-item">
-                                    <span class="update-label">Téléchargé le</span>
-                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.DownloadedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")</span>
-                                </div>
-                                <div class="update-detail-item">
-                                    <span class="update-label">Chemin local</span>
-                                    <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.FilePath</span>
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    @if (_updateWorkflowStatus?.UpdateStatus.LatestRelease is not null)
-                    {
-                        <div class="update-release-card @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "available" : "current")">
-                            <div class="update-release-header">
-                                <div>
-                                    <div class="update-release-version">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Version</div>
-                                    <div class="update-release-meta">
-                                        Publiée le @_updateWorkflowStatus.UpdateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
-                                    </div>
-                                </div>
-                                <span class="update-badge @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
-                                    @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
-                                </span>
-                            </div>
-
-                            <div class="update-release-details">
-                                <div class="update-detail-item">
-                                    <span class="update-label">Tag</span>
-                                    <span class="update-value">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Tag</span>
-                                </div>
-                                <div class="update-detail-item">
-                                    <span class="update-label">Paquet</span>
-                                    <span class="update-value">@(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
-                                </div>
-                            </div>
-
-                            <div class="update-links">
-                                @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl))
-                                {
-                                    <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
-                                        Voir la release GitHub
-                                    </a>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl))
-                                {
-                                    <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
-                                        Télécharger le paquet
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    }
                 </div>
             </div>
 
         </div>
-
-        <!-- ── Erreurs globales ──────────────────────────────────── -->
-        @if (_errors.Any())
-        {
-            <div class="global-errors">
-                @foreach (var err in _errors)
-                {
-                    <div class="global-error-item">
-                        <span class="material-symbols-outlined">error</span>
-                        @err
-                    </div>
-                }
-            </div>
-        }
-
-        <!-- ── Actions ──────────────────────────────────────────── -->
-        <div class="form-actions" style="margin-top:16px">
-            <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
-                @if (_isSubmitting)
-                {
-                    <span class="material-symbols-outlined spin">progress_activity</span>
-                }
-                else
-                {
-                    <span class="material-symbols-outlined">save</span>
-                }
-                Enregistrer
-            </button>
-        </div>
-
     </EditForm>
 }
 
 <style>
-    .settings-grid {
+    .settings-two-col {
         display: grid;
-        grid-template-columns: 1fr;
-        max-width: 600px;
+        grid-template-columns: 1fr 1fr;
         gap: 20px;
+        align-items: start;
         margin-bottom: 20px;
+    }
+
+    @@media (max-width: 900px) {
+        .settings-two-col {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .settings-col {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .update-subsection-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .update-section-divider {
+        height: 1px;
+        background: var(--border-card);
+        margin: 4px 0;
     }
 
     .filter-list { display: flex; flex-direction: column; gap: 0; }
