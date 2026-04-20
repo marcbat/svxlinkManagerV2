@@ -82,18 +82,7 @@
                 }
             </div>
 
-            <div class="focus-metric">
-                <span class="focus-label">Nœuds connectés</span>
-                @if (_isLoading)
-                {
-                    <div class="skeleton" style="height:24px;width:90px;"></div>
-                }
-                else
-                {
-                    <div class="focus-value">@_connectedNodes.Count</div>
-                    <span class="focus-subvalue">@_connectedNodes.Count(n => n.IsTx) en émission</span>
-                }
-            </div>
+
         </div>
     </div>
 
@@ -137,49 +126,39 @@
         </div>
 
         <div class="actions-stack">
-            <div class="form-group">
-                <label class="form-label">Activer un salon</label>
-                <div class="action-group">
-                    <select class="form-select" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
-                        <option value="">— Choisir un salon —</option>
-                        @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
-                        {
-                            <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
-                        }
-                    </select>
-                    <button class="btn btn-primary btn-sm"
-                            disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
-                            @onclick="ActivateSalon">
-                        @if (_isActivating)
-                        {
-                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
-                        }
-                        else
-                        {
-                            <span class="material-symbols-outlined">play_arrow</span>
-                        }
-                        Activer
-                    </button>
-                </div>
-            </div>
-
-            <div class="divider" style="margin:6px 0;"></div>
-
-            <div>
-                <button class="btn btn-danger btn-sm"
-                        disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
-                        @onclick="DeactivateSalon">
-                    @if (_isDeactivating)
-                    {
-                        <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
-                    }
-                    else
-                    {
-                        <span class="material-symbols-outlined">power_settings_new</span>
-                    }
-                    Désactiver le salon actif
-                </button>
-            </div>
+            <select class="form-select" style="flex:1;min-width:200px;" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
+                <option value="">— Choisir un salon —</option>
+                @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
+                {
+                    <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
+                }
+            </select>
+            <button class="btn btn-primary btn-sm"
+                    disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
+                    @onclick="ActivateSalon">
+                @if (_isActivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">play_arrow</span>
+                }
+                Activer
+            </button>
+            <button class="btn btn-danger btn-sm"
+                    disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
+                    @onclick="DeactivateSalon">
+                @if (_isDeactivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">power_settings_new</span>
+                }
+                Désactiver le salon actif
+            </button>
         </div>
     </div>
 
@@ -233,7 +212,7 @@
 
     .focus-metrics {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 16px;
         margin-top: 4px;
     }
