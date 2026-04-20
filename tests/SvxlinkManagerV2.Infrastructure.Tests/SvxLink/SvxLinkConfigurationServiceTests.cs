@@ -406,6 +406,59 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         File.Exists(tempPath).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldSetLogicsToSimplexLogicOnly()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["GLOBAL"]["LOGICS"].Should().Be("SimplexLogic");
+        iniData["GLOBAL"].ContainsKey("LINKS").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldGenerateModuleParrotSection()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot_module.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ModuleParrot"]["NAME"].Should().Be("Parrot");
+        iniData["ModuleParrot"]["ID"].Should().Be("2");
+        iniData["ModuleParrot"]["TIMEOUT"].Should().Be("180");
+        iniData["ModuleParrot"]["FIFO_LEN"].Should().Be("60");
+        iniData["ModuleParrot"]["REPEAT_DELAY"].Should().Be("1000");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldNotContainReflectorLogicSection()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot_no_reflector.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var content = await File.ReadAllTextAsync(outputPath);
+        content.Should().NotContain("[ReflectorLogic]");
+    }
+
     // Helper methods
 
     private SalonAggregate CreateTestSalon()
@@ -591,6 +644,51 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         return result.Match(
             Succ: salon => salon,
             Fail: errors => throw new Exception($"Impossible de créer le Salon de test sans CTCSS: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestParrotSalon()
+    {
+        var configuration = new SvxLinkConfiguration(
+            Id: Guid.NewGuid(),
+            Logics: "SimplexLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "",
+            Port: 0,
+            Callsign: "",
+            AuthKey: null,
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: null,
+            SimplexCallsign: "F0ABC",
+            Modules: "ModuleParrot",
+            ShortIdentInterval: 600,
+            LongIdentInterval: 3600,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            ParrotFifoLen: 60,
+            ParrotRepeatDelay: 1000,
+            ParrotTimeout: 180
+        );
+
+        var result = SalonAggregate.Create(
+            id: SalonAggregate.FixedParrotId,
+            name: "Perroquet",
+            isDefault: false,
+            configuration: configuration,
+            salonType: SalonType.Parrot
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon Perroquet de test: {errors}")
         );
     }
 

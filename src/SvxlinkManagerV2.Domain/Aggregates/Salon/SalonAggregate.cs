@@ -9,13 +9,18 @@ using System.Text.RegularExpressions;
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon;
 
 /// <summary>
-/// Aggregate représentant un Salon (connexion à un SVXLink Reflector).
+/// Aggregate représentant un Salon (connexion à un SVXLink Reflector ou mode Perroquet simplex).
 /// Un Salon contient toute la configuration pour se connecter à un reflector avec ses paramètres audio,
-/// d'authentification et de logique SVXLink.
+/// d'authentification et de logique SVXLink, ou fonctionner en mode perroquet local.
 /// Stream Marten : salon-{guid}
 /// </summary>
 public class SalonAggregate : AggregateRoot
 {
+    /// <summary>
+    /// ID fixe du salon Perroquet (singleton, créé par le seeder uniquement)
+    /// </summary>
+    public static readonly Guid FixedParrotId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
     /// <summary>
     /// Nom du salon (ex: "Salon National France", "Salon Bayern")
     /// </summary>
@@ -42,6 +47,11 @@ public class SalonAggregate : AggregateRoot
     public int? DtmfCode { get; private set; }
 
     /// <summary>
+    /// Type de salon : Reflector (connexion réflecteur) ou Parrot (mode perroquet simplex)
+    /// </summary>
+    public SalonType SalonType { get; private set; } = SalonType.Reflector;
+
+    /// <summary>
     /// Pattern regex pour validation du format d'indicatif radioamateur
     /// Format: one à deux lettres + chiffre + lettres/chiffres + optionnel tiret et suffixe
     /// Exemples valides: F5ABC, F5ABC-L, W1AW, KB2XYZ-R
@@ -52,7 +62,7 @@ public class SalonAggregate : AggregateRoot
     /// Pattern regex pour validation basique du format email (certificat X.509)
     /// </summary>
     private static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
-    
+
     /// <summary>
     /// Pattern regex pour validation d'une entrée TG individuelle (nombre avec suffixe '+' optionnel)
     /// </summary>
@@ -71,14 +81,16 @@ public class SalonAggregate : AggregateRoot
     /// </summary>
     /// <param name="id">Identifiant unique du salon</param>
     /// <param name="name">Nom du salon</param>
-    /// <param name="isDefault">Si c'est le salon par défaut</param>
+    /// <param name="isDefault">Indique si c'est le salon par défaut</param>
     /// <param name="configuration">Configuration SVXLink complète</param>
-    /// <returns>Validation contenant l'aggregate ou les erreurs de validation</returns>
+    /// <param name="salonType">Type de salon (Reflector ou Parrot)</param>
+    /// <returns>Validation contenant le SalonAggregate créé ou les erreurs de validation</returns>
     public static Validation<Error, SalonAggregate> Create(
         Guid id,
         string name,
         bool isDefault,
-        SvxLinkConfiguration configuration)
+        SvxLinkConfiguration configuration,
+        SalonType salonType = SalonType.Reflector)
     {
         // Validation de l'identifiant
         var idValidation = id.ValidateNotEmpty("Id");
@@ -88,8 +100,8 @@ public class SalonAggregate : AggregateRoot
             "SALON_NAME_REQUIRED",
             "Le nom du salon est obligatoire");
 
-        // Validation de la configuration
-        var configValidation = ValidateConfiguration(configuration);
+        // Validation de la configuration (adaptée au type de salon)
+        var configValidation = ValidateConfiguration(configuration, salonType);
 
         // Combinaison de toutes les validations
         return (idValidation, nameValidation, configValidation)
@@ -100,7 +112,8 @@ public class SalonAggregate : AggregateRoot
                     validId,
                     validName,
                     isDefault,
-                    validConfig);
+                    validConfig,
+                    salonType);
 
                 aggregate.Apply(@event);
                 aggregate.AddDomainEvent(@event);
@@ -120,8 +133,8 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_DELETED", "Le salon est supprimé")
                 .ToFailure<Unit>();
 
-        // Validation de la configuration
-        var configValidation = ValidateConfiguration(configuration);
+        // Validation de la configuration (adaptée au type de salon)
+        var configValidation = ValidateConfiguration(configuration, SalonType);
 
         return configValidation.Map(validConfig =>
         {
@@ -188,6 +201,10 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_IS_DEFAULT", "Impossible de supprimer le salon par défaut")
                 .ToFailure<Unit>();
 
+        if (SalonType == SalonType.Parrot)
+            return Error.Validation("SALON_PARROT_CANNOT_DELETE", "Le salon Perroquet ne peut pas être supprimé")
+                .ToFailure<Unit>();
+
         var @event = new SalonDeleted(Id);
         Apply(@event);
         AddDomainEvent(@event);
@@ -228,6 +245,7 @@ public class SalonAggregate : AggregateRoot
         Name = @event.Name;
         IsDefault = @event.IsDefault;
         Configuration = @event.Configuration;
+        SalonType = @event.SalonType;
         IsDeleted = false;
     }
 
@@ -238,6 +256,10 @@ public class SalonAggregate : AggregateRoot
     {
         Configuration = @event.Configuration;
     }
+
+    /// <summary>
+    /// Applique l'événement SalonDeleted (Event Sourcing)
+    /// </summary>
     public void Apply(SalonDeleted @event)
     {
         IsDeleted = true;
@@ -274,120 +296,19 @@ public class SalonAggregate : AggregateRoot
     /// <summary>
     /// Valide une configuration SVXLink complète
     /// </summary>
-    private static Validation<Error, SvxLinkConfiguration> ValidateConfiguration(SvxLinkConfiguration config)
+    private static Validation<Error, SvxLinkConfiguration> ValidateConfiguration(
+        SvxLinkConfiguration config,
+        SalonType salonType = SalonType.Reflector)
     {
         var errors = new List<Error>();
 
-        // Validation Host (obligatoire)
-        if (string.IsNullOrWhiteSpace(config.Host))
+        // Validations réflecteur uniquement pour les salons de type Reflector
+        if (salonType == SalonType.Reflector)
         {
-            errors.Add(Error.Validation(
-                "SALON_HOST_REQUIRED",
-                "L'hôte du reflector est obligatoire"));
-        }
-        else
-        {
-            // Validation du format Host (domaine ou IP)
-            var hostPattern = new Regex(@"^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z]{2,}$|^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$");
-            if (!hostPattern.IsMatch(config.Host))
-            {
-                errors.Add(Error.Validation(
-                    "SALON_HOST_INVALID",
-                    "Le format de l'hôte est invalide (domaine ou IP attendu)"));
-            }
+            ValidateReflectorConfiguration(config, errors);
         }
 
-        // Validation Port (1-65535)
-        if (config.Port < 1 || config.Port > 65535)
-        {
-            errors.Add(Error.Validation(
-                "SALON_PORT_INVALID",
-                "Le port doit être entre 1 et 65535"));
-        }
-
-        // Validation Callsign (obligatoire, format libre pour SVXReflector)
-        if (string.IsNullOrWhiteSpace(config.Callsign))
-        {
-            errors.Add(Error.Validation(
-                "SALON_CALLSIGN_REQUIRED",
-                "L'indicatif est obligatoire"));
-        }
-
-        // Validation AuthKey (obligatoire uniquement pour le protocole V2 legacy)
-        if (config.ReflectorProtocol == ReflectorProtocol.V2 
-            && string.IsNullOrWhiteSpace(config.AuthKey))
-        {
-            errors.Add(Error.Validation(
-                "SALON_AUTHKEY_REQUIRED",
-                "La clé d'authentification est obligatoire pour le protocole legacy (V2)"));
-        }
-
-        // Validation CertEmail (format email si défini et protocole V3)
-        if (config.ReflectorProtocol == ReflectorProtocol.V3
-            && !string.IsNullOrWhiteSpace(config.CertEmail)
-            && !EmailPattern.IsMatch(config.CertEmail))
-        {
-            errors.Add(Error.Validation(
-                "SALON_CERT_EMAIL_INVALID",
-                "Le format de l'adresse email du certificat est invalide"));
-        }
-
-        // Validations TalkGroups (protocole V3 uniquement)
-        if (config.ReflectorProtocol == ReflectorProtocol.V3)
-        {
-            if (config.DefaultTg < 0)
-            {
-                errors.Add(Error.Validation(
-                    "SALON_DEFAULT_TG_INVALID",
-                    "DEFAULT_TG doit être supérieur ou égal à 0"));
-            }
-
-            if (!string.IsNullOrWhiteSpace(config.MonitorTgs))
-            {
-                var monitorTgEntries = config.MonitorTgs
-                    .Split(',', StringSplitOptions.TrimEntries)
-                    .ToArray();
-
-                var hasInvalidMonitorTgs = monitorTgEntries.Length == 0
-                    || monitorTgEntries.Any(string.IsNullOrWhiteSpace)
-                    || monitorTgEntries.Any(entry => !TalkGroupEntryPattern.IsMatch(entry));
-
-                if (hasInvalidMonitorTgs)
-                {
-                    errors.Add(Error.Validation(
-                        "SALON_MONITOR_TGS_INVALID",
-                        "MONITOR_TGS doit être une liste CSV de nombres avec suffixe '+' optionnel"));
-                }
-            }
-
-            if (config.TgSelectTimeout <= 0)
-            {
-                errors.Add(Error.Validation(
-                    "SALON_TG_SELECT_TIMEOUT_INVALID",
-                    "TG_SELECT_TIMEOUT doit être strictement supérieur à 0"));
-            }
-
-            if (config.TgSelectInhibitTimeout.HasValue && config.TgSelectInhibitTimeout.Value < 0)
-            {
-                errors.Add(Error.Validation(
-                    "SALON_TG_SELECT_INHIBIT_TIMEOUT_INVALID",
-                    "TG_SELECT_INHIBIT_TIMEOUT doit être supérieur ou égal à 0"));
-            }
-
-            if (config.TmpMonitorTimeout < 0)
-            {
-                errors.Add(Error.Validation(
-                    "SALON_TMP_MONITOR_TIMEOUT_INVALID",
-                    "TMP_MONITOR_TIMEOUT doit être supérieur ou égal à 0"));
-            }
-
-            if (config.QsyPendingTimeout < -1)
-            {
-                errors.Add(Error.Validation(
-                    "SALON_QSY_PENDING_TIMEOUT_INVALID",
-                    "QSY_PENDING_TIMEOUT doit être supérieur ou égal à -1"));
-            }
-        }
+        // Validations communes (Reflector et Parrot)
 
         // Validation RxFrequency (obligatoire, plage 30-3000 MHz)
         if (config.RxFrequency < 30 || config.RxFrequency > 3000)
@@ -474,6 +395,123 @@ public class SalonAggregate : AggregateRoot
         }
 
         return config.ToSuccess();
+    }
+
+    /// <summary>
+    /// Validations spécifiques aux salons de type Reflector (Host, Port, Callsign, AuthKey, TalkGroups)
+    /// </summary>
+    private static void ValidateReflectorConfiguration(SvxLinkConfiguration config, List<Error> errors)
+    {
+        // Validation Host (obligatoire)
+        if (string.IsNullOrWhiteSpace(config.Host))
+        {
+            errors.Add(Error.Validation(
+                "SALON_HOST_REQUIRED",
+                "L'hôte du reflector est obligatoire"));
+        }
+        else
+        {
+            // Validation du format Host (domaine ou IP)
+            var hostPattern = new Regex(@"^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z]{2,}$|^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$");
+            if (!hostPattern.IsMatch(config.Host))
+            {
+                errors.Add(Error.Validation(
+                    "SALON_HOST_INVALID",
+                    "Le format de l'hôte est invalide (domaine ou IP attendu)"));
+            }
+        }
+
+        // Validation Port (1-65535)
+        if (config.Port < 1 || config.Port > 65535)
+        {
+            errors.Add(Error.Validation(
+                "SALON_PORT_INVALID",
+                "Le port doit être entre 1 et 65535"));
+        }
+
+        // Validation Callsign (obligatoire, format libre pour SVXReflector)
+        if (string.IsNullOrWhiteSpace(config.Callsign))
+        {
+            errors.Add(Error.Validation(
+                "SALON_CALLSIGN_REQUIRED",
+                "L'indicatif est obligatoire"));
+        }
+
+        // Validation AuthKey (obligatoire uniquement pour le protocole V2 legacy)
+        if (config.ReflectorProtocol == ReflectorProtocol.V2
+            && string.IsNullOrWhiteSpace(config.AuthKey))
+        {
+            errors.Add(Error.Validation(
+                "SALON_AUTHKEY_REQUIRED",
+                "La clé d'authentification est obligatoire pour le protocole legacy (V2)"));
+        }
+
+        // Validation CertEmail (format email si défini et protocole V3)
+        if (config.ReflectorProtocol == ReflectorProtocol.V3
+            && !string.IsNullOrWhiteSpace(config.CertEmail)
+            && !EmailPattern.IsMatch(config.CertEmail))
+        {
+            errors.Add(Error.Validation(
+                "SALON_CERT_EMAIL_INVALID",
+                "Le format de l'adresse email du certificat est invalide"));
+        }
+
+        // Validations TalkGroups (protocole V3 uniquement)
+        if (config.ReflectorProtocol == ReflectorProtocol.V3)
+        {
+            if (config.DefaultTg < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_DEFAULT_TG_INVALID",
+                    "DEFAULT_TG doit être supérieur ou égal à 0"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.MonitorTgs))
+            {
+                var monitorTgEntries = config.MonitorTgs
+                    .Split(',', StringSplitOptions.TrimEntries)
+                    .ToArray();
+
+                var hasInvalidMonitorTgs = monitorTgEntries.Length == 0
+                    || monitorTgEntries.Any(string.IsNullOrWhiteSpace)
+                    || monitorTgEntries.Any(entry => !TalkGroupEntryPattern.IsMatch(entry));
+
+                if (hasInvalidMonitorTgs)
+                {
+                    errors.Add(Error.Validation(
+                        "SALON_MONITOR_TGS_INVALID",
+                        "MONITOR_TGS doit être une liste CSV de nombres avec suffixe '+' optionnel"));
+                }
+            }
+
+            if (config.TgSelectTimeout <= 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TG_SELECT_TIMEOUT_INVALID",
+                    "TG_SELECT_TIMEOUT doit être strictement supérieur à 0"));
+            }
+
+            if (config.TgSelectInhibitTimeout.HasValue && config.TgSelectInhibitTimeout.Value < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TG_SELECT_INHIBIT_TIMEOUT_INVALID",
+                    "TG_SELECT_INHIBIT_TIMEOUT doit être supérieur ou égal à 0"));
+            }
+
+            if (config.TmpMonitorTimeout < 0)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_TMP_MONITOR_TIMEOUT_INVALID",
+                    "TMP_MONITOR_TIMEOUT doit être supérieur ou égal à 0"));
+            }
+
+            if (config.QsyPendingTimeout < -1)
+            {
+                errors.Add(Error.Validation(
+                    "SALON_QSY_PENDING_TIMEOUT_INVALID",
+                    "QSY_PENDING_TIMEOUT doit être supérieur ou égal à -1"));
+            }
+        }
     }
 
     #endregion

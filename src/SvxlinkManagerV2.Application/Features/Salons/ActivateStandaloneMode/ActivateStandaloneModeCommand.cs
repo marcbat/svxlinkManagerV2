@@ -106,8 +106,8 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf en mode standalone").ToFailure<Unit>();
 
-        _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone (version legacy)");
-        var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V2, cancellationToken);
+        _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone (version moderne)");
+        var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V3, cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de démarrer le daemon SVXLink en mode standalone").ToFailure<Unit>();
 

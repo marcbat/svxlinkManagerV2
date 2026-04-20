@@ -6,6 +6,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.SetSalonAsDefault
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -93,19 +94,36 @@ else
                                 Défaut
                             </span>
                         }
+                        @if (salon.SalonType == SalonType.Parrot)
+                        {
+                            <span class="badge badge-parrot">
+                                <span class="material-symbols-outlined">record_voice_over</span>
+                                Perroquet
+                            </span>
+                        }
                     </div>
                 </div>
 
                 <!-- Infos techniques -->
                 <div class="salon-info">
-                    <div class="salon-info-row">
-                        <span class="material-symbols-outlined">person</span>
-                        <span>@salon.Configuration.Callsign</span>
-                    </div>
-                    <div class="salon-info-row">
-                        <span class="material-symbols-outlined">dns</span>
-                        <span>@salon.Configuration.Host:@salon.Configuration.Port</span>
-                    </div>
+                    @if (salon.SalonType == SalonType.Parrot)
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">mic</span>
+                            <span>Mode Perroquet — enregistre et rejoue l'audio</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">person</span>
+                            <span>@salon.Configuration.Callsign</span>
+                        </div>
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">dns</span>
+                            <span>@salon.Configuration.Host:@salon.Configuration.Port</span>
+                        </div>
+                    }
                     <div class="salon-info-row">
                         <span class="material-symbols-outlined">settings_input_antenna</span>
                         <span>
@@ -148,10 +166,13 @@ else
                 else
                 {
                     <div class="salon-actions">
-                        <a href="/salons/@salonIdCapture/editer" class="btn btn-secondary btn-sm">
-                            <span class="material-symbols-outlined">edit</span>
-                            Éditer
-                        </a>
+                        @if (salon.SalonType != SalonType.Parrot)
+                        {
+                            <a href="/salons/@salonIdCapture/editer" class="btn btn-secondary btn-sm">
+                                <span class="material-symbols-outlined">edit</span>
+                                Éditer
+                            </a>
+                        }
 
                         @if (Tracker.IsSalonActive(salon.Id))
                         {
@@ -203,7 +224,7 @@ else
                             </button>
                         }
 
-                        @if (!Tracker.IsSalonActive(salon.Id) && !salon.IsDefault)
+                        @if (!Tracker.IsSalonActive(salon.Id) && !salon.IsDefault && salon.SalonType != SalonType.Parrot)
                         {
                             <button class="btn btn-sm btn-delete"
                                     disabled="@_isBusy"
@@ -342,6 +363,12 @@ else
     .btn-accent {
         background: var(--accent);
         color: #fff;
+    }
+
+    .badge-parrot {
+        background: rgba(253, 203, 110, 0.15);
+        color: #e67e22;
+        border: 1px solid rgba(253, 203, 110, 0.4);
     }
 
     /* ── Confirmation suppression ───────────────────────────── */

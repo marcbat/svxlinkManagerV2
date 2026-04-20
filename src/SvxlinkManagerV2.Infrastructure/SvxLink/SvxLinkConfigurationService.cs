@@ -12,6 +12,7 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// <summary>
 /// Service de génération du fichier de configuration SVXLink (svxlink.conf).
 /// Supporte SVXLink 25.05 (protocole V3) et SVXLink 19.09.2 (protocole V2 legacy).
+/// Supporte le mode Perroquet (ModuleParrot simplex).
 /// </summary>
 public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
@@ -62,10 +63,21 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             var iniData = await Task.Run(() => IniFile.Parse(templatePath), cancellationToken);
 
             // 3. Mettre à jour les sections avec les données du Salon
-            UpdateGlobalSection(iniData, salon);
-            UpdateLinkSection(iniData);
-            UpdateReflectorLogicSection(iniData, salon);
-            UpdateSimplexLogicSection(iniData, salon);
+            if (salon.SalonType == SalonType.Parrot)
+            {
+                // Mode Perroquet : SimplexLogic uniquement avec ModuleParrot
+                UpdateGlobalSectionParrot(iniData, salon);
+                UpdateSimplexLogicSection(iniData, salon);
+                UpdateModuleParrotSection(iniData, salon);
+            }
+            else
+            {
+                // Mode Reflector : SimplexLogic + ReflectorLogic
+                UpdateGlobalSection(iniData, salon);
+                UpdateLinkSection(iniData);
+                UpdateReflectorLogicSection(iniData, salon);
+                UpdateSimplexLogicSection(iniData, salon);
+            }
             UpdateReceiverSection(iniData, salon);
             UpdateTransmitterSection(iniData, salon);
 
@@ -207,6 +219,29 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             iniData["GLOBAL"].Remove("LINKS");
 
         _logger.LogDebug("Section [GLOBAL] mise à jour (mode standalone)");
+    }
+
+    /// <summary>
+    /// Met à jour la section [GLOBAL] pour le mode Perroquet (simplex avec ModuleParrot).
+    /// </summary>
+    private void UpdateGlobalSectionParrot(IniFile iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["GLOBAL"]["LOGICS"] = "SimplexLogic";
+        iniData["GLOBAL"]["CFG_DIR"] = config.CfgDir;
+        iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = config.CardSampleRate.ToString();
+        iniData["GLOBAL"]["CARD_CHANNELS"] = config.CardChannels.ToString();
+
+        // Supprimer la clé LINKS (pas de réflecteur en mode perroquet)
+        if (iniData["GLOBAL"].ContainsKey("LINKS"))
+            iniData["GLOBAL"].Remove("LINKS");
+
+        // Supprimer les sections réflecteur (héritées du template)
+        iniData.RemoveSection("ReflectorLogic");
+        iniData.RemoveSection("LinkToReflector");
+
+        _logger.LogDebug("Section [GLOBAL] mise à jour (mode perroquet)");
     }
 
     /// <summary>
@@ -375,8 +410,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// </summary>
     private void UpdateSimplexLogicSectionStandalone(IniFile iniData)
     {
-        // Standalone = toujours legacy (V2)
-        var strategy = _strategyResolver.Resolve(ReflectorProtocol.V2);
+        // Standalone = version moderne (V3)
+        var strategy = _strategyResolver.Resolve(ReflectorProtocol.V3);
         // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
         var eventsDir = strategy.EventsDirectory.TrimEnd('/');
         var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
@@ -432,6 +467,24 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             config.TxFrequency, config.TxCtcss?.ToString() ?? "aucun");
 
         // Les paramètres Tx1 restent ceux du template (AUDIO_DEV, PTT_TYPE, GPIO, TIMEOUT, TX_DELAY, etc.)
+    }
+
+    /// <summary>
+    /// Met à jour la section [ModuleParrot] pour le mode Perroquet.
+    /// Configuré dans svxlink.d/ModuleParrot.conf habituellement, mais ici inline dans svxlink.conf.
+    /// </summary>
+    private void UpdateModuleParrotSection(IniFile iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["ModuleParrot"]["NAME"] = "Parrot";
+        iniData["ModuleParrot"]["ID"] = "2";
+        iniData["ModuleParrot"]["TIMEOUT"] = config.ParrotTimeout.ToString();
+        iniData["ModuleParrot"]["FIFO_LEN"] = config.ParrotFifoLen.ToString();
+        iniData["ModuleParrot"]["REPEAT_DELAY"] = config.ParrotRepeatDelay.ToString();
+
+        _logger.LogDebug("Section [ModuleParrot] mise à jour (FIFO_LEN: {FifoLen}s, REPEAT_DELAY: {RepeatDelay}ms, TIMEOUT: {Timeout}s)",
+            config.ParrotFifoLen, config.ParrotRepeatDelay, config.ParrotTimeout);
     }
 
     /// <summary>

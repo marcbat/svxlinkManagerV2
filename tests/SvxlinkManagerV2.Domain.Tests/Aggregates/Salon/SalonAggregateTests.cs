@@ -696,6 +696,79 @@ public class SalonAggregateTests
 
     #endregion
 
+    #region Parrot Salon Tests
+
+    [Fact]
+    public void Create_WithParrotType_ShouldSucceed()
+    {
+        // Arrange
+        var id = SalonAggregate.FixedParrotId;
+        var config = CreateParrotConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(id, "Perroquet", isDefault: false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            aggregate.Id.Should().Be(SalonAggregate.FixedParrotId);
+            aggregate.SalonType.Should().Be(SalonType.Parrot);
+            aggregate.Name.Should().Be("Perroquet");
+        });
+    }
+
+    [Fact]
+    public void Create_WithParrotType_ShouldEmitSalonCreatedWithParrotType()
+    {
+        // Arrange
+        var config = CreateParrotConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            var createdEvent = aggregate.DomainEvents.OfType<SalonCreated>().Single();
+            createdEvent.SalonType.Should().Be(SalonType.Parrot);
+        });
+    }
+
+    [Fact]
+    public void Create_WithParrotType_ShouldNotValidateReflectorFields()
+    {
+        // Arrange — Host/Callsign vides, ce qui échouerait pour un Reflector
+        var config = CreateParrotConfiguration();
+        config.Host.Should().BeEmpty();
+        config.Callsign.Should().BeEmpty();
+
+        // Act
+        var result = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public void Delete_WhenParrotType_ShouldFail()
+    {
+        // Arrange
+        var config = CreateParrotConfiguration();
+        var aggregate = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot)
+            .Match(a => a, errors => throw new Exception("Setup failed"));
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_PARROT_CANNOT_DELETE");
+        });
+    }
+
+    #endregion
+
     #region Event Sourcing Tests
 
     [Fact]
@@ -1132,6 +1205,37 @@ public class SalonAggregateTests
             Succ: aggregate => aggregate,
             Fail: errors => throw new InvalidOperationException($"Failed to create aggregate: {string.Join(", ", errors)}")
         );
+    }
+
+    private static SvxLinkConfiguration CreateParrotConfiguration()
+    {
+        return new SvxLinkConfiguration(
+            Guid.NewGuid(),
+            Logics: "SimplexLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "",
+            Port: 0,
+            Callsign: "",
+            AuthKey: null,
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: null,
+            SimplexCallsign: "F0ABC",
+            Modules: "ModuleParrot",
+            ShortIdentInterval: 600,
+            LongIdentInterval: 3600,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            ParrotFifoLen: 60,
+            ParrotRepeatDelay: 1000,
+            ParrotTimeout: 180);
     }
 
     #endregion

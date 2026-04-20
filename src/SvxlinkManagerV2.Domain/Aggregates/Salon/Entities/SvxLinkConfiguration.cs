@@ -62,5 +62,18 @@ public record SvxLinkConfiguration(
     bool MuteFirstTxLoc = true,
     bool MuteFirstTxRem = false,
     int TmpMonitorTimeout = 3600,
-    int QsyPendingTimeout = -1
+    int QsyPendingTimeout = -1,
+    // Section ModuleParrot (Parrot salon only)
+    /// <summary>
+    /// Audio FIFO buffer length in seconds (ModuleParrot). Default: 60.
+    /// </summary>
+    int ParrotFifoLen = 60,
+    /// <summary>
+    /// Delay in milliseconds before playback after squelch close (ModuleParrot). Default: 1000.
+    /// </summary>
+    int ParrotRepeatDelay = 1000,
+    /// <summary>
+    /// Module inactivity timeout in seconds (ModuleParrot). Default: 180.
+    /// </summary>
+    int ParrotTimeout = 180
 );

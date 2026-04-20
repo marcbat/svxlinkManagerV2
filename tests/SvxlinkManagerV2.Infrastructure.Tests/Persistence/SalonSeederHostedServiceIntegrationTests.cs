@@ -64,7 +64,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WhenNoSalonsExist_ShouldCreate7Salons()
+    public async Task StartAsync_WhenNoSalonsExist_ShouldCreate8Salons()
     {
         // Arrange
         var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
@@ -74,7 +74,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
 
         // Assert
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(7);
+        salons.Should().HaveCount(8);
     }
 
     [Fact]
@@ -91,6 +91,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"),
             new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"),
             new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"),
+            new Guid("00000000-0000-0000-0000-000000000002"),
         };
 
         // Act
@@ -157,14 +158,15 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act - Exécuter le seeder alors qu'un salon existe déjà
         await service.StartAsync(CancellationToken.None);
 
-        // Assert - Seulement 1 salon (le seeding a été ignoré)
+        // Assert - 2 salons : l'existant + le Perroquet (toujours seedé)
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(1);
-        salons[0].Name.Should().Be("Salon Existant");
+        salons.Should().HaveCount(2);
+        salons.Should().Contain(s => s.Name == "Salon Existant");
+        salons.Should().Contain(s => s.Id == SalonAggregate.FixedParrotId);
     }
 
     [Fact]
-    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate7SalonsOnFirstCallOnly()
+    public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate8SalonsOnFirstCallOnly()
     {
         // Arrange
         var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
@@ -175,9 +177,9 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act - Second démarrage (même service, base non-vide maintenant)
         await service.StartAsync(CancellationToken.None);
 
-        // Assert - Toujours 7 salons (pas de doublons)
+        // Assert - Toujours 8 salons (pas de doublons)
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(7);
+        salons.Should().HaveCount(8);
     }
 
     [Fact]
@@ -256,6 +258,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         bySalon["Salon Bavardage"].DtmfCode.Should().Be(100);
         bySalon["Salon Local"].DtmfCode.Should().Be(101);
         bySalon["Réflecteur Local"].DtmfCode.Should().Be(210);
+        bySalon["Perroquet"].DtmfCode.Should().Be(1000);
     }
 
     /// <summary>
@@ -339,11 +342,11 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        // Assert — le salon personnalisé est toujours le seul, il n'a pas été remplacé par les salons par défaut
+        // Assert — le salon personnalisé est toujours là + le Perroquet (toujours seedé)
         var salons = await _repository.GetAllAsync();
-        salons.Should().HaveCount(1);
-        salons[0].Name.Should().Be("Mon Salon Personnalisé");
-        salons[0].IsDefault.Should().BeTrue();
+        salons.Should().HaveCount(2);
+        salons.Should().Contain(s => s.Name == "Mon Salon Personnalisé" && s.IsDefault);
+        salons.Should().Contain(s => s.Id == SalonAggregate.FixedParrotId);
     }
 
     /// <summary>
@@ -351,7 +354,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     /// le seeder doit ignorer le seeding (ce sera fait par CompleteSetupCommand).
     /// </summary>
     [Fact]
-    public async Task StartAsync_WhenSetupIsRequired_ShouldNotSeedAnySalon()
+    public async Task StartAsync_WhenSetupIsRequired_ShouldOnlySeedParrot()
     {
         // Arrange — simuler le wizard requis (base vide)
         _setupStatusService.IsSetupRequiredAsync(Arg.Any<CancellationToken>()).Returns(true);
@@ -360,8 +363,10 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        // Assert — aucun salon seedé
+        // Assert — seul le Perroquet est seedé (les salons réflecteurs attendent le wizard)
         var salons = await _repository.GetAllAsync();
-        salons.Should().BeEmpty();
+        salons.Should().HaveCount(1);
+        salons[0].Id.Should().Be(SalonAggregate.FixedParrotId);
+        salons[0].Name.Should().Be("Perroquet");
     }
 }

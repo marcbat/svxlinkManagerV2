@@ -110,6 +110,9 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("SalonType")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Salons");
@@ -177,6 +180,15 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                                 .HasColumnType("INTEGER");
 
                             b1.Property<bool>("MuteFirstTxRem")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int>("ParrotFifoLen")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int>("ParrotRepeatDelay")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int>("ParrotTimeout")
                                 .HasColumnType("INTEGER");
 
                             b1.Property<int>("Port")

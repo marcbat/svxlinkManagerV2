@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
@@ -36,12 +37,14 @@ public class SetupStatusService : ISetupStatusService
         var salonRepository = scope.ServiceProvider.GetRequiredService<ISalonRepository>();
 
         var salons = await salonRepository.GetAllAsync(cancellationToken);
-        var required = salons.Count == 0;
+        var reflectorSalonCount = salons.Count(s => s.SalonType != SalonType.Parrot);
+        var required = reflectorSalonCount == 0;
 
         _cachedResult = required;
         _logger.LogInformation(
-            "SetupStatusService: setup requis = {Required} ({Count} salon(s) en base).",
+            "SetupStatusService: setup requis = {Required} ({Count} salon(s) réflecteur en base, {Total} total).",
             required,
+            reflectorSalonCount,
             salons.Count);
 
         return required;

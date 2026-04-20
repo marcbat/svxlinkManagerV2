@@ -49,11 +49,25 @@ public class SalonSeederHostedService : IHostedService
 
             var existingSalons = await salonRepository.GetAllAsync(cancellationToken);
 
-            if (existingSalons.Count > 0)
+            // Seeding du Perroquet (singleton) — toujours, indépendamment du wizard et des salons existants
+            var parrotExists = existingSalons.Any(s => s.Id == SalonAggregate.FixedParrotId);
+            if (!parrotExists)
+            {
+                await SeedParrotSalonAsync(salonRepository, cancellationToken);
+            }
+            else
+            {
+                _logger.LogInformation("Salon Perroquet déjà présent (ID: {Id})", SalonAggregate.FixedParrotId);
+            }
+
+            // Seeding des salons réflecteurs originaux (uniquement si base vide hors Perroquet)
+            var reflectorSalons = existingSalons.Where(s => s.SalonType != SalonType.Parrot).ToList();
+
+            if (reflectorSalons.Count > 0)
             {
                 _logger.LogInformation(
-                    "Salons déjà existants ({Count}), initialisation ignorée.",
-                    existingSalons.Count);
+                    "Salons réflecteurs déjà existants ({Count}), initialisation ignorée.",
+                    reflectorSalons.Count);
                 return;
             }
 
@@ -174,5 +188,70 @@ public class SalonSeederHostedService : IHostedService
         yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO", 100, ReflectorProtocol.V2);
         yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO", 101, ReflectorProtocol.V2);
         yield return (new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"), "Réflecteur Local", "127.0.0.1", 5300, null, 210, ReflectorProtocol.V3);
+    }
+
+    /// <summary>
+    /// Sème le salon Perroquet (singleton) avec son ID fixe et DtmfCode 1000.
+    /// Le Perroquet utilise le protocole V3 (Modern) et n'a pas de configuration réflecteur.
+    /// </summary>
+    private async Task SeedParrotSalonAsync(ISalonRepository salonRepository, CancellationToken cancellationToken)
+    {
+        var parrotConfig = new SvxLinkConfiguration(
+            Id: Guid.NewGuid(),
+            Logics: "SimplexLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "",
+            Port: 0,
+            Callsign: "",
+            AuthKey: null,
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: null,
+            SimplexCallsign: "F0ABC",
+            Modules: "ModuleParrot",
+            ShortIdentInterval: 600,
+            LongIdentInterval: 3600,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            ParrotFifoLen: 60,
+            ParrotRepeatDelay: 1000,
+            ParrotTimeout: 180);
+
+        var createResult = SalonAggregate.Create(
+            id: SalonAggregate.FixedParrotId,
+            name: "Perroquet",
+            isDefault: false,
+            configuration: parrotConfig,
+            salonType: SalonType.Parrot);
+
+        await createResult.Match(
+            async aggregate =>
+            {
+                aggregate.UpdateDtmfCode(1000);
+
+                var saveResult = await salonRepository.SaveAsync(aggregate, cancellationToken);
+
+                saveResult.Match(
+                    _ => _logger.LogInformation(
+                        "Salon Perroquet seedé avec succès (ID: {Id}, DTMF: 1000)",
+                        SalonAggregate.FixedParrotId),
+                    errors => _logger.LogError(
+                        "Erreur lors de la sauvegarde du salon Perroquet: {Errors}",
+                        string.Join(", ", errors.Select(e => e.Message))));
+            },
+            errors =>
+            {
+                _logger.LogError(
+                    "Erreur lors de la création du salon Perroquet: {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message)));
+                return Task.CompletedTask;
+            });
     }
 }

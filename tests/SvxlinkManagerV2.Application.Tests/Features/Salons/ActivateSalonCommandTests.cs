@@ -30,6 +30,7 @@ public class ActivateSalonCommandTests
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly ISalonAnnouncementService _announcementService;
+    private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandTests()
@@ -42,6 +43,7 @@ public class ActivateSalonCommandTests
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
         _announcementService = Substitute.For<ISalonAnnouncementService>();
+        _dtmfPtyWriter = Substitute.For<IDtmfPtyWriter>();
         _logger = Substitute.For<ILogger<ActivateSalonCommandHandler>>();
     }
 
@@ -343,7 +345,7 @@ public class ActivateSalonCommandTests
         var handler = new ActivateSalonCommandHandler(
             _repository, _tracker, _sa818Repository, _sa818Service,
             _configurationService, _daemonService, _connectedNodesService,
-            _announcementService, _logger);
+            _announcementService, _dtmfPtyWriter, _logger);
         return handler.Handle(command, CancellationToken.None);
     }
 
