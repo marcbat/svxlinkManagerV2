@@ -28,11 +28,11 @@ public class DtmfAnnounceService : IHostedService
     private readonly ILogger<DtmfAnnounceService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    /// <summary>Borne inférieure de la plage des commandes d'annonce.</summary>
-    internal const int RangeMin = 300;
+    /// <summary>Borne inférieure de la plage des commandes d'annonce (synchronisée avec DtmfCodeRanges).</summary>
+    internal const int RangeMin = DtmfCodeRanges.AnnounceRangeMin;
 
-    /// <summary>Borne supérieure de la plage des commandes d'annonce.</summary>
-    internal const int RangeMax = 399;
+    /// <summary>Borne supérieure de la plage des commandes d'annonce (synchronisée avec DtmfCodeRanges).</summary>
+    internal const int RangeMax = DtmfCodeRanges.AnnounceRangeMax;
 
     /// <summary>Code interne de déclenchement TTS côté SVXLink (jamais exposé aux opérateurs).</summary>
     internal const int TtsInternalCode = 399;

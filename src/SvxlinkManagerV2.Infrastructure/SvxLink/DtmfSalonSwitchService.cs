@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Features.Salons.GetSalonByDtmfCode;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
@@ -58,9 +59,9 @@ public class DtmfSalonSwitchService : IHostedService
                 return;
             }
 
-            // La plage 300-399 est réservée aux commandes d'annonce (info commands),
-            // traitées par DtmfAnnounceService — ignorer silencieusement ici.
-            if (dtmfCode >= 300 && dtmfCode <= 399)
+            // Les plages réservées (1-19 modules SVXLink, 300-399 annonces) ne sont pas
+            // des codes salon — ignorer silencieusement ici.
+            if (DtmfCodeRanges.IsReserved(dtmfCode))
                 return;
 
             using var scope = _scopeFactory.CreateScope();

@@ -8,8 +8,14 @@
 # Il intercepte aussi les commandes DTMF pour permettre le changement de salon
 # par radio.
 #
-# Compatible SVXLink 19.09.2.
+# Compatible SVXLink 19.09.2 et 25.05.
 # Déployé vers : /usr/share/svxlink/events.d/local/Logic.tcl
+#
+# ── Plages DTMF (synchronisées avec DtmfCodeRanges.cs côté .NET) ───────────
+#   1-19     : Modules SVXLink (Parrot, Help…) → return 0 (SVXLink traite)
+#   20-299   : Codes salon → return 1 (.NET traite le changement de salon)
+#   300-399  : Annonces vocales / commandes internes → return 1 (.NET traite)
+#   400-9999 : Codes salon → return 1 (.NET traite le changement de salon)
 #
 ###############################################################################
 
@@ -25,13 +31,11 @@ proc startup {} {
 
 #
 # Executed when a complete DTMF command is received.
-# Outputs the command on stdout for DtmfCommandTracker to parse.
-# Returns 1 to indicate the command has been handled (prevents "unknown command").
-#
-# Info commands (300-399) — annonces vocales :
-#   300 : Rejoue le nom du salon actuellement actif (Name.wav)
-#   398 : Commande interne — joue Name.wav (annonce de connexion réussie déclenchée par .NET)
-#   399 : Commande interne — joue /tmp/svxlink_tts.wav généré par .NET (pas de suppression, écrasé au prochain appel)
+# Route la commande selon la plage DTMF :
+#   - 1-19   : émet DTMF_CMD + return 0 → SVXLink active le module correspondant
+#   - 398    : joue Name.wav (annonce connexion réflecteur) + return 1
+#   - 399    : joue le WAV TTS généré par .NET + return 1
+#   - autres : émet DTMF_CMD + return 1 → .NET traite (salon switch ou annonce)
 #
 proc dtmf_cmd_received {cmd} {
     # --- Commande interne 398 : lecture de l'annonce de connexion réussie (Name.wav) ---
@@ -57,6 +61,18 @@ proc dtmf_cmd_received {cmd} {
 
     # Toujours émettre la commande vers .NET pour logging et extensibilité
     puts "DTMF_CMD:$cmd"
+
+    # --- Plage 1-19 : modules SVXLink (Parrot ID=2, Help ID=1, etc.) ---
+    # return 0 → SVXLink continue le traitement normal (activation du module)
+    if {[string is integer -strict $cmd]} {
+        set code [expr {int($cmd)}]
+        if {$code >= 1 && $code <= 19} {
+            return 0
+        }
+    }
+
+    # --- Plage 20-299, 300-399, 400-9999 : traité par .NET ---
+    # return 1 → SVXLink ne traite pas davantage (pas de "unknown command")
     return 1
 }
 

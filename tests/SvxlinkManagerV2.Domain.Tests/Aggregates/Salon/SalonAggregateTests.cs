@@ -1026,12 +1026,12 @@ public class SalonAggregateTests
         var aggregate = CreateValidAggregate();
 
         // Act
-        var result = aggregate.UpdateDtmfCode(1);
+        var result = aggregate.UpdateDtmfCode(20);
 
         // Assert
         result.ShouldBeSuccess(_ =>
         {
-            aggregate.DtmfCode.Should().Be(1);
+            aggregate.DtmfCode.Should().Be(20);
         });
     }
 
@@ -1091,6 +1091,44 @@ public class SalonAggregateTests
 
         // Act
         var result = aggregate.UpdateDtmfCode(10000);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    [InlineData(19)]
+    public void UpdateDtmfCode_WithModuleRangeCode_ShouldFail(int code)
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(code);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData(300)]
+    [InlineData(350)]
+    [InlineData(399)]
+    public void UpdateDtmfCode_WithAnnounceRangeCode_ShouldFail(int code)
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(code);
 
         // Assert
         result.ShouldBeFail(errors =>

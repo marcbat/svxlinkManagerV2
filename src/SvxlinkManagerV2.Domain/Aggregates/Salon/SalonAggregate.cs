@@ -213,9 +213,11 @@ public class SalonAggregate : AggregateRoot
     }
 
     /// <summary>
-    /// Met à jour le code DTMF du salon
+    /// Met à jour le code DTMF du salon.
+    /// Seuls les codes dans les plages salon (20-299, 400-9999) sont autorisés.
+    /// Les plages 1-19 (modules SVXLink) et 300-399 (annonces) sont réservées.
     /// </summary>
-    /// <param name="dtmfCode">Code DTMF (null pour supprimer, 1-9999 pour définir)</param>
+    /// <param name="dtmfCode">Code DTMF (null pour supprimer, 20-299 ou 400-9999 pour définir)</param>
     /// <returns>Validation du résultat</returns>
     public Validation<Error, Unit> UpdateDtmfCode(int? dtmfCode)
     {
@@ -223,8 +225,10 @@ public class SalonAggregate : AggregateRoot
             return Error.Validation("SALON_DELETED", "Le salon est supprimé")
                 .ToFailure<Unit>();
 
-        if (dtmfCode.HasValue && (dtmfCode.Value < 1 || dtmfCode.Value > 9999))
-            return Error.Validation("DTMF_CODE_INVALID", "Le code DTMF doit être entre 1 et 9999")
+        if (dtmfCode.HasValue && !DtmfCodeRanges.IsValidForSalon(dtmfCode.Value))
+            return Error.Validation("DTMF_CODE_INVALID",
+                "Le code DTMF doit être entre 20-299 ou 400-9999. " +
+                "Les plages 1-19 (modules SVXLink) et 300-399 (annonces vocales) sont réservées.")
                 .ToFailure<Unit>();
 
         var @event = new SalonDtmfCodeUpdated(Id, dtmfCode);
