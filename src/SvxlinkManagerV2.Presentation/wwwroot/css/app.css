@@ -568,6 +568,13 @@ a { color: inherit; text-decoration: none; }
 .signal-bars .bar-3 { height: 11px; }
 .signal-bars .bar-4 { height: 16px; }
 .signal-bars .bar.active { background: var(--accent); }
+/* Code couleur du signal WiFi */
+.signal-bars.signal-high .bar.active { background: #4ade80; }
+.signal-bars.signal-medium .bar.active { background: #fb923c; }
+.signal-bars.signal-low .bar.active { background: #f87171; }
+.signal-text--high { color: #4ade80; font-weight: 500; }
+.signal-text--medium { color: #fb923c; font-weight: 500; }
+.signal-text--low { color: #f87171; font-weight: 500; }
 
 /* WiFi row list */
 .wifi-network-list { display: flex; flex-direction: column; }
@@ -596,6 +603,25 @@ a { color: inherit; text-decoration: none; }
 .wifi-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
 .wifi-badge--connected { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
 .wifi-badge--saved { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+
+/* WiFi section labels & divider */
+.wifi-section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 10px 0 4px 0;
+}
+.wifi-section-label .material-symbols-outlined { font-size: 15px; }
+.wifi-section-divider {
+    border: none;
+    border-top: 1px dashed var(--border-card);
+    margin: 6px 0 2px 0;
+}
 
 /* WiFi password form (inline expansion below a row) */
 .wifi-row-password {

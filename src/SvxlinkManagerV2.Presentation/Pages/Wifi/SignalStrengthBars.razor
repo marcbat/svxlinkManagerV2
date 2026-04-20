@@ -1,8 +1,8 @@
 @namespace SvxlinkManagerV2.Presentation.Pages.Wifi
 
-@* Composant affichant les barres de signal WiFi (0 à 4 barres) *@
+@* Composant affichant les barres de signal WiFi (0 à 4 barres) avec code couleur *@
 
-<div class="signal-bars signal-bars--@Bars" title="Signal : @Signal%">
+<div class="signal-bars signal-bars--@Bars @SignalColorClass" title="Signal : @Signal%">
     <span class="bar bar-1 @(Bars >= 1 ? "active" : "")"></span>
     <span class="bar bar-2 @(Bars >= 2 ? "active" : "")"></span>
     <span class="bar bar-3 @(Bars >= 3 ? "active" : "")"></span>
@@ -12,4 +12,6 @@
 @code {
     [Parameter] public int Signal { get; set; }
     [Parameter] public int Bars { get; set; }
+
+    private string SignalColorClass => Signal > 60 ? "signal-high" : Signal >= 30 ? "signal-medium" : "signal-low";
 }

@@ -27,7 +27,7 @@
         <span class="wifi-row-sep">·</span>
         <span>Canal @Network.Channel</span>
         <span class="wifi-row-sep">·</span>
-        <span>@Network.Signal%</span>
+        <span class="@SignalColorClass">@Network.Signal%</span>
     </div>
 
     <div class="wifi-row-actions">
@@ -118,6 +118,8 @@
     [Parameter] public EventCallback<(WifiNetwork Network, string Password)> OnConnectNew { get; set; }
 
     private bool _showPasswordForm;
+
+    private string SignalColorClass => Network.Signal > 60 ? "signal-text--high" : Network.Signal >= 30 ? "signal-text--medium" : "signal-text--low";
     private bool _showDeleteConfirm;
 
     private async Task HandlePasswordConnect(string password)
