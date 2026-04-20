@@ -178,9 +178,13 @@
             <div class="node-list">
                 @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
                 {
-                    <div class="node-chip @(node.IsTx ? "node-chip--tx" : "")">
+                    <div class="@GetNodeChipCss(node)">
                         <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
                         @node.Name
+                        @if (IsCurrentNode(node))
+                        {
+                            <span class="node-chip-tag">Courant</span>
+                        }
                     </div>
                 }
             </div>
@@ -335,15 +339,60 @@
     .node-chip .material-symbols-outlined {
         color: var(--accent);
     }
+
+    .node-chip-tag {
+        margin-left: 4px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        background: rgba(0, 184, 148, 0.2);
+        color: var(--success);
+        border: 1px solid rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current {
+        background: rgba(0, 184, 148, 0.15);
+        border-color: rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current .material-symbols-outlined {
+        color: var(--success);
+    }
+
+    @@keyframes txPulse {
+        from {
+            transform: scale(1);
+            box-shadow: 0 0 0 rgba(251, 146, 60, 0);
+        }
+        to {
+            transform: scale(1.02);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.28);
+        }
+    }
     
     .node-chip--tx {
         background: rgba(251, 146, 60, 0.15);
         border-color: rgba(251, 146, 60, 0.4);
         color: var(--text-primary);
+        animation: txPulse 0.9s ease-in-out infinite alternate;
     }
     
     .node-chip--tx .material-symbols-outlined {
         color: #fb923c;
+    }
+
+    .node-chip--current.node-chip--tx {
+        background: rgba(255, 107, 107, 0.18);
+        border-color: rgba(255, 107, 107, 0.55);
+    }
+
+    .node-chip--current.node-chip--tx .material-symbols-outlined,
+    .node-chip--current.node-chip--tx .node-chip-tag {
+        color: var(--danger);
+        border-color: rgba(255, 107, 107, 0.5);
+        background: rgba(255, 107, 107, 0.18);
     }
 </style>
 
@@ -610,5 +659,33 @@
         {
             _isDeactivating = false;
         }
+    }
+
+    private bool IsCurrentNode(ConnectedNodeInfo node)
+    {
+        var currentCallsign = _activeSalon?.Configuration.Callsign;
+        if (string.IsNullOrWhiteSpace(currentCallsign))
+        {
+            return false;
+        }
+
+        return string.Equals(node.Name?.Trim(), currentCallsign.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetNodeChipCss(ConnectedNodeInfo node)
+    {
+        var classes = new List<string> { "node-chip" };
+
+        if (IsCurrentNode(node))
+        {
+            classes.Add("node-chip--current");
+        }
+
+        if (node.IsTx)
+        {
+            classes.Add("node-chip--tx");
+        }
+
+        return string.Join(' ', classes);
     }
 }
