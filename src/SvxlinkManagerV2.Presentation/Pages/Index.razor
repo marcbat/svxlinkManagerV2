@@ -24,61 +24,39 @@
         <h1 class="page-title">Tableau de bord</h1>
         <p class="page-subtitle">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"))</p>
     </div>
-    <div class="page-header-meta">
-        @if (_daemonRunning)
-        {
-            <span class="badge badge-success">
-                <span class="material-symbols-outlined">cell_tower</span>
-                Connecté
-            </span>
-        }
-        else
-        {
-            <span class="badge badge-danger">
-                <span class="material-symbols-outlined">cell_tower</span>
-                Hors ligne
-            </span>
-        }
-    </div>
 </div>
 
 <!-- ── Focus Dashboard (compact) ─────────────────────────────── -->
 <div class="dashboard-focus-grid">
 
+    @if (!_isLoading && _activeSalon is not null)
+    {
     <div class="card dashboard-focus-card">
         <div class="focus-metrics">
             <div class="focus-metric">
-                @if (_isLoading)
-                {
-                    <div class="skeleton" style="height:24px;width:180px;"></div>
-                }
-                else if (_activeSalon is not null)
-                {
-                    <div class="focus-value">@_activeSalon.Name</div>
-                    <span class="badge badge-success">Actif</span>
-                    <div class="focus-active-details">
-                        <span class="focus-detail-item">
-                            <span class="material-symbols-outlined">person</span>
-                            @_activeSalon.Configuration.Callsign
-                        </span>
-                        <span class="focus-detail-item">
-                            <span class="material-symbols-outlined">settings_input_antenna</span>
-                            RX @_activeSalon.Configuration.RxFrequency.ToString("F3") MHz
-                            &nbsp;/&nbsp;
-                            TX @_activeSalon.Configuration.TxFrequency.ToString("F3") MHz
-                        </span>
-                    </div>
-                }
-                else
-                {
-                    <div class="focus-value focus-value--muted">Aucun salon</div>
-                    <span class="badge badge-muted">Inactif</span>
-                }
+                <div class="focus-value">@_activeSalon.Name</div>
+                <div class="focus-active-details">
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">person</span>
+                        @_activeSalon.Configuration.Callsign
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        RX @_activeSalon.Configuration.RxFrequency.ToString("F3") MHz
+                        &nbsp;/&nbsp;
+                        TX @_activeSalon.Configuration.TxFrequency.ToString("F3") MHz
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">tune</span>
+                        CTCSS RX @(_activeSalon.Configuration.RxCtcss.HasValue ? $"{_activeSalon.Configuration.RxCtcss.Value:F1} Hz" : "Aucun")
+                        &nbsp;/&nbsp;
+                        TX @(_activeSalon.Configuration.TxCtcss.HasValue ? $"{_activeSalon.Configuration.TxCtcss.Value:F1} Hz" : "Aucun")
+                    </span>
+                </div>
             </div>
-
-
         </div>
     </div>
+    }
 
     <div class="card dashboard-service-strip">
         <div class="compact-item">
