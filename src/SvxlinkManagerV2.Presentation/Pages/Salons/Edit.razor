@@ -760,7 +760,7 @@ else if (_salon is not null)
     }
 
     // ── Modèle de formulaire ──────────────────────────────────
-    private class EditModel
+    public class EditModel
     {
         [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]
         public decimal RxFrequency { get; set; }
