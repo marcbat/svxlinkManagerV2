@@ -11,6 +11,8 @@
 @inject IMediator Mediator
 @inject IReflectorDaemonService DaemonService
 @inject ToastService ToastService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
 <div class="page-header">
@@ -144,9 +146,9 @@ else
             Éditez directement le fichier de configuration INI du reflector.
             La section <code>[GLOBAL]</code> est obligatoire.
         </p>
-        <textarea class="config-textarea @(_hasUnsavedChanges ? "config-textarea--modified" : "")"
-                  value="@_configText"
-                  @oninput="OnConfigChanged"
+        <textarea @ref="_configEditorTextarea"
+              class="config-textarea config-textarea--editor @(_hasUnsavedChanges ? "config-textarea--modified" : "")"
+              value="@_configText"
                   disabled="@_isActive"
                   rows="25"
                   spellcheck="false"
@@ -163,6 +165,9 @@ else
     private bool _isSaving;
     private bool _isToggling;
     private bool _hasUnsavedChanges;
+    private bool _isEditorInitialized;
+    private ElementReference _configEditorTextarea;
+    private DotNetObjectReference<Index>? _dotNetRef;
 
     private const string DefaultConfig =
         "[GLOBAL]\r\n" +
@@ -171,7 +176,6 @@ else
         "ACCEPT_CALLSIGN=.*\r\n" +
         "CODECS=OPUS\r\n" +
         "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
-        "TG_FOR_V1_CLIENTS=0\r\n" +
         "\r\n" +
         "[ROOT_CA]\r\n" +
         "COMMON_NAME=SvxReflector Root CA\r\n" +
@@ -188,15 +192,7 @@ else
         "[TG#0]\r\n" +
         "AUTO_QSY_AFTER=0\r\n" +
         "ALLOW=.*\r\n" +
-        "SHOW_ACTIVITY=1\r\n" +
-        "\r\n" +
-        "[USERS]\r\n" +
-        "# Clients V2 (AUTH_KEY) — Exemple : CALLSIGN=GroupeMotDePasse\r\n" +
-        "# F5ZZZ-L=Noeuds\r\n" +
-        "\r\n" +
-        "[PASSWORDS]\r\n" +
-        "# Mots de passe V2 — Exemple : GroupeMotDePasse=\"MotDePasse\"\r\n" +
-        "# Noeuds=\"Passw0rd\"\r\n";
+        "SHOW_ACTIVITY=1\r\n";
 
     protected override async Task OnInitializedAsync()
     {
@@ -236,6 +232,39 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        if (!_isEditorInitialized)
+        {
+            try
+            {
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+
+                _isEditorInitialized = await JS.InvokeAsync<bool>(
+                    "reflectorConfigEditor.init",
+                    _configEditorTextarea,
+                    _configText,
+                    _isActive,
+                    _dotNetRef);
+            }
+            catch (InvalidOperationException)
+            {
+                // Peut survenir pendant le prerendering Blazor Server.
+            }
+        }
+
+        if (_isEditorInitialized)
+        {
+            await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            await JS.InvokeVoidAsync("reflectorConfigEditor.refresh");
+        }
+    }
+
     private async Task SaveConfigAsync()
     {
         if (_reflector is null || _isActive)
@@ -245,6 +274,12 @@ else
 
         try
         {
+            if (_isEditorInitialized)
+            {
+                _configText = await JS.InvokeAsync<string>("reflectorConfigEditor.getValue");
+                _hasUnsavedChanges = _configText != _savedConfigText;
+            }
+
             var result = await Mediator.Send<Validation<Error, Unit>>(
                 new UpdateReflectorConfigurationCommand(_reflector.Id, _reflector.Name, _configText));
 
@@ -283,6 +318,11 @@ else
             result.Match(
                 Succ: _ => { _isActive = true; ToastService.ShowSuccess("Reflector démarré avec succès."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError("Erreur lors du démarrage : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
+
+            if (_isEditorInitialized)
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            }
         }
         catch (Exception ex)
         {
@@ -294,10 +334,12 @@ else
         }
     }
 
-    private void OnConfigChanged(ChangeEventArgs e)
+    [JSInvokable]
+    public void OnConfigEditorChanged(string value)
     {
-        _configText = e.Value?.ToString() ?? string.Empty;
+        _configText = value ?? string.Empty;
         _hasUnsavedChanges = _configText != _savedConfigText;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task StopReflectorAsync()
@@ -315,6 +357,11 @@ else
             result.Match(
                 Succ: _ => { _isActive = false; ToastService.ShowSuccess("Reflector arrêté avec succès."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError("Erreur lors de l'arrêt : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
+
+            if (_isEditorInitialized)
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            }
         }
         catch (Exception ex)
         {
@@ -324,6 +371,23 @@ else
         {
             _isToggling = false;
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_isEditorInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.dispose");
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore when client disconnects during component disposal.
+            }
+        }
+
+        _dotNetRef?.Dispose();
     }
 }
 
@@ -505,6 +569,52 @@ else
         min-height: 300px;
         box-sizing: border-box;
         transition: border-color 0.2s;
+    }
+
+    .config-textarea--editor {
+        display: none;
+    }
+
+    .config-card .CodeMirror {
+        height: 520px;
+        border-radius: 12px;
+        border: 1px solid var(--border-card);
+        font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    .config-card .CodeMirror-focused {
+        box-shadow: 0 0 0 3px rgba(108, 92, 231, .18);
+        border-color: var(--accent);
+    }
+
+    .config-card .CodeMirror-gutters {
+        border-right: 1px solid rgba(255, 255, 255, .06);
+        background: rgba(0, 0, 0, .16);
+    }
+
+    .config-card .CodeMirror-linenumber {
+        color: rgba(255, 255, 255, .35);
+    }
+
+    .config-card .cm-comment {
+        color: #9fb4c7;
+        font-style: italic;
+    }
+
+    .config-card .cm-header {
+        color: #72d7ff;
+        font-weight: 700;
+    }
+
+    .config-card .cm-def {
+        color: #ffd479;
+        font-weight: 600;
+    }
+
+    .config-card .cm-quote {
+        color: #9cf6c8;
     }
 
         .config-textarea:focus {
