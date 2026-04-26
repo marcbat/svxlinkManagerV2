@@ -126,7 +126,6 @@ public class ReflectorSeederHostedService : IHostedService
             ACCEPT_CALLSIGN=.*
             CODECS=OPUS
             CERT_PKI_DIR=/var/lib/svxlink/pki
-            TG_FOR_V1_CLIENTS=0
 
             [ROOT_CA]
             COMMON_NAME=SvxReflector Root CA
@@ -144,14 +143,6 @@ public class ReflectorSeederHostedService : IHostedService
             AUTO_QSY_AFTER=0
             ALLOW=.*
             SHOW_ACTIVITY=1
-
-            [USERS]
-            # Clients V2 (AUTH_KEY) — Exemple : CALLSIGN=GroupeMotDePasse
-            # F5ZZZ-L=Noeuds
-
-            [PASSWORDS]
-            # Mots de passe V2 — Exemple : GroupeMotDePasse="MotDePasse"
-            # Noeuds="Passw0rd"
             """;
     }
 }

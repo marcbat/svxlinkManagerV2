@@ -171,7 +171,6 @@ else
         "ACCEPT_CALLSIGN=.*\r\n" +
         "CODECS=OPUS\r\n" +
         "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
-        "TG_FOR_V1_CLIENTS=0\r\n" +
         "\r\n" +
         "[ROOT_CA]\r\n" +
         "COMMON_NAME=SvxReflector Root CA\r\n" +
@@ -188,15 +187,7 @@ else
         "[TG#0]\r\n" +
         "AUTO_QSY_AFTER=0\r\n" +
         "ALLOW=.*\r\n" +
-        "SHOW_ACTIVITY=1\r\n" +
-        "\r\n" +
-        "[USERS]\r\n" +
-        "# Clients V2 (AUTH_KEY) — Exemple : CALLSIGN=GroupeMotDePasse\r\n" +
-        "# F5ZZZ-L=Noeuds\r\n" +
-        "\r\n" +
-        "[PASSWORDS]\r\n" +
-        "# Mots de passe V2 — Exemple : GroupeMotDePasse=\"MotDePasse\"\r\n" +
-        "# Noeuds=\"Passw0rd\"\r\n";
+        "SHOW_ACTIVITY=1\r\n";
 
     protected override async Task OnInitializedAsync()
     {
