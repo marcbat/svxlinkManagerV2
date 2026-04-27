@@ -40,6 +40,28 @@ log "========== Début postinst $(cat "$APP_DIR/version.txt" 2>/dev/null || echo
 mkdir -p "$APP_DIR/data"
 log "Répertoire data créé/vérifié"
 
+# --- Fichier de secrets pour les variables d'environnement sensibles ---
+# Créé uniquement s'il n'existe pas (préserve le token GitHub déjà configuré par l'utilisateur).
+SECRETS_DIR="/etc/svxlinkmanagerv2"
+SECRETS_FILE="$SECRETS_DIR/secrets.env"
+if [ ! -f "$SECRETS_FILE" ]; then
+  mkdir -p "$SECRETS_DIR"
+  cat > "$SECRETS_FILE" <<'EOF'
+# Secrets chargés par systemd (EnvironmentFile dans svxlinkmanagerv2.service).
+# Une variable par ligne, sans guillemets.
+#
+# Token GitHub pour les mises à jour OTA depuis un dépôt privé.
+# Générer un fine-grained PAT avec : Contents=Read + Metadata=Read.
+# Laisser commenté (ou vide) si le dépôt est public.
+#ApplicationUpdate__GitHubToken=github_pat_XXXXXXXXXXXXXXXXXXXX
+EOF
+  chmod 600 "$SECRETS_FILE"
+  chown root:root "$SECRETS_FILE"
+  log "Fichier de secrets créé : $SECRETS_FILE (mode 600)"
+else
+  log "Fichier de secrets déjà présent : $SECRETS_FILE (préservé)"
+fi
+
 # Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
 # Le seed automatique au démarrage recrée les données par défaut.
 rm -f "$APP_DIR/data/svxlinkmanager.db"
