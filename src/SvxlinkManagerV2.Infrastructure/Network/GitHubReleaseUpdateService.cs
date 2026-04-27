@@ -88,7 +88,7 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
         try
         {
-            var requestUri = $"repos/{_options.Owner}/{_options.Repository}/releases?per_page=25";
+            var requestUri = $"repos/{_options.Owner}/{_options.Repository}/releases?per_page=100";
             using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -257,9 +257,19 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
     internal static string BuildGitHubApiErrorMessage(int statusCode, string? token)
     {
+        if (statusCode == 401)
+        {
+            return "Impossible de récupérer les releases GitHub (HTTP 401 - Non autorisé). Le token GitHub est invalide ou a été révoqué. Génère un nouveau token et configure ApplicationUpdate:GitHubToken.";
+        }
+
         if (statusCode == 404 && string.IsNullOrWhiteSpace(token))
         {
             return "Impossible de récupérer les releases GitHub (HTTP 404). Si le dépôt est privé, configure ApplicationUpdate:GitHubToken.";
+        }
+
+        if (statusCode == 404 && !string.IsNullOrWhiteSpace(token))
+        {
+            return "Impossible de récupérer les releases GitHub (HTTP 404). Le token GitHub est peut-être révoqué ou invalide (GitHub retourne 404 pour les dépôts privés avec un token invalide). Génère un nouveau token.";
         }
 
         return $"Impossible de récupérer les releases GitHub (HTTP {statusCode}).";

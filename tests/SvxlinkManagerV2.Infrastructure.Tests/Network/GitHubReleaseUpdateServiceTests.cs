@@ -133,4 +133,65 @@ public class GitHubReleaseUpdateServiceTests
 
         message.Should().Contain("GitHubToken");
     }
+
+    [Fact]
+    public void BuildGitHubApiErrorMessage_ShouldMentionRevocationWhen401()
+    {
+        var message = GitHubReleaseUpdateService.BuildGitHubApiErrorMessage(401, "github_pat_sometoken");
+
+        message.Should().Contain("401");
+        message.Should().ContainAny("révoqué", "invalide");
+    }
+
+    [Fact]
+    public void BuildGitHubApiErrorMessage_ShouldMentionRevocationWhen404WithToken()
+    {
+        var message = GitHubReleaseUpdateService.BuildGitHubApiErrorMessage(404, "github_pat_sometoken");
+
+        message.Should().Contain("404");
+        message.Should().ContainAny("révoqué", "invalide");
+    }
+
+    [Fact]
+    public void SelectLatestRelease_ShouldFindAlphaAmongManyFeatureReleases()
+    {
+        // Simule le cas où >25 releases de feature branches publiées après l'alpha
+        // poussent l'alpha au-delà de per_page=25 (correction : per_page=100)
+        var featureReleases = Enumerable.Range(1, 30).Select(i => new GitHubReleaseUpdateService.GitHubRelease
+        {
+            TagName = $"v0.1.0-myfeature.{i}",
+            Prerelease = true,
+            PublishedAt = new DateTimeOffset(2026, 4, 26, 14, i, 0, TimeSpan.Zero),
+            Assets =
+            [
+                new GitHubReleaseUpdateService.GitHubReleaseAsset
+                {
+                    Name = $"svxlinkmanagerv2_0.1.0-myfeature.{i}_armhf.deb",
+                    BrowserDownloadUrl = $"https://example.invalid/feature-{i}.deb"
+                }
+            ]
+        });
+
+        var alphaRelease = new GitHubReleaseUpdateService.GitHubRelease
+        {
+            TagName = "v0.1.0-alpha.305",
+            Prerelease = true,
+            PublishedAt = new DateTimeOffset(2026, 4, 26, 13, 54, 25, TimeSpan.Zero),
+            Assets =
+            [
+                new GitHubReleaseUpdateService.GitHubReleaseAsset
+                {
+                    Name = "svxlinkmanagerv2_0.1.0.alpha.305_armhf.deb",
+                    BrowserDownloadUrl = "https://example.invalid/alpha-305.deb"
+                }
+            ]
+        };
+
+        var releases = featureReleases.Append(alphaRelease);
+
+        var latest = GitHubReleaseUpdateService.SelectLatestRelease(releases, ApplicationUpdateChannel.Prerelease, ".deb");
+
+        latest.Should().NotBeNull();
+        latest!.TagName.Should().Be("v0.1.0-alpha.305");
+    }
 }
