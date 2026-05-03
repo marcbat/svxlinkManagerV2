@@ -6,8 +6,8 @@ namespace SvxlinkManagerV2.Application.Features.ApplicationUpdate;
 public enum ApplicationUpdateChannel
 {
     Stable,
-    Prerelease,
-    Feature
+    Beta,
+    Development
 }
 
 /// <summary>

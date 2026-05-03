@@ -60,11 +60,11 @@ public class GetApplicationUpdateStatusQueryHandlerTests
     public async Task Handle_WhenServiceFails_ShouldReturnFailure()
     {
         _applicationUpdateService
-            .GetStatusAsync(ApplicationUpdateChannel.Feature, Arg.Any<CancellationToken>())
+            .GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Error.Validation("APPLICATION_UPDATE_ERROR", "GitHub indisponible").ToFailure<ApplicationUpdateStatusDto>()));
 
         var result = await _handler.Handle(
-            new GetApplicationUpdateStatusQuery(ApplicationUpdateChannel.Feature),
+            new GetApplicationUpdateStatusQuery(ApplicationUpdateChannel.Development),
             CancellationToken.None);
 
         result.IsFail.Should().BeTrue();

@@ -21,8 +21,6 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly string[] StandardPreReleaseLabels = ["alpha", "beta", "rc", "hotfix", "preview"];
-
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubReleaseUpdateService> _logger;
     private readonly ApplicationUpdateOptions _options;
@@ -217,19 +215,19 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         return channel switch
         {
             ApplicationUpdateChannel.Stable => !release.Prerelease,
-            ApplicationUpdateChannel.Prerelease => release.Prerelease && !IsFeatureRelease(release.TagName),
-            ApplicationUpdateChannel.Feature => release.Prerelease && IsFeatureRelease(release.TagName),
+            ApplicationUpdateChannel.Beta => release.Prerelease && HasPreReleaseLabel(release.TagName, "beta"),
+            ApplicationUpdateChannel.Development => release.Prerelease && HasPreReleaseLabel(release.TagName, "alpha"),
             _ => false
         };
     }
 
-    internal static bool IsFeatureRelease(string? tagName)
+    internal static bool HasPreReleaseLabel(string? tagName, string expectedLabel)
     {
         if (!TryParseComparableVersion(tagName, out var version) || string.IsNullOrWhiteSpace(version.PreRelease))
             return false;
 
         var label = version.PreRelease.Split('.', StringSplitOptions.RemoveEmptyEntries)[0];
-        return !StandardPreReleaseLabels.Contains(label, StringComparer.OrdinalIgnoreCase);
+        return string.Equals(label, expectedLabel, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string GetCurrentVersion()

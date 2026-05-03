@@ -26,13 +26,13 @@ branches:
 
   release:
     regex: ^release[/-](?<BranchName>.+)
-    label: rc
+    label: beta
     increment: Patch
     is-release-branch: true
 
   hotfix:
     regex: ^hotfix[/-](?<BranchName>.+)
-    label: hotfix
+    label: beta
     increment: Patch
     is-release-branch: true
 

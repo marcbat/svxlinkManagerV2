@@ -255,6 +255,14 @@ else
                                 }
                             </select>
 
+                            @if (_selectedUpdateChannel == ApplicationUpdateChannel.Development)
+                            {
+                                <div class="update-inline-hint">
+                                    <span class="material-symbols-outlined">warning</span>
+                                    Canal Developpement (alpha): versions experimentales potentiellement instables, a installer avec precaution.
+                                </div>
+                            }
+
                             <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
                                 @if (_isCheckingUpdates)
                                 {
@@ -847,8 +855,8 @@ else
         => channel switch
         {
             ApplicationUpdateChannel.Stable => "Stable",
-            ApplicationUpdateChannel.Prerelease => "Prérelease",
-            ApplicationUpdateChannel.Feature => "Feature",
+            ApplicationUpdateChannel.Beta => "Beta",
+            ApplicationUpdateChannel.Development => "Developpement",
             _ => channel.ToString()
         };
 

@@ -17,33 +17,72 @@ public class GitHubReleaseUpdateServiceTests
     }
 
     [Fact]
-    public void Compare_ShouldTreatStableAsNewerThanPrerelease()
+    public void Compare_ShouldTreatStableAsNewerThanBetaPrerelease()
     {
         GitHubReleaseUpdateService.TryParseComparableVersion("1.2.0", out var stable).Should().BeTrue();
-        GitHubReleaseUpdateService.TryParseComparableVersion("1.2.0-rc.2", out var releaseCandidate).Should().BeTrue();
+        GitHubReleaseUpdateService.TryParseComparableVersion("1.2.0-beta.2", out var beta).Should().BeTrue();
 
-        GitHubReleaseUpdateService.Compare(stable, releaseCandidate).Should().BeGreaterThan(0);
+        GitHubReleaseUpdateService.Compare(stable, beta).Should().BeGreaterThan(0);
     }
 
     [Fact]
-    public void MatchesChannel_ShouldRecognizeFeatureRelease()
+    public void MatchesChannel_ShouldRecognizeBetaRelease()
     {
         var release = new GitHubReleaseUpdateService.GitHubRelease
         {
-            TagName = "v1.3.0-monfeature.4",
+            TagName = "v1.3.0-beta.4",
             Prerelease = true,
             Assets =
             [
                 new GitHubReleaseUpdateService.GitHubReleaseAsset
                 {
-                    Name = "svxlinkmanagerv2_1.3.0-monfeature.4_armhf.deb",
+                    Name = "svxlinkmanagerv2_1.3.0-beta.4_armhf.deb",
                     BrowserDownloadUrl = "https://example.invalid/file.deb"
                 }
             ]
         };
 
-        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Feature).Should().BeTrue();
-        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Prerelease).Should().BeFalse();
+        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Beta).Should().BeTrue();
+        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Development).Should().BeFalse();
+    }
+
+    [Fact]
+    public void MatchesChannel_ShouldRecognizeDevelopmentRelease()
+    {
+        var release = new GitHubReleaseUpdateService.GitHubRelease
+        {
+            TagName = "v1.3.0-alpha.4",
+            Prerelease = true,
+            Assets =
+            [
+                new GitHubReleaseUpdateService.GitHubReleaseAsset
+                {
+                    Name = "svxlinkmanagerv2_1.3.0-alpha.4_armhf.deb",
+                    BrowserDownloadUrl = "https://example.invalid/file.deb"
+                }
+            ]
+        };
+
+        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Development).Should().BeTrue();
+        GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Beta).Should().BeFalse();
+    }
+
+    [Fact]
+    public void MatchesChannel_ShouldIgnoreLegacyPrereleaseLabels()
+    {
+        var legacyLabels = new[] { "rc", "hotfix", "myfeature" };
+
+        foreach (var label in legacyLabels)
+        {
+            var release = new GitHubReleaseUpdateService.GitHubRelease
+            {
+                TagName = $"v1.3.0-{label}.4",
+                Prerelease = true
+            };
+
+            GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Beta).Should().BeFalse();
+            GitHubReleaseUpdateService.MatchesChannel(release, ApplicationUpdateChannel.Development).Should().BeFalse();
+        }
     }
 
     [Fact]
@@ -67,15 +106,15 @@ public class GitHubReleaseUpdateServiceTests
             },
             new GitHubReleaseUpdateService.GitHubRelease
             {
-                TagName = "v1.2.0-rc.1",
+                TagName = "v1.2.0-beta.1",
                 Prerelease = true,
                 PublishedAt = new DateTimeOffset(2026, 4, 2, 10, 0, 0, TimeSpan.Zero),
                 Assets =
                 [
                     new GitHubReleaseUpdateService.GitHubReleaseAsset
                     {
-                        Name = "svxlinkmanagerv2_1.2.0-rc.1_armhf.deb",
-                        BrowserDownloadUrl = "https://example.invalid/1.2.0-rc.1.deb"
+                        Name = "svxlinkmanagerv2_1.2.0-beta.1_armhf.deb",
+                        BrowserDownloadUrl = "https://example.invalid/1.2.0-beta.1.deb"
                     }
                 ]
             },
@@ -99,6 +138,61 @@ public class GitHubReleaseUpdateServiceTests
 
         latest.Should().NotBeNull();
         latest!.TagName.Should().Be("v1.1.0");
+    }
+
+    [Fact]
+    public void SelectLatestRelease_ShouldPickLatestBetaOnly()
+    {
+        var releases = new[]
+        {
+            new GitHubReleaseUpdateService.GitHubRelease
+            {
+                TagName = "v1.2.0-beta.2",
+                Prerelease = true,
+                PublishedAt = new DateTimeOffset(2026, 4, 1, 10, 0, 0, TimeSpan.Zero),
+                Assets =
+                [
+                    new GitHubReleaseUpdateService.GitHubReleaseAsset
+                    {
+                        Name = "svxlinkmanagerv2_1.2.0-beta.2_armhf.deb",
+                        BrowserDownloadUrl = "https://example.invalid/1.2.0-beta.2.deb"
+                    }
+                ]
+            },
+            new GitHubReleaseUpdateService.GitHubRelease
+            {
+                TagName = "v1.2.0-beta.4",
+                Prerelease = true,
+                PublishedAt = new DateTimeOffset(2026, 4, 1, 11, 0, 0, TimeSpan.Zero),
+                Assets =
+                [
+                    new GitHubReleaseUpdateService.GitHubReleaseAsset
+                    {
+                        Name = "svxlinkmanagerv2_1.2.0-beta.4_armhf.deb",
+                        BrowserDownloadUrl = "https://example.invalid/1.2.0-beta.4.deb"
+                    }
+                ]
+            },
+            new GitHubReleaseUpdateService.GitHubRelease
+            {
+                TagName = "v1.2.0-alpha.9",
+                Prerelease = true,
+                PublishedAt = new DateTimeOffset(2026, 4, 1, 12, 0, 0, TimeSpan.Zero),
+                Assets =
+                [
+                    new GitHubReleaseUpdateService.GitHubReleaseAsset
+                    {
+                        Name = "svxlinkmanagerv2_1.2.0-alpha.9_armhf.deb",
+                        BrowserDownloadUrl = "https://example.invalid/1.2.0-alpha.9.deb"
+                    }
+                ]
+            }
+        };
+
+        var latest = GitHubReleaseUpdateService.SelectLatestRelease(releases, ApplicationUpdateChannel.Beta, ".deb");
+
+        latest.Should().NotBeNull();
+        latest!.TagName.Should().Be("v1.2.0-beta.4");
     }
 
     [Fact]
@@ -153,21 +247,21 @@ public class GitHubReleaseUpdateServiceTests
     }
 
     [Fact]
-    public void SelectLatestRelease_ShouldFindAlphaAmongManyFeatureReleases()
+    public void SelectLatestRelease_ShouldFindAlphaAmongManyBetaReleases()
     {
-        // Simule le cas où >25 releases de feature branches publiées après l'alpha
-        // poussent l'alpha au-delà de per_page=25 (correction : per_page=100)
-        var featureReleases = Enumerable.Range(1, 30).Select(i => new GitHubReleaseUpdateService.GitHubRelease
+        // Simule le cas où de nombreuses betas existent ; le canal Development
+        // doit tout de meme retourner la derniere alpha.
+        var betaReleases = Enumerable.Range(1, 30).Select(i => new GitHubReleaseUpdateService.GitHubRelease
         {
-            TagName = $"v0.1.0-myfeature.{i}",
+            TagName = $"v0.1.0-beta.{i}",
             Prerelease = true,
             PublishedAt = new DateTimeOffset(2026, 4, 26, 14, i, 0, TimeSpan.Zero),
             Assets =
             [
                 new GitHubReleaseUpdateService.GitHubReleaseAsset
                 {
-                    Name = $"svxlinkmanagerv2_0.1.0-myfeature.{i}_armhf.deb",
-                    BrowserDownloadUrl = $"https://example.invalid/feature-{i}.deb"
+                    Name = $"svxlinkmanagerv2_0.1.0-beta.{i}_armhf.deb",
+                    BrowserDownloadUrl = $"https://example.invalid/beta-{i}.deb"
                 }
             ]
         });
@@ -187,9 +281,9 @@ public class GitHubReleaseUpdateServiceTests
             ]
         };
 
-        var releases = featureReleases.Append(alphaRelease);
+        var releases = betaReleases.Append(alphaRelease);
 
-        var latest = GitHubReleaseUpdateService.SelectLatestRelease(releases, ApplicationUpdateChannel.Prerelease, ".deb");
+        var latest = GitHubReleaseUpdateService.SelectLatestRelease(releases, ApplicationUpdateChannel.Development, ".deb");
 
         latest.Should().NotBeNull();
         latest!.TagName.Should().Be("v0.1.0-alpha.305");

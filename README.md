@@ -124,7 +124,7 @@ Le logiciel permet de :
 - demarrage automatique du salon par defaut au lancement
 - configuration sans reflecteur : frequences RX/TX par defaut pour le mode DTMF autonome
 - gestion des mises a jour :
-  - affichage de la version installee et du canal (Stable / Dev)
+  - affichage de la version installee et du canal (Stable / Beta / Developpement)
   - verification de la disponibilite d'une nouvelle version
   - telechargement du paquet .deb depuis GitHub Releases
   - installation de la derniere version telechargee
