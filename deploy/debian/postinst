@@ -6,6 +6,8 @@ APP_DIR="/opt/svxlinkmanagerv2"
 SERVICE_NAME="svxlinkmanagerv2"
 LOG_DIR="$APP_DIR/logs"
 LOG_FILE="$LOG_DIR/postinst.log"
+SYSTEMD_DROPIN_DIR="/etc/systemd/system/${SERVICE_NAME}.service.d"
+SYSTEMD_DROPIN_FILE="$SYSTEMD_DROPIN_DIR/10-secrets.conf"
 
 mkdir -p "$LOG_DIR"
 
@@ -35,6 +37,44 @@ ensure_directory() {
   mkdir -p "$target" 2>>"$LOG_FILE"
 }
 
+ensure_systemd_secrets_dropin() {
+  mkdir -p "$SYSTEMD_DROPIN_DIR"
+  cat > "$SYSTEMD_DROPIN_FILE" <<'EOF'
+[Service]
+EnvironmentFile=-/etc/svxlinkmanagerv2/secrets.env
+EOF
+  chmod 644 "$SYSTEMD_DROPIN_FILE"
+  chown root:root "$SYSTEMD_DROPIN_FILE"
+  log "Drop-in systemd secrets forcé: $SYSTEMD_DROPIN_FILE"
+}
+
+sanitize_runtime_github_tokens() {
+  for settings_file in \
+    "$APP_DIR/appsettings.json" \
+    "$APP_DIR/appsettings.Production.json" \
+    "$APP_DIR/appsettings.json.bak"; do
+    if [ -f "$settings_file" ]; then
+      if grep -q '"GitHubToken"' "$settings_file"; then
+        sed -i 's|"GitHubToken"[[:space:]]*:[[:space:]]*"[^"]*"|"GitHubToken": ""|g' "$settings_file"
+        log "Token runtime neutralisé dans $settings_file"
+      fi
+    fi
+  done
+}
+
+validate_systemd_environmentfile() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return
+  fi
+
+  env_files="$(systemctl show "$SERVICE_NAME" -p EnvironmentFiles 2>>"$LOG_FILE" || true)"
+  if ! printf '%s' "$env_files" | grep -q '/etc/svxlinkmanagerv2/secrets.env'; then
+    fail "Le service $SERVICE_NAME ne charge pas /etc/svxlinkmanagerv2/secrets.env (EnvironmentFiles manquant)."
+  fi
+
+  log "Validation systemd OK: EnvironmentFiles contient /etc/svxlinkmanagerv2/secrets.env"
+}
+
 log "========== Début postinst $(cat "$APP_DIR/version.txt" 2>/dev/null || echo 'version inconnue') =========="
 
 mkdir -p "$APP_DIR/data"
@@ -61,6 +101,14 @@ EOF
 else
   log "Fichier de secrets déjà présent : $SECRETS_FILE (préservé)"
 fi
+
+# Nettoyage volontairement destructif (environnement de dev):
+# impose la source de vérité du token via /etc/svxlinkmanagerv2/secrets.env.
+sanitize_runtime_github_tokens
+
+# Forcer le chargement des secrets via un drop-in systemd, indépendant
+# d'un éventuel remplacement du fichier unité principal lors des upgrades.
+ensure_systemd_secrets_dropin
 
 # Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
 # Le seed automatique au démarrage recrée les données par défaut.
@@ -145,6 +193,7 @@ chmod +x "$APP_DIR/SvxlinkManagerV2.Presentation" 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
   log "Activation et redémarrage du service $SERVICE_NAME..."
   systemctl daemon-reload >> "$LOG_FILE" 2>&1 || true
+  validate_systemd_environmentfile
   systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
   systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
   log "Service $SERVICE_NAME redémarré"
