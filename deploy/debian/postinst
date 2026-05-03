@@ -4,6 +4,7 @@
 
 APP_DIR="/opt/svxlinkmanagerv2"
 SERVICE_NAME="svxlinkmanagerv2"
+PACKAGE_NAME="svxlinkmanagerv2"
 LOG_DIR="$APP_DIR/logs"
 LOG_FILE="$LOG_DIR/postinst.log"
 SYSTEMD_DROPIN_DIR="/etc/systemd/system/${SERVICE_NAME}.service.d"
@@ -24,6 +25,35 @@ fail() {
   log "ERREUR FATALE: $1"
   echo "ERREUR: $1" >&2
   exit 1
+}
+
+get_installed_package_version() {
+  if command -v dpkg-query >/dev/null 2>&1; then
+    version="$(dpkg-query -W -f='${Version}' "$PACKAGE_NAME" 2>>"$LOG_FILE" || true)"
+    if [ -n "$version" ]; then
+      printf '%s' "$version"
+      return
+    fi
+  fi
+
+  if [ -f "$APP_DIR/version.txt" ]; then
+    version="$(cat "$APP_DIR/version.txt" 2>>"$LOG_FILE" || true)"
+    if [ -n "$version" ]; then
+      printf '%s' "$version"
+      return
+    fi
+  fi
+
+  printf ''
+}
+
+should_reset_database() {
+  package_version="$1"
+
+  case "$package_version" in
+    *~alpha.*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # Créer un répertoire de manière robuste : si le chemin existe en tant que fichier,
@@ -75,7 +105,12 @@ validate_systemd_environmentfile() {
   log "Validation systemd OK: EnvironmentFiles contient /etc/svxlinkmanagerv2/secrets.env"
 }
 
-log "========== Début postinst $(cat "$APP_DIR/version.txt" 2>/dev/null || echo 'version inconnue') =========="
+package_version="$(get_installed_package_version)"
+if [ -n "$package_version" ]; then
+  log "========== Début postinst version $package_version =========="
+else
+  log "========== Début postinst version inconnue =========="
+fi
 
 mkdir -p "$APP_DIR/data"
 log "Répertoire data créé/vérifié"
@@ -110,10 +145,18 @@ sanitize_runtime_github_tokens
 # d'un éventuel remplacement du fichier unité principal lors des upgrades.
 ensure_systemd_secrets_dropin
 
-# Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
-# Le seed automatique au démarrage recrée les données par défaut.
-rm -f "$APP_DIR/data/svxlinkmanager.db"
-log "Base SQLite supprimée (sera recréée au démarrage)"
+# Suppression de la base SQLite uniquement pour les builds alpha (branche develop).
+# En beta/stable (ou version indétectable), la base est préservée pour garder les données utilisateur.
+if should_reset_database "$package_version"; then
+  rm -f "$APP_DIR/data/svxlinkmanager.db"
+  log "Base SQLite supprimée (build alpha détecté: $package_version)"
+else
+  if [ -n "$package_version" ]; then
+    log "Base SQLite préservée (build non-alpha: $package_version)"
+  else
+    log "Base SQLite préservée (version indétectable, mode sécurisé non destructif)"
+  fi
+fi
 
 # --- Répertoires SVXLink requis par les deux versions ---
 log "Création des répertoires SVXLink..."
