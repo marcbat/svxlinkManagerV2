@@ -1,6 +1,6 @@
-# SvxLink Manager V2
+# SvxLink Manager
 
-SvxLink Manager V2 est une interface web de pilotage pour une station SVXLink.
+SvxLink Manager est une interface web de pilotage pour une station SVXLink.
 
 L'objectif du logiciel est simple : centraliser, dans un seul outil, les actions quotidiennes d'exploitation d'un noeud radioamateur SVXLink (gestion des salons, configuration radio, reflector, supervision et reseau Wi-Fi).
 
