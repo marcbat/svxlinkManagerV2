@@ -1,0 +1,530 @@
+@page "/salons"
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon
+@using SvxlinkManagerV2.Application.Features.Salons.SetSalonAsDefault
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
+@using SvxlinkManagerV2.Domain.Common
+
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ToastService ToastService
+@inject IActiveSessionTracker Tracker
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Gestion des Salons</h1>
+        <p class="page-subtitle">
+            @if (!_isLoading)
+            {
+                @($"{_salons.Count} salon{(_salons.Count != 1 ? "s" : "")} configuré{(_salons.Count != 1 ? "s" : "")}")
+            }
+        </p>
+    </div>
+    <a href="/salons/nouveau" class="btn btn-primary">
+        <span class="material-symbols-outlined">add</span>
+        Nouveau Salon
+    </a>
+</div>
+
+<!-- ── Filtres ────────────────────────────────────────────────── -->
+<div class="filter-bar">
+    <button class="filter-pill @(_filterActif   ? "active" : "")" @onclick="() => { _filterActif   = !_filterActif;   }">
+        <span class="dot dot-success"></span> Actif
+    </button>
+    <button class="filter-pill @(_filterDefault ? "active" : "")" @onclick="() => { _filterDefault = !_filterDefault; }">
+        <span class="dot dot-accent"></span> Défaut
+    </button>
+</div>
+
+<!-- ── Salon Cards ───────────────────────────────────────────── -->
+@if (_isLoading)
+{
+    <div class="salons-grid">
+        @for (int i = 0; i < 3; i++)
+        {
+            <div class="card">
+                <div class="skeleton" style="height:22px;width:60%;margin-bottom:14px;"></div>
+                <div class="skeleton" style="height:14px;width:80%;margin-bottom:8px;"></div>
+                <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px;"></div>
+                <div class="skeleton" style="height:14px;width:75%;margin-bottom:20px;"></div>
+                <div style="display:flex;gap:8px;">
+                    <div class="skeleton" style="height:34px;width:80px;border-radius:8px;"></div>
+                    <div class="skeleton" style="height:34px;width:80px;border-radius:8px;"></div>
+                    <div class="skeleton" style="height:34px;width:80px;border-radius:8px;"></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (!FilteredSalons.Any())
+{
+    <div class="empty-state">
+        <span class="material-symbols-outlined">radio</span>
+        <p>Aucun salon trouvé.<br />Créez votre premier salon avec le bouton "Nouveau Salon".</p>
+    </div>
+}
+else
+{
+    <div class="salons-grid">
+        @foreach (var salon in FilteredSalons)
+        {
+            var salonIdCapture = salon.Id;
+            <div class="card salon-card @(Tracker.IsSalonActive(salon.Id) ? "salon-card--active" : "")">
+
+                <!-- En-tête carte -->
+                <div class="salon-card-header">
+                    <div class="salon-card-title">@salon.Name</div>
+                    <div class="salon-badges">
+                        @if (Tracker.IsSalonActive(salon.Id))
+                        {
+                            <span class="badge badge-success">
+                                <span class="material-symbols-outlined">check_circle</span>
+                                Actif
+                            </span>
+                        }
+                        @if (salon.IsDefault)
+                        {
+                            <span class="badge badge-accent">
+                                <span class="material-symbols-outlined">star</span>
+                                Défaut
+                            </span>
+                        }
+                        @if (salon.SalonType == SalonType.Parrot)
+                        {
+                            <span class="badge badge-parrot">
+                                <span class="material-symbols-outlined">record_voice_over</span>
+                                Perroquet
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <!-- Infos techniques -->
+                <div class="salon-info">
+                    @if (salon.SalonType == SalonType.Parrot)
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">mic</span>
+                            <span>Mode Perroquet — enregistre et rejoue l'audio</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">person</span>
+                            <span>@salon.Configuration.Callsign</span>
+                        </div>
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">dns</span>
+                            <span>@salon.Configuration.Host:@salon.Configuration.Port</span>
+                        </div>
+                    }
+                    <div class="salon-info-row">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        <span>
+                            RX @salon.Configuration.RxFrequency.ToString("F3") MHz
+                            &nbsp;/&nbsp;
+                            TX @salon.Configuration.TxFrequency.ToString("F3") MHz
+                        </span>
+                    </div>
+                    <div class="salon-info-row">
+                        <span class="material-symbols-outlined">waves</span>
+                        <span>
+                            CTCSS RX: @(salon.Configuration.RxCtcss.HasValue ? $"{salon.Configuration.RxCtcss:F1} Hz" : "Aucun")
+                            &nbsp;|&nbsp;
+                            TX: @(salon.Configuration.TxCtcss.HasValue ? $"{salon.Configuration.TxCtcss:F1} Hz" : "Aucun")
+                        </span>
+                    </div>
+                    @if (salon.DtmfCode.HasValue)
+                    {
+                        <div class="salon-info-row">
+                            <span class="material-symbols-outlined">dialpad</span>
+                            <span>DTMF : @salon.DtmfCode</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Actions -->
+                @if (_confirmDeleteId == salonIdCapture)
+                {
+                    <div class="confirm-delete">
+                        <span class="material-symbols-outlined" style="color:var(--danger);font-size:18px">warning</span>
+                        <span>Supprimer ce salon ?</span>
+                        <button class="btn btn-danger btn-sm" @onclick="() => ConfirmDelete(salonIdCapture)" disabled="@_isBusy">
+                            Confirmer
+                        </button>
+                        <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">
+                            Annuler
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="salon-actions">
+                        @if (salon.SalonType != SalonType.Parrot)
+                        {
+                            <a href="/salons/@salonIdCapture/editer" class="btn btn-secondary btn-sm">
+                                <span class="material-symbols-outlined">edit</span>
+                                Éditer
+                            </a>
+                        }
+
+                        @if (Tracker.IsSalonActive(salon.Id))
+                        {
+                            <button class="btn btn-danger btn-sm"
+                                    disabled="@_isBusy"
+                                    @onclick="() => DeactivateSalon(salonIdCapture)">
+                                @if (_busySalonId == salonIdCapture && _isBusy)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">power_settings_new</span>
+                                }
+                                Désactiver
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success btn-sm"
+                                    disabled="@_isBusy"
+                                    @onclick="() => ActivateSalon(salonIdCapture)">
+                                @if (_busySalonId == salonIdCapture && _isBusy)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">play_arrow</span>
+                                }
+                                Activer
+                            </button>
+                        }
+
+                        @if (!salon.IsDefault)
+                        {
+                            <button class="btn btn-accent btn-sm"
+                                    disabled="@_isBusy"
+                                    @onclick="() => SetAsDefault(salonIdCapture)">
+                                @if (_busySalonId == salonIdCapture && _isBusy)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">star</span>
+                                }
+                                Défaut
+                            </button>
+                        }
+
+                        @if (!Tracker.IsSalonActive(salon.Id) && !salon.IsDefault && salon.SalonType != SalonType.Parrot)
+                        {
+                            <button class="btn btn-sm btn-delete"
+                                    disabled="@_isBusy"
+                                    @onclick="() => AskDelete(salonIdCapture)">
+                                <span class="material-symbols-outlined">delete</span>
+                                Supprimer
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    /* ── Filtres ────────────────────────────────────────────── */
+    .filter-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .filter-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 14px;
+        border-radius: 50px;
+        font-size: 13px;
+        font-weight: 500;
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .filter-pill:hover { color: var(--text); }
+
+    .filter-pill.active {
+        background: var(--accent-light);
+        border-color: var(--accent);
+        color: var(--text);
+    }
+
+    .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+    .dot-success { background: var(--success); }
+    .dot-accent  { background: var(--accent); }
+    .dot-warning { background: var(--warning); }
+
+    /* ── Grille Salons ──────────────────────────────────────── */
+    .salons-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+    }
+
+    @@media (max-width: 1200px) { .salons-grid { grid-template-columns: repeat(2, 1fr); } }
+    @@media (max-width: 750px)  { .salons-grid { grid-template-columns: 1fr; } }
+
+    /* ── Salon Card ─────────────────────────────────────────── */
+    .salon-card { transition: border-color 0.2s; }
+
+    .salon-card--active {
+        border-color: var(--success);
+        box-shadow: 0 0 0 1px rgba(0,184,148,0.25);
+    }
+
+    .salon-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .salon-card-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+        flex: 1;
+    }
+
+    .salon-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        justify-content: flex-end;
+    }
+
+    /* ── Infos techniques ───────────────────────────────────── */
+    .salon-info {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        margin-bottom: 18px;
+    }
+
+    .salon-info-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .salon-info-row .material-symbols-outlined {
+        font-size: 15px;
+        flex-shrink: 0;
+        color: var(--accent);
+        opacity: 0.7;
+    }
+
+    /* ── Actions ────────────────────────────────────────────── */
+    .salon-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        border-top: 1px solid var(--border-card);
+        padding-top: 14px;
+    }
+
+    .btn-delete {
+        background: rgba(255,107,107,0.1);
+        color: var(--danger);
+        border: 1px solid rgba(255,107,107,0.25);
+    }
+    .btn-delete:hover { background: var(--danger-light); }
+    .btn-accent {
+        background: var(--accent);
+        color: #fff;
+    }
+
+    .badge-parrot {
+        background: rgba(253, 203, 110, 0.15);
+        color: #e67e22;
+        border: 1px solid rgba(253, 203, 110, 0.4);
+    }
+
+    /* ── Confirmation suppression ───────────────────────────── */
+    .confirm-delete {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-top: 1px solid var(--border-card);
+        padding-top: 14px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private IReadOnlyList<SalonAggregate> _salons = [];
+    private bool _isLoading = true;
+    private bool _isBusy;
+    private Guid? _busySalonId;
+    private Guid? _confirmDeleteId;
+
+    private bool _filterActif;
+    private bool _filterDefault;
+
+    private IEnumerable<SalonAggregate> FilteredSalons
+    {
+        get
+        {
+            var list = _salons.AsEnumerable();
+            if (_filterActif)   list = list.Where(s => Tracker.IsSalonActive(s.Id));
+            if (_filterDefault) list = list.Where(s => s.IsDefault);
+            return list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSalons();
+    }
+
+    private async Task LoadSalons()
+    {
+        _isLoading = true;
+        try
+        {
+            _salons = await Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery()) ?? [];
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur lors du chargement : {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ActivateSalon(Guid id)
+    {
+        _isBusy = true;
+        _busySalonId = id;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(id));
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Salon activé avec succès."); return Unit.Default; },
+                Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
+            );
+            await LoadSalons();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+            _busySalonId = null;
+        }
+    }
+
+    private async Task DeactivateSalon(Guid id)
+    {
+        _isBusy = true;
+        _busySalonId = id;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeactivateSalonCommand(id));
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Salon désactivé."); return Unit.Default; },
+                Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
+            );
+            await LoadSalons();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+            _busySalonId = null;
+        }
+    }
+
+    private async Task SetAsDefault(Guid id)
+    {
+        _isBusy = true;
+        _busySalonId = id;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new SetSalonAsDefaultCommand(id));
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Salon défini comme salon par défaut."); return Unit.Default; },
+                Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
+            );
+            await LoadSalons();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+            _busySalonId = null;
+        }
+    }
+
+    private void AskDelete(Guid id)   => _confirmDeleteId = id;
+    private void CancelDelete()       => _confirmDeleteId = null;
+
+    private async Task ConfirmDelete(Guid id)
+    {
+        _isBusy = true;
+        _confirmDeleteId = null;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeleteSalonCommand(id));
+            result.Match(
+                Succ: _ => { ToastService.ShowSuccess("Salon supprimé."); return Unit.Default; },
+                Fail: errors => { ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; }
+            );
+            await LoadSalons();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+}

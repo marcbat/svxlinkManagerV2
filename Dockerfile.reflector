@@ -1,0 +1,68 @@
+# Dockerfile pour le SvxReflector (serveur de conférence SvxLink)
+# Compilé depuis les sources SVXLink 25.05
+# Supporte les protocoles V2 (AUTH_KEY) et V3 (certificats X.509)
+
+# Stage 1: Build SVXLink from source
+FROM debian:bookworm AS svxlink-builder
+
+ARG SVXLINK_VERSION=25.05
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake g++ make ca-certificates \
+    libsigc++-2.0-dev libgsm1-dev libpopt-dev tcl8.6-dev \
+    libgcrypt20-dev libspeex-dev libasound2-dev libopus-dev \
+    libcurl4-openssl-dev libssl-dev libjsoncpp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch ${SVXLINK_VERSION} \
+    https://github.com/sm0svx/svxlink.git /svxlink-src
+
+RUN mkdir /svxlink-build && cd /svxlink-build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_SYSCONFDIR=/etc \
+          -DCMAKE_INSTALL_LOCALSTATEDIR=/var \
+          -DUSE_QT=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          /svxlink-src/src && \
+    make -j$(nproc) && \
+    make install DESTDIR=/svxlink-install
+
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+# Set timezone
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsigc++-2.0-0v5 libgsm1 libpopt0 tcl8.6 libgcrypt20 \
+    libspeex1 libasound2 libopus0 libcurl4 libssl3 libjsoncpp25 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy SVXLink from builder
+COPY --from=svxlink-builder /svxlink-install/usr /usr
+COPY --from=svxlink-builder /svxlink-install/etc/svxlink /etc/svxlink
+COPY --from=svxlink-builder /svxlink-install/var /var
+RUN ldconfig
+
+# Create PKI directories for certificate management
+RUN mkdir -p /var/lib/svxlink/pki/private \
+             /var/lib/svxlink/pki/certs \
+             /var/lib/svxlink/pki/csrs \
+             /var/lib/svxlink/pki/pending_csrs
+
+# Copy dev auto-sign hook (auto-signe les CSR en mode développement)
+COPY deploy/docker/dev-ca-hook.sh /usr/local/bin/dev-ca-hook.sh
+RUN chmod 0755 /usr/local/bin/dev-ca-hook.sh
+
+# La configuration sera montée en volume sur /etc/svxlink/
+# svxreflector cherche sa configuration dans /etc/svxlink/svxreflector.conf par défaut
+
+# Exposer le port du reflector (TCP pour le contrôle, UDP pour l'audio)
+EXPOSE 5300/tcp
+EXPOSE 5300/udp
+
+# Lancer svxreflector en foreground (sans --daemon, adapté à Docker)
+CMD ["svxreflector", "--config=/etc/svxlink/svxreflector.conf"]

@@ -1,0 +1,607 @@
+@page "/sa818"
+@using SvxlinkManagerV2.Application.Features.SA818
+@using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
+@using SvxlinkManagerV2.Application.Features.SA818.UpdateSA818Configuration
+@using SvxlinkManagerV2.Domain.Aggregates.SA818
+@using SvxlinkManagerV2.Domain.Common
+
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Module SA818</h1>
+        <p class="page-subtitle">Configuration hardware du module radio VHF/UHF (volume, squelch, bande, filtres audio).</p>
+        <div class="info-banner">
+            <span class="material-symbols-outlined">info</span>
+            <span>Les modifications enregistrées ici sont appliquées lors de la prochaine activation d'un salon. Si un salon est déjà actif, elles prendront effet au prochain changement de salon.</span>
+        </div>
+    </div>
+    @if (_dto is not null)
+    {
+        <div class="last-updated">
+            <span class="material-symbols-outlined">update</span>
+            Mis à jour le @_dto.UpdatedAt.ToString("dd/MM/yyyy à HH:mm")
+        </div>
+    }
+</div>
+
+@if (_isLoading)
+{
+    <div class="sa818-grid">
+        <div class="card skeleton-card"><div class="skeleton" style="height:260px"></div></div>
+        <div class="card skeleton-card"><div class="skeleton" style="height:260px"></div></div>
+    </div>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="sa818-grid">
+
+            <!-- ══ Colonne Audio ══════════════════════════════════ -->
+            <div>
+
+                <!-- Volume -->
+                <div class="card" style="margin-bottom:18px">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">volume_up</span>
+                        Volume audio
+                    </div>
+
+                    <div class="slider-block">
+                        <div class="slider-header">
+                            <span class="slider-label">Niveau</span>
+                            <span class="slider-value">@_model.Volume</span>
+                        </div>
+                        <input type="range" class="sa818-slider" min="1" max="8" step="1"
+                               @bind="_model.Volume" @bind:event="oninput" />
+                        <div class="slider-ticks">
+                            @for (int i = 1; i <= 8; i++)
+                            {
+                                var tick = i;
+                                <span class="@(tick == _model.Volume ? "tick-active" : "")">@tick</span>
+                            }
+                        </div>
+                        <ValidationMessage For="() => _model.Volume" class="field-error" />
+                    </div>
+
+                    <div class="volume-preview">
+                        @for (int i = 1; i <= 8; i++)
+                        {
+                            <div class="vol-bar @(i <= _model.Volume ? "vol-bar--active" : "")"
+                                 style="height:@(8 + i * 4)px"></div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Squelch -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">graphic_eq</span>
+                        Squelch
+                    </div>
+
+                    <div class="slider-block">
+                        <div class="slider-header">
+                            <span class="slider-label">Seuil</span>
+                            <span class="slider-value">
+                                @if (_model.Squelch == 0)
+                                { <text>Off</text> }
+                                else
+                                { @_model.Squelch }
+                            </span>
+                        </div>
+                        <input type="range" class="sa818-slider" min="0" max="8" step="1"
+                               @bind="_model.Squelch" @bind:event="oninput" />
+                        <div class="slider-ticks">
+                            @for (int i = 0; i <= 8; i++)
+                            {
+                                var tick = i;
+                                <span class="@(tick == _model.Squelch ? "tick-active" : "")">
+                                    @(tick == 0 ? "Off" : tick.ToString())
+                                </span>
+                            }
+                        </div>
+                        <ValidationMessage For="() => _model.Squelch" class="field-error" />
+                    </div>
+
+                    <p class="hint-text">
+                        <span class="material-symbols-outlined">info</span>
+                        0 = squelch désactivé (ouvert en permanence). 8 = seuil maximum.
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- ══ Colonne Bande & Filtres ════════════════════════ -->
+            <div>
+
+                <!-- Largeur de bande -->
+                <div class="card" style="margin-bottom:18px">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        Largeur de bande
+                    </div>
+
+                    <div class="bw-picker">
+                        <label class="bw-option @(_model.Bandwidth == SA818Bandwidth.Narrow12_5kHz ? "bw-option--selected" : "")">
+                            <input type="radio" name="bandwidth"
+                                   checked="@(_model.Bandwidth == SA818Bandwidth.Narrow12_5kHz)"
+                                   @onchange="() => _model.Bandwidth = SA818Bandwidth.Narrow12_5kHz" />
+                            <span class="material-symbols-outlined">compress</span>
+                            <strong>12,5 kHz</strong>
+                            <span class="bw-desc">NFM – Bande étroite</span>
+                        </label>
+                        <label class="bw-option @(_model.Bandwidth == SA818Bandwidth.Wide25kHz ? "bw-option--selected" : "")">
+                            <input type="radio" name="bandwidth"
+                                   checked="@(_model.Bandwidth == SA818Bandwidth.Wide25kHz)"
+                                   @onchange="() => _model.Bandwidth = SA818Bandwidth.Wide25kHz" />
+                            <span class="material-symbols-outlined">expand</span>
+                            <strong>25 kHz</strong>
+                            <span class="bw-desc">WFM – Bande large</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Filtres audio -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">filter_alt</span>
+                        Filtres audio
+                    </div>
+
+                    <div class="filter-list">
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Pré-accentuation</span>
+                                <span class="filter-desc">Boost des hautes fréquences pour améliorer la clarté vocale (PreEmph)</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.PreEmph" class="toggle-input" id="chk-preemph" />
+                                <label class="toggle-switch" for="chk-preemph"></label>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Filtre passe-haut</span>
+                                <span class="filter-desc">Atténue les basses fréquences en dessous de 300 Hz (HighPass)</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.HighPass" class="toggle-input" id="chk-highpass" />
+                                <label class="toggle-switch" for="chk-highpass"></label>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Filtre passe-bas</span>
+                                <span class="filter-desc">Atténue les hautes fréquences au-dessus de 3 kHz (LowPass)</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.LowPass" class="toggle-input" id="chk-lowpass" />
+                                <label class="toggle-switch" for="chk-lowpass"></label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ── Erreurs globales ──────────────────────────────────── -->
+        @if (_errors.Any())
+        {
+            <div class="global-errors">
+                @foreach (var err in _errors)
+                {
+                    <div class="global-error-item">
+                        <span class="material-symbols-outlined">error</span>
+                        @err
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- ── Actions ──────────────────────────────────────────── -->
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" @onclick="ResetToDefaults">
+                <span class="material-symbols-outlined">restart_alt</span>
+                Valeurs par défaut
+            </button>
+            <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+                @if (_isSubmitting)
+                {
+                    <span class="material-symbols-outlined spin">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">save</span>
+                }
+                Enregistrer
+            </button>
+        </div>
+
+    </EditForm>
+}
+
+<style>
+    .info-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(108,92,231,0.24);
+        border-radius: var(--radius-sm);
+        background: rgba(108,92,231,0.08);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.5;
+        max-width: 760px;
+    }
+
+    .info-banner .material-symbols-outlined {
+        font-size: 18px;
+        color: var(--accent);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .last-updated {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        align-self: flex-end;
+    }
+    .last-updated .material-symbols-outlined { font-size: 15px; }
+
+    .sa818-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-bottom: 24px;
+    }
+    @@media (max-width: 860px) { .sa818-grid { grid-template-columns: 1fr; } }
+
+    /* ── Slider ─────────────────────────────────────────────── */
+    .slider-block { margin-bottom: 12px; }
+
+    .slider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .slider-label { font-size: 13px; color: var(--text-muted); }
+
+    .slider-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--accent);
+        min-width: 32px;
+        text-align: right;
+    }
+
+    .sa818-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-card);
+        outline: none;
+        cursor: pointer;
+        margin-bottom: 8px;
+    }
+
+    .sa818-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 0 6px rgba(108,92,231,0.5);
+        transition: box-shadow 0.15s;
+    }
+
+    .sa818-slider::-webkit-slider-thumb:hover {
+        box-shadow: 0 0 10px rgba(108,92,231,0.8);
+    }
+
+    .slider-ticks {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .slider-ticks .tick-active {
+        color: var(--accent);
+        font-weight: 700;
+    }
+
+    /* ── Visu volume ─────────────────────────────────────────── */
+    .volume-preview {
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        height: 50px;
+        margin-top: 12px;
+        padding: 0 2px;
+    }
+
+    .vol-bar {
+        flex: 1;
+        background: var(--border-card);
+        border-radius: 2px 2px 0 0;
+        transition: background 0.15s;
+    }
+
+    .vol-bar--active { background: var(--accent); }
+
+    /* ── Hint ───────────────────────────────────────────────── */
+    .hint-text {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 14px;
+        line-height: 1.5;
+    }
+    .hint-text .material-symbols-outlined { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Largeur de bande ───────────────────────────────────── */
+    .bw-picker {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .bw-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 18px 12px;
+        border: 2px solid var(--border-card);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        text-align: center;
+    }
+
+    .bw-option input { display: none; }
+
+    .bw-option .material-symbols-outlined { font-size: 28px; color: var(--text-muted); transition: color 0.15s; }
+
+    .bw-option strong { font-size: 18px; font-weight: 700; color: var(--text); }
+
+    .bw-desc { font-size: 11px; color: var(--text-muted); }
+
+    .bw-option--selected {
+        border-color: var(--accent);
+        background: rgba(108,92,231,0.08);
+    }
+
+    .bw-option--selected .material-symbols-outlined { color: var(--accent); }
+
+    /* ── Filtres ─────────────────────────────────────────────── */
+    .filter-list { display: flex; flex-direction: column; gap: 0; }
+
+    .filter-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .filter-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .filter-row:first-child { padding-top: 0; }
+
+    .filter-info { display: flex; flex-direction: column; gap: 3px; }
+
+    .filter-name { font-size: 14px; font-weight: 500; color: var(--text); }
+
+    .filter-desc { font-size: 12px; color: var(--text-muted); }
+
+    .filter-toggle { flex-shrink: 0; }
+
+    /* ── Toggles boutons ─────────────────────────────────────── */
+    .toggle-input { display: none; }
+
+    .toggle-switch {
+        display: block;
+        position: relative;
+        width: 42px;
+        height: 24px;
+        background: var(--border-card);
+        border-radius: 50px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        background: var(--text-muted);
+        border-radius: 50%;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle-input:checked + .toggle-switch { background: var(--accent); }
+    .toggle-input:checked + .toggle-switch::after { background: #fff; transform: translateX(18px); }
+
+    /* ── Squelette ───────────────────────────────────────────── */
+    .skeleton-card { padding: 0; overflow: hidden; }
+
+    /* ── Erreurs globales ───────────────────────────────────── */
+    .global-errors {
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+        border-radius: var(--radius-sm);
+        padding: 14px 16px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .global-error-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--danger);
+    }
+
+    .global-error-item .material-symbols-outlined { font-size: 16px; }
+
+    /* ── Erreur champ ────────────────────────────────────────── */
+    .field-error { display: block; font-size: 12px; color: var(--danger); margin-top: 4px; }
+
+    /* ── Actions ─────────────────────────────────────────────── */
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private SA818ConfigurationDto? _dto;
+    private readonly SA818FormModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSubmitting;
+    private List<string> _errors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, SA818ConfigurationDto>>(
+                new GetSA818ConfigurationQuery());
+
+            result.Match(
+                Succ: dto =>
+                {
+                    _dto = dto;
+                    _model.Volume    = dto.Volume;
+                    _model.Squelch   = dto.Squelch;
+                    _model.Bandwidth = dto.Bandwidth;
+                    _model.PreEmph   = dto.PreEmph;
+                    _model.HighPass  = dto.HighPass;
+                    _model.LowPass   = dto.LowPass;
+                    return Unit.Default;
+                },
+                Fail: _ =>
+                {
+                    // SA818 non encore initialisé → valeurs par défaut du modèle
+                    return Unit.Default;
+                }
+            );
+        }
+        catch
+        {
+            // Valeurs par défaut si service non disponible
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _errors.Clear();
+        _isSubmitting = true;
+
+        try
+        {
+            var command = new UpdateSA818ConfigurationCommand(
+                Volume:    _model.Volume,
+                Squelch:   _model.Squelch,
+                Bandwidth: _model.Bandwidth,
+                PreEmph:   _model.PreEmph,
+                HighPass:  _model.HighPass,
+                LowPass:   _model.LowPass
+            );
+
+            var result = await Mediator.Send<Validation<Error, Unit>>(command);
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Configuration SA818 enregistrée.");
+                    _dto = new SA818ConfigurationDto
+                    {
+                        Id        = SA818Aggregate.FixedId,
+                        Volume    = _model.Volume,
+                        Squelch   = _model.Squelch,
+                        Bandwidth = _model.Bandwidth,
+                        PreEmph   = _model.PreEmph,
+                        HighPass  = _model.HighPass,
+                        LowPass   = _model.LowPass,
+                        UpdatedAt = DateTime.Now
+                    };
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    return Unit.Default;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            _errors = [$"Erreur inattendue : {ex.Message}"];
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void ResetToDefaults()
+    {
+        _model.Volume    = 4;
+        _model.Squelch   = 4;
+        _model.Bandwidth = SA818Bandwidth.Wide25kHz;
+        _model.PreEmph   = false;
+        _model.HighPass  = false;
+        _model.LowPass   = false;
+    }
+
+    private class SA818FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Range(1, 8, ErrorMessage = "Le volume doit être entre 1 et 8.")]
+        public int Volume { get; set; } = 4;
+
+        [System.ComponentModel.DataAnnotations.Range(0, 8, ErrorMessage = "Le squelch doit être entre 0 et 8.")]
+        public int Squelch { get; set; } = 4;
+
+        public SA818Bandwidth Bandwidth { get; set; } = SA818Bandwidth.Wide25kHz;
+        public bool PreEmph  { get; set; }
+        public bool HighPass { get; set; }
+        public bool LowPass  { get; set; }
+    }
+}

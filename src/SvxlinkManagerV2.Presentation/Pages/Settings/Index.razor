@@ -1,0 +1,896 @@
+@page "/settings"
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.DownloadApplicationUpdate
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateWorkflowStatus
+@using SvxlinkManagerV2.Application.Features.ApplicationUpdate.RequestApplicationUpdateInstallation
+@using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
+@using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
+@using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration
+@using SvxlinkManagerV2.Domain.Common
+
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Paramètres généraux</h1>
+        <p class="page-subtitle">Configurez le comportement de l'application au démarrage.</p>
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="card skeleton-card"><div class="skeleton" style="height:200px"></div></div>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <div class="settings-two-col">
+
+            <!-- ── Colonne gauche : Paramètres ───────────────────── -->
+            <div class="settings-col">
+
+                <!-- Démarrage automatique -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">rocket_launch</span>
+                        Démarrage automatique
+                    </div>
+
+                    <div class="filter-list">
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Démarrer le réflecteur au démarrage</span>
+                                <span class="filter-desc">Active automatiquement le SvxReflector lors du lancement de l'application.</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.StartReflectorOnStartup" class="toggle-input" id="chk-reflector" />
+                                <label class="toggle-switch" for="chk-reflector"></label>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Démarrer le salon par défaut au démarrage</span>
+                                <span class="filter-desc">Active automatiquement le salon marqué comme défaut lors du lancement de l'application.</span>
+                            </div>
+                            <div class="filter-toggle">
+                                <InputCheckbox @bind-Value="_model.StartDefaultSalonOnStartup" class="toggle-input" id="chk-salon" />
+                                <label class="toggle-switch" for="chk-salon"></label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Configuration sans réflecteur -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        Configuration sans réflecteur (mode autonome)
+                    </div>
+
+                    <div class="standalone-info">
+                        <span class="material-symbols-outlined">info</span>
+                        <p>
+                            En mode autonome, SVXLink démarre <strong>sans se connecter à un réflecteur</strong>.
+                            Le nœud reste opérationnel localement : il écoute sur la fréquence configurée,
+                            répond aux commandes DTMF et peut émettre des annonces, mais aucun audio
+                            n'est acheminé vers un réseau distant. Ce mode est utile pour tester le matériel
+                            ou exploiter le nœud de façon indépendante.
+                        </p>
+                    </div>
+
+                    <div class="filter-list">
+                        <div class="filter-row freq-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Fréquence RX par défaut (MHz)</span>
+                                <span class="filter-desc">Fréquence de réception utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                            </div>
+                            <div class="freq-input-wrap">
+                                <InputNumber @bind-Value="_model.DefaultRxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
+                            </div>
+                        </div>
+
+                        <div class="filter-row freq-row">
+                            <div class="filter-info">
+                                <span class="filter-name">Fréquence TX par défaut (MHz)</span>
+                                <span class="filter-desc">Fréquence de transmission utilisée en mode sans réflecteur pour l'écoute DTMF.</span>
+                            </div>
+                            <div class="freq-input-wrap">
+                                <InputNumber @bind-Value="_model.DefaultTxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Erreurs globales -->
+                @if (_errors.Any())
+                {
+                    <div class="global-errors">
+                        @foreach (var err in _errors)
+                        {
+                            <div class="global-error-item">
+                                <span class="material-symbols-outlined">error</span>
+                                @err
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Bouton Enregistrer -->
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+                        @if (_isSubmitting)
+                        {
+                            <span class="material-symbols-outlined spin">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">save</span>
+                        }
+                        Enregistrer
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- ── Colonne droite : Mises à jour ──────────────────── -->
+            <div class="settings-col">
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">system_update</span>
+                        Mises à jour
+                    </div>
+
+                    <div class="update-panel">
+
+                        <!-- Sous-section : Statut actuel -->
+                        <p class="update-subsection-title">Statut actuel</p>
+                        <div class="update-summary-grid">
+                            <div class="update-summary-item">
+                                <span class="update-label">Version installée</span>
+                                <span class="update-value">@(_updateWorkflowStatus?.UpdateStatus.CurrentVersion ?? "-")</span>
+                            </div>
+                            <div class="update-summary-item">
+                                <span class="update-label">Canal</span>
+                                <span class="update-value">@GetChannelLabel(_selectedUpdateChannel)</span>
+                            </div>
+                            <div class="update-summary-item">
+                                <span class="update-label">État</span>
+                                <span class="update-value">@GetOperationStateLabel(_updateWorkflowStatus?.OperationState ?? ApplicationUpdateOperationState.Idle)</span>
+                            </div>
+                        </div>
+
+                        @if (_updateWorkflowStatus?.UpdateStatus.LatestRelease is not null)
+                        {
+                            <div class="update-release-card @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "available" : "current")">
+                                <div class="update-release-header">
+                                    <div>
+                                        <div class="update-release-version">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Version</div>
+                                        <div class="update-release-meta">
+                                            Publiée le @_updateWorkflowStatus.UpdateStatus.LatestRelease.PublishedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")
+                                        </div>
+                                    </div>
+                                    <span class="update-badge @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "update-badge-available" : "update-badge-current")">
+                                        @(_updateWorkflowStatus.UpdateStatus.IsUpdateAvailable ? "Disponible" : "À jour")
+                                    </span>
+                                </div>
+
+                                <div class="update-release-details">
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Tag</span>
+                                        <span class="update-value">@_updateWorkflowStatus.UpdateStatus.LatestRelease.Tag</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Paquet</span>
+                                        <span class="update-value">@(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageName ?? "Non trouvé")</span>
+                                    </div>
+                                </div>
+
+                                <div class="update-links">
+                                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl))
+                                    {
+                                        <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.ReleaseNotesUrl" target="_blank" rel="noopener noreferrer">
+                                            Voir la release GitHub
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl))
+                                    {
+                                        <a href="@_updateWorkflowStatus.UpdateStatus.LatestRelease.PackageUrl" target="_blank" rel="noopener noreferrer">
+                                            Télécharger le paquet
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (_updateWorkflowStatus?.DownloadedPackage is not null)
+                        {
+                            <div class="update-release-card current">
+                                <div class="update-release-header">
+                                    <div>
+                                        <div class="update-release-version">Paquet prêt</div>
+                                        <div class="update-release-meta">
+                                            @_updateWorkflowStatus.DownloadedPackage.FileName
+                                        </div>
+                                    </div>
+                                    <span class="update-badge update-badge-current">Téléchargé</span>
+                                </div>
+
+                                <div class="update-release-details">
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Version</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.Version</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Taille</span>
+                                        <span class="update-value">@FormatFileSize(_updateWorkflowStatus.DownloadedPackage.FileSizeBytes)</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Téléchargé le</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.DownloadedAt.LocalDateTime.ToString("dd/MM/yyyy à HH:mm")</span>
+                                    </div>
+                                    <div class="update-detail-item">
+                                        <span class="update-label">Chemin local</span>
+                                        <span class="update-value">@_updateWorkflowStatus.DownloadedPackage.FilePath</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Séparateur -->
+                        <div class="update-section-divider"></div>
+
+                        <!-- Sous-section : Actions -->
+                        <p class="update-subsection-title">Actions</p>
+
+                        <div class="update-controls">
+                            <label class="update-channel-picker" for="update-channel">Canal consulté</label>
+                            <select id="update-channel" class="form-select" @onchange="OnChannelChangedAsync">
+                                @foreach (var channel in Enum.GetValues<ApplicationUpdateChannel>())
+                                {
+                                    <option value="@channel" selected="@(channel == _selectedUpdateChannel)">@GetChannelLabel(channel)</option>
+                                }
+                            </select>
+
+                            @if (_selectedUpdateChannel == ApplicationUpdateChannel.Development)
+                            {
+                                <div class="update-inline-hint">
+                                    <span class="material-symbols-outlined">warning</span>
+                                    Canal Developpement (alpha): versions experimentales potentiellement instables, a installer avec precaution.
+                                </div>
+                            }
+
+                            <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
+                                @if (_isCheckingUpdates)
+                                {
+                                    <span class="material-symbols-outlined spin">progress_activity</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">refresh</span>
+                                }
+                                Vérifier
+                            </button>
+
+                            <button type="button" class="btn btn-primary" @onclick="DownloadUpdateAsync" disabled="@(!(_updateWorkflowStatus?.CanDownload ?? false) || _isRunningUpdateAction)">
+                                @if (_isRunningUpdateAction && _updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                                {
+                                    <span class="material-symbols-outlined spin">download</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined">download</span>
+                                }
+                                Télécharger le .deb
+                            </button>
+
+                            <button type="button" class="btn btn-secondary" @onclick="RequestInstallationAsync" disabled="@(!CanInstallLatestVersion || _isRunningUpdateAction)">
+                                <span class="material-symbols-outlined">install_desktop</span>
+                                Installer la dernière version
+                            </button>
+                        </div>
+
+                        @if (!CanInstallLatestVersion)
+                        {
+                            <div class="update-inline-hint">
+                                <span class="material-symbols-outlined">download</span>
+                                Téléchargez d'abord la dernière version disponible pour activer l'installation.
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_updateError))
+                        {
+                            <div class="update-alert update-alert-error">
+                                <span class="material-symbols-outlined">error</span>
+                                @_updateError
+                            </div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.UpdateStatus.Message))
+                        {
+                            <div class="update-alert @(_updateWorkflowStatus?.UpdateStatus.IsUpdateAvailable == true ? "update-alert-info" : "update-alert-muted")">
+                                <span class="material-symbols-outlined">info</span>
+                                @_updateWorkflowStatus?.UpdateStatus.Message
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_updateWorkflowStatus?.LastOperationMessage))
+                        {
+                            <div class="update-alert @(_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Failed ? "update-alert-error" : "update-alert-muted")">
+                                <span class="material-symbols-outlined">history</span>
+                                @_updateWorkflowStatus?.LastOperationMessage
+                            </div>
+                        }
+
+                        @if (_updateWorkflowStatus?.OperationState == ApplicationUpdateOperationState.Downloading)
+                        {
+                            <div class="update-progress-card">
+                                <div class="update-progress-header">
+                                    <span>Téléchargement en cours</span>
+                                    <span>@(_updateWorkflowStatus.DownloadProgressPercent?.ToString() ?? "...")%</span>
+                                </div>
+                                <div class="update-progress-track">
+                                    <div class="update-progress-fill" style="width:@(_updateWorkflowStatus.DownloadProgressPercent ?? 0)%"></div>
+                                </div>
+                            </div>
+                        }
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </EditForm>
+}
+
+<style>
+    .settings-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        align-items: start;
+        margin-bottom: 20px;
+    }
+
+    @@media (max-width: 900px) {
+        .settings-two-col {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .settings-col {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .update-subsection-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .update-section-divider {
+        height: 1px;
+        background: var(--border-card);
+        margin: 4px 0;
+    }
+
+    .filter-list { display: flex; flex-direction: column; gap: 0; }
+
+    .standalone-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        background: rgba(116, 185, 255, .07);
+        border: 1px solid rgba(116, 185, 255, .25);
+        color: var(--text-muted);
+        margin-bottom: 14px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+
+        .standalone-info .material-symbols-outlined {
+            font-size: 18px;
+            color: #74b9ff;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .standalone-info p {
+            margin: 0;
+        }
+
+        .standalone-info strong {
+            color: var(--text);
+        }
+
+    .filter-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .filter-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .filter-row:first-child { padding-top: 0; }
+
+    .filter-info { display: flex; flex-direction: column; gap: 3px; }
+    .filter-name { font-size: 14px; font-weight: 500; color: var(--text); }
+    .filter-desc { font-size: 12px; color: var(--text-muted); }
+    .filter-toggle { flex-shrink: 0; }
+
+    .update-controls .form-select {
+        min-width: 170px;
+        width: auto;
+    }
+
+    .update-controls .form-select option {
+        background: var(--bg-card);
+        color: var(--text);
+    }
+
+    .update-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .update-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+    }
+
+    .update-summary-item,
+    .update-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 10px 12px;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-sm);
+        background: rgba(255,255,255,0.02);
+    }
+
+    .update-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+    }
+
+    .update-value {
+        font-size: 13px;
+        color: var(--text);
+        word-break: break-word;
+    }
+
+    .update-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .update-channel-picker {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-inline-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-inline-hint .material-symbols-outlined {
+        font-size: 16px;
+    }
+
+    .update-alert {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+    }
+
+    .update-alert-error {
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+        color: var(--danger);
+    }
+
+    .update-alert-info {
+        background: rgba(72,187,120,0.08);
+        border: 1px solid rgba(72,187,120,0.25);
+        color: #8de3ab;
+    }
+
+    .update-alert-muted {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border-card);
+        color: var(--text-muted);
+    }
+
+    .update-release-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-card);
+        background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    }
+
+    .update-release-card.available {
+        border-color: rgba(72,187,120,0.35);
+        box-shadow: 0 0 0 1px rgba(72,187,120,0.12) inset;
+    }
+
+    .update-release-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .update-release-version {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .update-release-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .update-badge {
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .update-badge-available {
+        background: rgba(72,187,120,0.12);
+        color: #8de3ab;
+    }
+
+    .update-badge-current {
+        background: rgba(255,255,255,0.08);
+        color: var(--text-muted);
+    }
+
+    .update-release-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .update-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .update-links a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .update-links a:hover {
+        text-decoration: underline;
+    }
+
+    .update-progress-card {
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-card);
+        background: rgba(255,255,255,0.03);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .update-progress-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--text);
+    }
+
+    .update-progress-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.08);
+    }
+
+    .update-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #7fc8ff);
+        transition: width 0.2s ease;
+    }
+
+    /* ── Toggles ─────────────────────────────────────────────── */
+    .toggle-input { display: none; }
+
+    .freq-row { align-items: start; }
+
+    .freq-input-wrap {
+        flex-shrink: 0;
+        width: 120px;
+    }
+
+    .freq-input {
+        width: 100%;
+        text-align: right;
+    }
+
+    .toggle-switch {
+        display: inline-block;
+        width: 40px;
+        height: 22px;
+        background: var(--border-card);
+        border-radius: 11px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle-input:checked + .toggle-switch { background: var(--accent); }
+    .toggle-input:checked + .toggle-switch::after { background: #fff; transform: translateX(18px); }
+
+    /* ── Erreurs globales ─────────────────────────────────────── */
+    .global-errors {
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .global-error-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--danger);
+    }
+
+    .global-error-item .material-symbols-outlined { font-size: 16px; }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private readonly SettingsModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSubmitting;
+    private bool _isCheckingUpdates;
+    private bool _isRunningUpdateAction;
+    private List<string> _errors = [];
+    private ApplicationUpdateWorkflowStatusDto? _updateWorkflowStatus;
+    private string? _updateError;
+    private ApplicationUpdateChannel _selectedUpdateChannel = ApplicationUpdateChannel.Stable;
+    private bool CanInstallLatestVersion
+        => _updateWorkflowStatus?.CanRequestInstall == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var config = await Mediator.Send<GeneralConfigurationAggregate?>(new GetGeneralConfigurationQuery());
+        if (config is not null)
+        {
+            _model.StartReflectorOnStartup = config.StartReflectorOnStartup;
+            _model.StartDefaultSalonOnStartup = config.StartDefaultSalonOnStartup;
+            _model.DefaultRxFrequency = config.DefaultRxFrequency;
+            _model.DefaultTxFrequency = config.DefaultTxFrequency;
+        }
+
+        await RefreshUpdateWorkflowStatusAsync();
+        _isLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSubmitting = true;
+        _errors = [];
+
+        try
+        {
+            var command = new CreateOrUpdateGeneralConfigurationCommand(
+                _model.StartReflectorOnStartup,
+                _model.StartDefaultSalonOnStartup,
+                _model.DefaultRxFrequency,
+                _model.DefaultTxFrequency);
+
+            var result = await Mediator.Send<Validation<Error, Unit>>(command);
+
+            result.Match(
+                _ => ToastService.ShowSuccess("Paramètres enregistrés avec succès."),
+                errors =>
+                {
+                    _errors = errors.Select(e => e.Message).ToList();
+                    ToastService.ShowError("Erreur lors de l'enregistrement des paramètres.");
+                });
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task RefreshUpdateWorkflowStatusAsync()
+    {
+        _isCheckingUpdates = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new GetApplicationUpdateWorkflowStatusQuery(_selectedUpdateChannel));
+
+            result.Match(
+                Succ: status => _updateWorkflowStatus = status,
+                Fail: errors =>
+                {
+                    _updateWorkflowStatus = null;
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                });
+        }
+        finally
+        {
+            _isCheckingUpdates = false;
+        }
+    }
+
+    private async Task OnChannelChangedAsync(ChangeEventArgs args)
+    {
+        if (args.Value is string rawValue
+            && Enum.TryParse<ApplicationUpdateChannel>(rawValue, ignoreCase: true, out var channel))
+        {
+            _selectedUpdateChannel = channel;
+        }
+
+        await RefreshUpdateWorkflowStatusAsync();
+    }
+
+    private async Task DownloadUpdateAsync()
+    {
+        _isRunningUpdateAction = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new DownloadApplicationUpdateCommand(_selectedUpdateChannel));
+
+            result.Match(
+                Succ: status =>
+                {
+                    _updateWorkflowStatus = status;
+                    ToastService.ShowSuccess("Le paquet de mise à jour a été téléchargé.");
+                },
+                Fail: errors =>
+                {
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                    ToastService.ShowError("Erreur lors du téléchargement du paquet.");
+                });
+        }
+        finally
+        {
+            _isRunningUpdateAction = false;
+        }
+    }
+
+    private async Task RequestInstallationAsync()
+    {
+        _isRunningUpdateAction = true;
+        _updateError = null;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
+                new RequestApplicationUpdateInstallationCommand());
+
+            result.Match(
+                Succ: status =>
+                {
+                    _updateWorkflowStatus = status;
+                    ToastService.ShowSuccess("La demande d'installation a été transmise. Veuillez attendre 1 à 2 minutes avant de rafraichir la page.", durationMs: 10000);
+                },
+                Fail: errors =>
+                {
+                    _updateError = string.Join(" ", errors.Select(e => e.Message));
+                    ToastService.ShowError("Erreur lors de la demande d'installation.");
+                });
+        }
+        finally
+        {
+            _isRunningUpdateAction = false;
+        }
+    }
+
+    private static string GetChannelLabel(ApplicationUpdateChannel channel)
+        => channel switch
+        {
+            ApplicationUpdateChannel.Stable => "Stable",
+            ApplicationUpdateChannel.Beta => "Beta",
+            ApplicationUpdateChannel.Development => "Developpement",
+            _ => channel.ToString()
+        };
+
+    private static string GetOperationStateLabel(ApplicationUpdateOperationState state)
+        => state switch
+        {
+            ApplicationUpdateOperationState.Idle => "Au repos",
+            ApplicationUpdateOperationState.Downloading => "Téléchargement",
+            ApplicationUpdateOperationState.Downloaded => "Paquet téléchargé",
+            ApplicationUpdateOperationState.InstallRequested => "Installation demandée",
+            ApplicationUpdateOperationState.Failed => "En erreur",
+            _ => state.ToString()
+        };
+
+    private static string FormatFileSize(long sizeInBytes)
+    {
+        string[] suffixes = ["o", "Ko", "Mo", "Go"];
+        var size = (double)sizeInBytes;
+        var index = 0;
+
+        while (size >= 1024 && index < suffixes.Length - 1)
+        {
+            size /= 1024;
+            index++;
+        }
+
+        return $"{size:0.##} {suffixes[index]}";
+    }
+
+    private sealed class SettingsModel
+    {
+        public bool StartReflectorOnStartup { get; set; }
+        public bool StartDefaultSalonOnStartup { get; set; }
+        public decimal DefaultRxFrequency { get; set; } = 145.550m;
+        public decimal DefaultTxFrequency { get; set; } = 145.550m;
+    }
+}

@@ -1,0 +1,663 @@
+@page "/"
+@implements IDisposable
+@using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
+@using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
+@using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
+@using SvxlinkManagerV2.Application.Features.SA818
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.SA818
+@using SvxlinkManagerV2.Domain.Common
+
+@inject IMediator Mediator
+@inject ISvxLinkDaemonService DaemonService
+@inject IReflectorDaemonService ReflectorDaemonService
+@inject IConnectedNodesService ConnectedNodesService
+@inject ToastService ToastService
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Tableau de bord</h1>
+        <p class="page-subtitle">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"))</p>
+    </div>
+</div>
+
+<!-- ── Focus Dashboard (compact) ─────────────────────────────── -->
+<div class="dashboard-focus-grid">
+
+    @if (!_isLoading && _activeSalon is not null)
+    {
+    <div class="card dashboard-focus-card">
+        <div class="focus-metrics">
+            <div class="focus-metric">
+                <div class="focus-value">@_activeSalon.Name</div>
+                <div class="focus-active-details">
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">person</span>
+                        @_activeSalon.Configuration.Callsign
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        RX @_activeSalon.Configuration.RxFrequency.ToString("F3") MHz
+                        &nbsp;/&nbsp;
+                        TX @_activeSalon.Configuration.TxFrequency.ToString("F3") MHz
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">tune</span>
+                        CTCSS RX @(_activeSalon.Configuration.RxCtcss.HasValue ? $"{_activeSalon.Configuration.RxCtcss.Value:F1} Hz" : "Aucun")
+                        &nbsp;/&nbsp;
+                        TX @(_activeSalon.Configuration.TxCtcss.HasValue ? $"{_activeSalon.Configuration.TxCtcss.Value:F1} Hz" : "Aucun")
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    <div class="card dashboard-service-strip">
+        <div class="compact-item">
+            <span class="material-symbols-outlined">settings_input_component</span>
+            <span class="compact-item-label">SVXLink</span>
+            <span class="badge @(_daemonRunning ? "badge-success" : "badge-danger")">@(_daemonRunning ? "Actif" : "Arrêté")</span>
+        </div>
+
+        <div class="compact-item">
+            <span class="material-symbols-outlined">hub</span>
+            <span class="compact-item-label">Réflecteur</span>
+            <span class="badge @(_reflectorRunning ? "badge-success" : "badge-danger")">@(_reflectorRunning ? "Actif" : "Arrêté")</span>
+        </div>
+
+        <div class="compact-item">
+            <span class="material-symbols-outlined">radio</span>
+            <span class="compact-item-label">SA818</span>
+            @if (_sa818Dto is not null)
+            {
+                <span class="badge badge-accent">Vol @_sa818Dto.Volume | SQL @_sa818Dto.Squelch</span>
+            }
+            else
+            {
+                <span class="badge badge-muted">Non configuré</span>
+            }
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Dashboard Bottom Grid ─────────────────────────────────── -->
+<div class="dashboard-grid">
+
+    <!-- Actions rapides -->
+    <div class="card">
+        <div class="section-header">
+            <span class="material-symbols-outlined">bolt</span>
+            Actions rapides
+        </div>
+
+        <div class="actions-stack">
+            <select class="form-select" style="flex:1;min-width:200px;" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
+                <option value="">— Choisir un salon —</option>
+                @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
+                {
+                    <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
+                }
+            </select>
+            <button class="btn btn-primary btn-sm"
+                    disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
+                    @onclick="ActivateSalon">
+                @if (_isActivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">play_arrow</span>
+                }
+                Activer
+            </button>
+            <button class="btn btn-danger btn-sm"
+                    disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
+                    @onclick="DeactivateSalon">
+                @if (_isDeactivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">power_settings_new</span>
+                }
+                Désactiver le salon actif
+            </button>
+        </div>
+    </div>
+
+    <!-- Nœuds connectés -->
+    <div class="card">
+        <div class="section-header">
+            <span class="material-symbols-outlined">hub</span>
+            Nœuds connectés
+            @if (_connectedNodes.Count > 0)
+            {
+                <span class="badge badge-accent" style="margin-left:8px;">@_connectedNodes.Count</span>
+            }
+        </div>
+
+        @if (_connectedNodes.Count > 0)
+        {
+            <div class="node-list">
+                @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
+                {
+                    <div class="@GetNodeChipCss(node)">
+                        <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
+                        @node.Name
+                        @if (IsCurrentNode(node))
+                        {
+                            <span class="node-chip-tag">Courant</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined">hub</span>
+                <p>Aucun nœud connecté.<br />Les nœuds apparaîtront ici une fois le salon actif.</p>
+            </div>
+        }
+    </div>
+
+</div>
+
+<style>
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .dashboard-focus-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-focus-card {
+        padding-bottom: 16px;
+    }
+
+    .focus-metrics {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-top: 4px;
+    }
+
+    .focus-metric {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .focus-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .focus-value {
+        font-size: 28px;
+        line-height: 1.15;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .focus-value--muted {
+        color: var(--text-muted);
+        font-size: 20px;
+    }
+
+    .focus-active-details {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
+    .focus-detail-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+        .focus-detail-item .material-symbols-outlined {
+            font-size: 14px;
+        }
+
+    .focus-subvalue {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .dashboard-service-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
+    .compact-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .compact-item .material-symbols-outlined {
+        font-size: 18px;
+        color: var(--accent);
+    }
+
+    .compact-item-label {
+        font-size: 13px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    @@media (max-width: 900px) {
+        .focus-metrics,
+        .dashboard-service-strip {
+            grid-template-columns: 1fr;
+        }
+
+        .focus-value {
+            font-size: 24px;
+        }
+    }
+    
+    .node-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    
+    .node-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: rgba(101, 133, 255, 0.15);
+        border: 1px solid rgba(101, 133, 255, 0.3);
+        border-radius: 16px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: default;
+        user-select: none;
+        transition: all 0.2s ease;
+    }
+    
+    .node-chip:hover {
+        background: rgba(101, 133, 255, 0.25);
+        border-color: rgba(101, 133, 255, 0.5);
+    }
+    
+    .node-chip .material-symbols-outlined {
+        color: var(--accent);
+    }
+
+    .node-chip-tag {
+        margin-left: 4px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        background: rgba(0, 184, 148, 0.2);
+        color: var(--success);
+        border: 1px solid rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current {
+        background: rgba(0, 184, 148, 0.15);
+        border-color: rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current .material-symbols-outlined {
+        color: var(--success);
+    }
+
+    @@keyframes txPulse {
+        from {
+            transform: scale(1);
+            box-shadow: 0 0 0 rgba(251, 146, 60, 0);
+        }
+        to {
+            transform: scale(1.02);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.28);
+        }
+    }
+    
+    .node-chip--tx {
+        background: rgba(251, 146, 60, 0.15);
+        border-color: rgba(251, 146, 60, 0.4);
+        color: var(--text-primary);
+        animation: txPulse 0.9s ease-in-out infinite alternate;
+    }
+    
+    .node-chip--tx .material-symbols-outlined {
+        color: #fb923c;
+    }
+
+    .node-chip--current.node-chip--tx {
+        background: rgba(255, 107, 107, 0.18);
+        border-color: rgba(255, 107, 107, 0.55);
+    }
+
+    .node-chip--current.node-chip--tx .material-symbols-outlined,
+    .node-chip--current.node-chip--tx .node-chip-tag {
+        color: var(--danger);
+        border-color: rgba(255, 107, 107, 0.5);
+        background: rgba(255, 107, 107, 0.18);
+    }
+</style>
+
+@code {
+    private SalonAggregate?              _activeSalon;
+    private SA818ConfigurationDto?       _sa818Dto;
+    private IReadOnlyList<SalonAggregate> _salons  = [];
+    private List<ConnectedNodeInfo>      _connectedNodes = new();
+    private bool _daemonRunning;
+    private bool _reflectorRunning;
+    private bool _isLoading = true;
+    private Guid? _selectedSalonId;
+    private bool _isActivating;
+    private bool _isDeactivating;
+
+    private PeriodicTimer? _statusTimer;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        StartDaemonPolling();
+        
+        // Charger les nœuds connectés et s'abonner aux événements
+        _connectedNodes = ConnectedNodesService.ConnectedNodes.ToList();
+        ConnectedNodesService.OnNodeJoined += OnNodeJoined;
+        ConnectedNodesService.OnNodeLeft += OnNodeLeft;
+        ConnectedNodesService.OnNodesInitialized += OnNodesInitialized;
+        ConnectedNodesService.OnNodeTxStarted += OnNodeTxStarted;
+        ConnectedNodesService.OnNodeTxStopped += OnNodeTxStopped;
+    }
+
+    private void StartDaemonPolling()
+    {
+        _cts = new CancellationTokenSource();
+        _statusTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = PollDaemonStatusAsync(_cts.Token);
+    }
+
+    private async Task PollDaemonStatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _statusTimer!.WaitForNextTickAsync(ct))
+            {
+                var result = await DaemonService.IsRunningAsync(ct);
+                var isRunning = result.Match(Succ: b => b, Fail: _ => false);
+
+                var reflectorResult = await ReflectorDaemonService.IsRunningAsync(ct);
+                var isReflectorRunning = reflectorResult.Match(Succ: b => b, Fail: _ => false);
+
+                if (isRunning != _daemonRunning || isReflectorRunning != _reflectorRunning)
+                {
+                    _daemonRunning = isRunning;
+                    _reflectorRunning = isReflectorRunning;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void OnNodeJoined(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            if (!_connectedNodes.Any(n => n.Name == node.Name))
+            {
+                _connectedNodes.Add(node);
+            }
+            ToastService.ShowInfo($"{node.Name} a rejoint le salon", "Nœud connecté", 4000);
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodeLeft(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            _connectedNodes.RemoveAll(n => n.Name == node.Name);
+            ToastService.ShowInfo($"{node.Name} a quitté le salon", "Nœud déconnecté", 4000);
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodesInitialized(IReadOnlyList<ConnectedNodeInfo> nodes)
+    {
+        InvokeAsync(() =>
+        {
+            _connectedNodes = nodes.ToList();
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodeTxStarted(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            var index = _connectedNodes.FindIndex(n => n.Name == node.Name);
+            if (index >= 0)
+            {
+                _connectedNodes[index] = node;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void OnNodeTxStopped(ConnectedNodeInfo node)
+    {
+        InvokeAsync(() =>
+        {
+            var index = _connectedNodes.FindIndex(n => n.Name == node.Name);
+            if (index >= 0)
+            {
+                _connectedNodes[index] = node;
+            }
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        // Désabonnement des événements de nœuds connectés
+        ConnectedNodesService.OnNodeJoined -= OnNodeJoined;
+        ConnectedNodesService.OnNodeLeft -= OnNodeLeft;
+        ConnectedNodesService.OnNodesInitialized -= OnNodesInitialized;
+        ConnectedNodesService.OnNodeTxStarted -= OnNodeTxStarted;
+        ConnectedNodesService.OnNodeTxStopped -= OnNodeTxStopped;
+        
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _statusTimer?.Dispose();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        var loadErrors = new List<string>();
+
+        try
+        {
+            try
+            {
+                _activeSalon = await Mediator.Send<SalonAggregate?>(new GetActiveSalonQuery());
+            }
+            catch (Exception ex)
+            {
+                _activeSalon = null;
+                loadErrors.Add($"salon actif: {ex.Message}");
+            }
+
+            try
+            {
+                var sa818Result = await Mediator.Send<Validation<Error, SA818ConfigurationDto>>(new GetSA818ConfigurationQuery());
+                _sa818Dto = sa818Result.Match(Succ: dto => (SA818ConfigurationDto?)dto, Fail: _ => null);
+            }
+            catch (Exception ex)
+            {
+                _sa818Dto = null;
+                loadErrors.Add($"configuration SA818: {ex.Message}");
+            }
+
+            try
+            {
+                _salons = await Mediator.Send<IReadOnlyList<SalonAggregate>>(new GetAllSalonsQuery()) ?? [];
+            }
+            catch (Exception ex)
+            {
+                _salons = [];
+                loadErrors.Add($"salons: {ex.Message}");
+            }
+
+            try
+            {
+                var daemonResult = await DaemonService.IsRunningAsync();
+                _daemonRunning = daemonResult.Match(Succ: b => b, Fail: _ => false);
+            }
+            catch (Exception ex)
+            {
+                _daemonRunning = false;
+                loadErrors.Add($"état du daemon SVXLink: {ex.Message}");
+            }
+
+            try
+            {
+                var reflectorResult = await ReflectorDaemonService.IsRunningAsync();
+                _reflectorRunning = reflectorResult.Match(Succ: b => b, Fail: _ => false);
+            }
+            catch (Exception ex)
+            {
+                _reflectorRunning = false;
+                loadErrors.Add($"état du daemon réflecteur: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        if (loadErrors.Count > 0)
+        {
+            ToastService.ShowError($"Erreur partielle de chargement du dashboard : {string.Join(" | ", loadErrors)}");
+        }
+    }
+
+    private async Task ActivateSalon()
+    {
+        if (_selectedSalonId is null) return;
+        _isActivating = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ActivateSalonCommand(_selectedSalonId.Value));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Salon activé avec succès.");
+                    _selectedSalonId = null;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isActivating = false;
+        }
+    }
+
+    private async Task DeactivateSalon()
+    {
+        if (_activeSalon is null) return;
+        _isDeactivating = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new DeactivateSalonCommand(_activeSalon.Id));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Salon désactivé.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isDeactivating = false;
+        }
+    }
+
+    private bool IsCurrentNode(ConnectedNodeInfo node)
+    {
+        var currentCallsign = _activeSalon?.Configuration.Callsign;
+        if (string.IsNullOrWhiteSpace(currentCallsign))
+        {
+            return false;
+        }
+
+        return string.Equals(node.Name?.Trim(), currentCallsign.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetNodeChipCss(ConnectedNodeInfo node)
+    {
+        var classes = new List<string> { "node-chip" };
+
+        if (IsCurrentNode(node))
+        {
+            classes.Add("node-chip--current");
+        }
+
+        if (node.IsTx)
+        {
+            classes.Add("node-chip--tx");
+        }
+
+        return string.Join(' ', classes);
+    }
+}

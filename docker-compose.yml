@@ -1,0 +1,71 @@
+services:
+  # Application .NET avec SVXLink 25.05
+  svxlinkmanager-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: svxlinkmanager-app
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__SQLite=Data Source=/app/data/svxlinkmanager.db
+      - SA818__UseMock=true
+      - SvxLink__UseMockDaemon=false
+      - ApplicationUpdate__GitHubToken=${GITHUB_TOKEN}
+    volumes:
+      - ./svxlink-config:/etc/svxlink
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - svxlink-spool:/var/spool/svxlink
+      - svxlink-logs:/var/log/svxlink
+      - svxlink-pki-app:/var/lib/svxlink/pki
+    depends_on:
+      svxreflector:
+        condition: service_started
+    networks:
+      - svxlink-network
+    restart: unless-stopped
+
+  # Nœud SVXLink 2 - Second nœud pour tester la connexion multi-nœuds au réflecteur
+  svxlink-node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: svxlink-node2
+    volumes:
+      - ./svxlink-config-node2:/etc/svxlink
+    depends_on:
+      svxreflector:
+        condition: service_started
+    networks:
+      - svxlink-network
+    restart: unless-stopped
+
+  # SvxReflector - Serveur de conférence pour nœuds SvxLink
+  svxreflector:
+    build:
+      context: .
+      dockerfile: Dockerfile.reflector
+    container_name: svxreflector
+    volumes:
+      - ./svxreflector-config:/etc/svxlink:ro
+      - svxlink-pki-reflector:/var/lib/svxlink/pki
+    networks:
+      - svxlink-network
+    restart: unless-stopped
+
+networks:
+  svxlink-network:
+    driver: bridge
+
+volumes:
+  svxlink-spool:
+    driver: local
+  svxlink-logs:
+    driver: local
+  svxlink-pki-app:
+    driver: local
+  svxlink-pki-reflector:
+    driver: local

@@ -1,0 +1,38 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# IDE files
+**/.vs/
+**/.vscode/
+**/.idea/
+
+# Test results
+**/TestResults/
+**/*.trx
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+**/*.md
+
+# Logs
+logs/
+*.log
+
+# Docker files (no need to copy them into the image)
+docker-compose*.yml
+Dockerfile*
+
+# SVXLink config (will be mounted as volume)
+svxlink-config/

@@ -1,0 +1,66 @@
+# Image SVXLink pour tester la connexion de plusieurs nœuds au réflecteur
+# Pas d'application .NET, uniquement le daemon svxlink
+# Compilé depuis les sources SVXLink 25.05
+
+# Stage 1: Build SVXLink from source
+FROM debian:bookworm AS svxlink-builder
+
+ARG SVXLINK_VERSION=25.05
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake g++ make ca-certificates \
+    libsigc++-2.0-dev libgsm1-dev libpopt-dev tcl8.6-dev \
+    libgcrypt20-dev libspeex-dev libasound2-dev libopus-dev \
+    libcurl4-openssl-dev libssl-dev libjsoncpp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch ${SVXLINK_VERSION} \
+    https://github.com/sm0svx/svxlink.git /svxlink-src
+
+RUN mkdir /svxlink-build && cd /svxlink-build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_SYSCONFDIR=/etc \
+          -DCMAKE_INSTALL_LOCALSTATEDIR=/var \
+          -DUSE_QT=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          /svxlink-src/src && \
+    make -j$(nproc) && \
+    make install DESTDIR=/svxlink-install
+
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+# Set timezone
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsigc++-2.0-0v5 libgsm1 libpopt0 tcl8.6 libgcrypt20 \
+    libspeex1 libasound2 libopus0 libcurl4 libssl3 libjsoncpp25 \
+    alsa-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy SVXLink from builder
+COPY --from=svxlink-builder /svxlink-install/usr /usr
+COPY --from=svxlink-builder /svxlink-install/etc/svxlink /etc/svxlink
+COPY --from=svxlink-builder /svxlink-install/var /var
+
+# Copy Logic.tcl event handler
+RUN mkdir -p /usr/share/svxlink/events.d/local
+COPY src/SvxlinkManagerV2.Infrastructure/SvxLink/Resources/Logic.tcl /usr/share/svxlink/events.d/local/Logic.tcl
+
+RUN ldconfig
+
+# Configure ALSA null device for headless operation (pas de hardware audio)
+RUN echo 'pcm.null { type null }' > /etc/asound.conf && \
+    echo 'ctl.null { type null }' >> /etc/asound.conf && \
+    echo 'pcm.default { type null }' >> /etc/asound.conf && \
+    echo 'ctl.default { type null }' >> /etc/asound.conf
+
+# Create required directories
+RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d
+
+# SVXLink runs in foreground (pas de --daemon pour Docker)
+ENTRYPOINT ["svxlink", "--config=/etc/svxlink/svxlink.conf"]

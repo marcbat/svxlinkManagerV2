@@ -5,6 +5,8 @@
 
 # dotenv files
 .env
+secrets.env
+*.secrets.env
 
 # User-specific files
 *.rsuser
@@ -34,6 +36,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+!src/**/Pages/[Ll]ogs/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -482,3 +485,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SQLite locale Docker (ne jamais versionner les données runtime)
+data/
+src/SvxlinkManagerV2.Presentation/svxlinkmanager-dev.db

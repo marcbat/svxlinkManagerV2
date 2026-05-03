@@ -1,0 +1,27 @@
+[Unit]
+Description=SvxlinkManager V2
+After=network.target
+
+[Service]
+Type=simple
+TimeoutStartSec=300
+WorkingDirectory=/opt/svxlinkmanagerv2
+ExecStart=/usr/share/dotnet/dotnet /opt/svxlinkmanagerv2/SvxlinkManagerV2.Presentation.dll
+SyslogIdentifier=svxlinkmanagerv2
+Restart=always
+RestartSec=10
+KillMode=process
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:80
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=DOTNET_NOLOGO=true
+# Secrets (token GitHub pour les mises à jour OTA, etc.).
+# Le fichier est optionnel (préfixe '-') : le service démarre même s'il est absent.
+# Format attendu (une variable par ligne, sans guillemets) :
+#   ApplicationUpdate__GitHubToken=github_pat_XXXX
+# Le fichier est créé par le postinst en mode 600 (root only).
+EnvironmentFile=-/etc/svxlinkmanagerv2/secrets.env
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

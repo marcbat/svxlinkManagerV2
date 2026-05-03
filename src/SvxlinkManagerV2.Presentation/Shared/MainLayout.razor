@@ -1,0 +1,202 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
+@using SvxlinkManagerV2.Application.Interfaces
+@inject ISetupStatusService SetupStatusService
+@inject IActiveSessionTracker ActiveSessionTracker
+@inject ISvxLinkDaemonService SvxLinkDaemonService
+@inject IReflectorDaemonService ReflectorDaemonService
+
+<div class="app-layout @( _isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+    <nav class="sidebar">
+        <div class="sidebar-logo">
+            <span class="material-symbols-outlined">settings_input_antenna</span>
+            <span class="logo-text">SvxLink Manager</span>
+            <button type="button"
+                    class="sidebar-toggle"
+                    @onclick="ToggleSidebar"
+                    title="@(_isSidebarCollapsed ? "Agrandir le menu" : "Réduire le menu")"
+                    aria-label="@(_isSidebarCollapsed ? "Agrandir la barre latérale" : "Réduire la barre latérale")"
+                    aria-pressed="@_isSidebarCollapsed">
+                <span class="material-symbols-outlined">@(_isSidebarCollapsed ? "chevron_right" : "chevron_left")</span>
+            </button>
+        </div>
+        <ul class="sidebar-nav">
+            <li>
+                <NavLink href="/" class="nav-item" title="Dashboard" Match="NavLinkMatch.All" ActiveClass="active">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span>Dashboard</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/salons" class="@GetSalonNavItemClass()" title="Salons" ActiveClass="active">
+                    <span class="@GetSalonIconClass()">radio</span>
+                    <span>Salons</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/logs" class="nav-item" title="Log salon" ActiveClass="active">
+                    <span class="material-symbols-outlined">terminal</span>
+                    <span>Log salon</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/sa818" class="nav-item" title="SA818" ActiveClass="active">
+                    <span class="material-symbols-outlined">settings_input_component</span>
+                    <span>SA818</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/reflector" class="@GetReflectorNavItemClass()" title="Reflector" ActiveClass="active">
+                    <span class="@GetReflectorIconClass()">hub</span>
+                    <span>Reflector</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/reflector/logs" class="nav-item" title="Logs Reflector" ActiveClass="active">
+                    <span class="material-symbols-outlined">terminal</span>
+                    <span>Logs Reflector</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/wifi" class="nav-item" title="WiFi" ActiveClass="active">
+                    <span class="material-symbols-outlined">wifi</span>
+                    <span>WiFi</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/settings" class="nav-item" title="Paramètres" ActiveClass="active">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Paramètres</span>
+                </NavLink>
+            </li>
+            <li class="nav-item-separator"></li>
+            <li>
+                <NavLink href="/aide" class="nav-item" title="Aide" ActiveClass="active">
+                    <span class="material-symbols-outlined">help</span>
+                    <span>Aide</span>
+                </NavLink>
+            </li>
+        </ul>
+        <div class="sidebar-version">v@_appVersion</div>
+    </nav>
+
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+<ToastContainer />
+
+@code {
+    private string _appVersion = "?";
+    private bool _isSidebarCollapsed;
+    private bool _isSalonRuntimeActive;
+    private bool _isReflectorRuntimeActive;
+    private PeriodicTimer? _statusTimer;
+    private CancellationTokenSource? _cts;
+
+    private void ToggleSidebar()
+    {
+        _isSidebarCollapsed = !_isSidebarCollapsed;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Redirection vers le wizard si le setup est requis
+        var currentUri = Nav.Uri;
+        if (!currentUri.Contains("/setup"))
+        {
+            var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+            if (setupRequired)
+            {
+                Nav.NavigateTo("/setup", forceLoad: false);
+                return;
+            }
+        }
+
+        await RefreshRuntimeStatusAsync();
+        StartStatusPolling();
+
+        var asm = System.Reflection.Assembly.GetEntryAssembly();
+        if (asm is not null)
+        {
+            var attr = (System.Reflection.AssemblyInformationalVersionAttribute?)
+                Attribute.GetCustomAttribute(asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+            _appVersion = FormatAppVersion(attr?.InformationalVersion);
+        }
+    }
+
+    private static string FormatAppVersion(string? informationalVersion)
+    {
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return "?";
+        }
+
+        var buildMetadataSeparatorIndex = informationalVersion.IndexOf('+');
+        return buildMetadataSeparatorIndex >= 0
+            ? informationalVersion[..buildMetadataSeparatorIndex]
+            : informationalVersion;
+    }
+
+    private string GetSalonNavItemClass()
+        => _isSalonRuntimeActive ? "nav-item nav-item-runtime-active" : "nav-item";
+
+    private string GetReflectorNavItemClass()
+        => _isReflectorRuntimeActive ? "nav-item nav-item-runtime-active" : "nav-item";
+
+    private string GetSalonIconClass()
+        => _isSalonRuntimeActive ? "material-symbols-outlined menu-icon-live" : "material-symbols-outlined";
+
+    private string GetReflectorIconClass()
+        => _isReflectorRuntimeActive ? "material-symbols-outlined menu-icon-live" : "material-symbols-outlined";
+
+    private void StartStatusPolling()
+    {
+        _cts = new CancellationTokenSource();
+        _statusTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = PollStatusAsync(_cts.Token);
+    }
+
+    private async Task PollStatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _statusTimer!.WaitForNextTickAsync(ct))
+            {
+                await RefreshRuntimeStatusAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore cancellation when layout is disposed.
+        }
+    }
+
+    private async Task RefreshRuntimeStatusAsync()
+    {
+        var daemonRunningResult = await SvxLinkDaemonService.IsRunningAsync();
+        var daemonRunning = daemonRunningResult.Match(Succ: b => b, Fail: _ => false);
+
+        var reflectorRunningResult = await ReflectorDaemonService.IsRunningAsync();
+        var reflectorRunning = reflectorRunningResult.Match(Succ: b => b, Fail: _ => false);
+
+        var salonActive = daemonRunning && ActiveSessionTracker.ActiveSalonId.HasValue;
+        var reflectorActive = reflectorRunning || ActiveSessionTracker.ActiveReflectorId.HasValue;
+
+        if (salonActive != _isSalonRuntimeActive || reflectorActive != _isReflectorRuntimeActive)
+        {
+            _isSalonRuntimeActive = salonActive;
+            _isReflectorRuntimeActive = reflectorActive;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _statusTimer?.Dispose();
+    }
+}
