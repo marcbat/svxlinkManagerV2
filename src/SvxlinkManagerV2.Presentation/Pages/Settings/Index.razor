@@ -5,6 +5,10 @@
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.RequestApplicationUpdateInstallation
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
+@using SvxlinkManagerV2.Application.Features.SystemControl
+@using SvxlinkManagerV2.Application.Features.SystemControl.GetSystemControlAvailability
+@using SvxlinkManagerV2.Application.Features.SystemControl.RebootSystem
+@using SvxlinkManagerV2.Application.Features.SystemControl.ShutdownSystem
 @using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration
 @using SvxlinkManagerV2.Domain.Common
 
@@ -339,10 +343,124 @@ else
 
                     </div>
                 </div>
+
+                <!-- Zone sensible : alimentation de la machine -->
+                <div class="card danger-zone">
+                    <div class="section-header danger-zone-header">
+                        <span class="material-symbols-outlined">power_settings_new</span>
+                        Zone sensible — alimentation
+                    </div>
+
+                    <p class="danger-zone-intro">
+                        Ces actions coupent l'application et la machine. Utilisez-les plutôt que de débrancher
+                        l'alimentation : une coupure brutale peut corrompre la carte SD.
+                    </p>
+
+                    @if (_systemControlAvailability is null)
+                    {
+                        <div class="update-alert update-alert-muted">
+                            <span class="material-symbols-outlined">info</span>
+                            Disponibilité des actions d'alimentation en cours de vérification…
+                        </div>
+                    }
+                    else if (!_systemControlAvailability.IsSupported)
+                    {
+                        <div class="update-alert update-alert-error">
+                            <span class="material-symbols-outlined">block</span>
+                            <span>
+                                <strong>Actions indisponibles sur cette plateforme.</strong>
+                                @_systemControlAvailability.UnsupportedReason
+                            </span>
+                        </div>
+                    }
+                    else if (_systemControlAvailability.IsSimulated)
+                    {
+                        <div class="update-alert update-alert-info">
+                            <span class="material-symbols-outlined">science</span>
+                            Mode simulation : les actions sont journalisées mais n'auront aucun effet réel.
+                        </div>
+                    }
+
+                    @if (_pendingPowerAction is null)
+                    {
+                        <div class="danger-zone-actions">
+                            <button type="button"
+                                    class="btn btn-danger"
+                                    @onclick="() => AskPowerAction(SystemPowerAction.Reboot)"
+                                    disabled="@(!CanUseSystemControl || _isRunningPowerAction)">
+                                <span class="material-symbols-outlined">restart_alt</span>
+                                Redémarrer la machine
+                            </button>
+
+                            <button type="button"
+                                    class="btn btn-danger"
+                                    @onclick="() => AskPowerAction(SystemPowerAction.Shutdown)"
+                                    disabled="@(!CanUseSystemControl || _isRunningPowerAction)">
+                                <span class="material-symbols-outlined">power_settings_new</span>
+                                Arrêter la machine
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="danger-zone-confirm">
+                            <div class="danger-zone-confirm-text">
+                                <span class="material-symbols-outlined">warning</span>
+                                <span>
+                                    <strong>@GetPowerActionQuestion(_pendingPowerAction.Value)</strong>
+                                    Les daemons SVXLink et réflecteur seront arrêtés, puis la connexion à cette
+                                    interface sera perdue.
+                                </span>
+                            </div>
+
+                            <div class="danger-zone-actions">
+                                <button type="button"
+                                        class="btn btn-danger"
+                                        @onclick="ConfirmPowerActionAsync"
+                                        disabled="@_isRunningPowerAction">
+                                    @if (_isRunningPowerAction)
+                                    {
+                                        <span class="material-symbols-outlined spin">progress_activity</span>
+                                    }
+                                    Confirmer
+                                </button>
+
+                                <button type="button"
+                                        class="btn btn-secondary"
+                                        @onclick="CancelPowerAction"
+                                        disabled="@_isRunningPowerAction">
+                                    Annuler
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(_systemControlError))
+                    {
+                        <div class="update-alert update-alert-error">
+                            <span class="material-symbols-outlined">error</span>
+                            @_systemControlError
+                        </div>
+                    }
+                </div>
             </div>
 
         </div>
     </EditForm>
+}
+
+@if (_triggeredPowerAction is not null)
+{
+    <div class="power-overlay">
+        <div class="power-overlay-card">
+            <span class="material-symbols-outlined power-overlay-icon spin">progress_activity</span>
+            <h2>@GetPowerActionTitle(_triggeredPowerAction.Value)</h2>
+            <p>@GetPowerActionWaitMessage(_triggeredPowerAction.Value)</p>
+            <p class="power-overlay-hint">
+                Cette page ne se rafraîchira plus : la connexion au serveur est sur le point d'être coupée.
+            </p>
+        </div>
+    </div>
 }
 
 <style>
@@ -699,6 +817,107 @@ else
 
     .global-error-item .material-symbols-outlined { font-size: 16px; }
 
+    /* ── Zone sensible : alimentation ──────────────────────── */
+    .danger-zone {
+        border: 1px solid rgba(255,107,107,0.35);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .danger-zone-header {
+        color: var(--danger);
+    }
+
+    .danger-zone-intro {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text-muted);
+    }
+
+    .danger-zone-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .danger-zone-confirm {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.3);
+    }
+
+    .danger-zone-confirm-text {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text-muted);
+    }
+
+        .danger-zone-confirm-text .material-symbols-outlined {
+            font-size: 18px;
+            color: var(--danger);
+            flex-shrink: 0;
+        }
+
+        .danger-zone-confirm-text strong {
+            color: var(--text);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+    /* ── Écran d'attente après déclenchement ───────────────── */
+    .power-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(0,0,0,0.75);
+        backdrop-filter: blur(3px);
+    }
+
+    .power-overlay-card {
+        max-width: 460px;
+        text-align: center;
+        padding: 28px 24px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-card, #1e1e28);
+        border: 1px solid rgba(255,107,107,0.35);
+    }
+
+        .power-overlay-card h2 {
+            margin: 12px 0 10px;
+            font-size: 18px;
+            color: var(--text);
+        }
+
+        .power-overlay-card p {
+            margin: 0 0 8px;
+            font-size: 14px;
+            line-height: 1.55;
+            color: var(--text-muted);
+        }
+
+    .power-overlay-icon {
+        font-size: 40px;
+        color: var(--danger);
+    }
+
+    .power-overlay-hint {
+        font-size: 12px !important;
+        opacity: 0.75;
+    }
+
     .spin { animation: spin 1s linear infinite; }
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
@@ -716,6 +935,24 @@ else
     private bool CanInstallLatestVersion
         => _updateWorkflowStatus?.CanRequestInstall == true;
 
+    private SystemControlAvailabilityDto? _systemControlAvailability;
+    private SystemPowerAction? _pendingPowerAction;
+    private SystemPowerAction? _triggeredPowerAction;
+    private bool _isRunningPowerAction;
+    private string? _systemControlError;
+
+    private bool CanUseSystemControl
+        => _systemControlAvailability?.IsSupported == true;
+
+    /// <summary>
+    /// Action d'alimentation demandée par l'utilisateur.
+    /// </summary>
+    private enum SystemPowerAction
+    {
+        Reboot,
+        Shutdown
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var config = await Mediator.Send<GeneralConfigurationAggregate?>(new GetGeneralConfigurationQuery());
@@ -728,6 +965,10 @@ else
         }
 
         await RefreshUpdateWorkflowStatusAsync();
+
+        _systemControlAvailability = await Mediator.Send<SystemControlAvailabilityDto>(
+            new GetSystemControlAvailabilityQuery());
+
         _isLoading = false;
     }
 
@@ -850,6 +1091,69 @@ else
             _isRunningUpdateAction = false;
         }
     }
+
+    private void AskPowerAction(SystemPowerAction action)
+    {
+        if (!CanUseSystemControl)
+            return;
+
+        _systemControlError = null;
+        _pendingPowerAction = action;
+    }
+
+    private void CancelPowerAction()
+        => _pendingPowerAction = null;
+
+    private async Task ConfirmPowerActionAsync()
+    {
+        if (_pendingPowerAction is not { } action || !CanUseSystemControl)
+            return;
+
+        _isRunningPowerAction = true;
+        _systemControlError = null;
+
+        try
+        {
+            var result = action == SystemPowerAction.Reboot
+                ? await Mediator.Send<Validation<Error, Unit>>(new RebootSystemCommand())
+                : await Mediator.Send<Validation<Error, Unit>>(new ShutdownSystemCommand());
+
+            result.Match(
+                Succ: _ =>
+                {
+                    _pendingPowerAction = null;
+                    _triggeredPowerAction = action;
+                },
+                Fail: errors =>
+                {
+                    _systemControlError = string.Join(" ", errors.Select(e => e.Message));
+                    ToastService.ShowError(action == SystemPowerAction.Reboot
+                        ? "Le redémarrage de la machine n'a pas pu être déclenché."
+                        : "L'arrêt de la machine n'a pas pu être déclenché.");
+                });
+        }
+        finally
+        {
+            _isRunningPowerAction = false;
+        }
+    }
+
+    private static string GetPowerActionQuestion(SystemPowerAction action)
+        => action == SystemPowerAction.Reboot
+            ? "Redémarrer la machine maintenant ?"
+            : "Arrêter la machine maintenant ?";
+
+    private static string GetPowerActionTitle(SystemPowerAction action)
+        => action == SystemPowerAction.Reboot
+            ? "Redémarrage en cours"
+            : "Arrêt en cours";
+
+    private static string GetPowerActionWaitMessage(SystemPowerAction action)
+        => action == SystemPowerAction.Reboot
+            ? "La machine redémarre : la connexion à l'interface va être perdue. Comptez une à deux minutes, "
+              + "puis rechargez cette page pour retrouver l'application."
+            : "La machine s'éteint : la connexion à l'interface va être perdue et ne reviendra qu'après une "
+              + "remise sous tension manuelle. Attendez l'extinction complète avant de couper l'alimentation.";
 
     private static string GetChannelLabel(ApplicationUpdateChannel channel)
         => channel switch
