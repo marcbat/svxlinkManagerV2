@@ -114,6 +114,14 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IReflectorDaemonService, ReflectorDaemonService>();
             services.AddScoped<IReflectorConfigurationService, ReflectorConfigurationService>();
 
+            // Contrôle d'alimentation de la machine (redémarrage / arrêt)
+            services.Configure<SystemControlOptions>(Configuration.GetSection(SystemControlOptions.SectionName));
+            var useSystemControlMock = Configuration.GetValue<bool>($"{SystemControlOptions.SectionName}:UseMock", false);
+            if (useSystemControlMock)
+                services.AddSingleton<ISystemControlService, SystemControlMockService>();
+            else
+                services.AddSingleton<ISystemControlService, SystemControlService>();
+
             // Diagnostics
             services.AddHostedService<SvxLinkDiagnosticsHostedService>();
 

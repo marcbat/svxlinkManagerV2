@@ -3,6 +3,10 @@ Description=SvxlinkManager V2
 After=network.target
 
 [Service]
+# Aucun User=/Group= : le service tourne en root. C'est requis par l'accès au port série
+# du SA818, par nmcli, par le pilotage des daemons SVXLink, par le helper de mise à jour
+# et par les actions d'alimentation de l'interface (systemctl reboot / systemctl poweroff).
+# Ne pas dégrader les privilèges sans fournir les règles polkit correspondantes.
 Type=simple
 TimeoutStartSec=300
 WorkingDirectory=/opt/svxlinkmanagerv2
