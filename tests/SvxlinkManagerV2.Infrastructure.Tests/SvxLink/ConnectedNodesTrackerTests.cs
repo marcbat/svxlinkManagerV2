@@ -545,8 +545,18 @@ public class ConnectedNodesTrackerTests
         resetEventFired.Should().BeTrue();
     }
 
+    /// <summary>
+    /// L'ordre d'invocation de <c>Reset()</c> est délibéré : <c>OnNodesInitialized(vide)</c>
+    /// puis <c>OnReset</c>.
+    ///
+    /// <c>ReflectorConnectionAnnouncementService.OnConnectionReset()</c> écoute <c>OnReset</c>
+    /// pour s'armer, et son <c>OnNodesInitialized()</c> joue l'annonce de connexion réussie
+    /// dès que le service est armé. Inverser l'ordre armerait le service juste avant de lui
+    /// livrer la liste vide du reset : une annonce de connexion serait jouée alors qu'aucune
+    /// connexion n'a eu lieu — exactement la régression corrigée par l'issue #83.
+    /// </summary>
     [Fact]
-    public void Reset_ShouldRaiseOnResetBeforeOnNodesInitialized()
+    public void Reset_ShouldRaiseOnNodesInitializedBeforeOnReset()
     {
         // Arrange
         var tracker = new ConnectedNodesTracker(_logger, _logService);
@@ -557,7 +567,7 @@ public class ConnectedNodesTrackerTests
         // Act
         tracker.Reset();
 
-        // Assert — OnReset doit être déclenché avant OnNodesInitialized
-        callOrder.Should().ContainInOrder("OnReset", "OnNodesInitialized");
+        // Assert — la liste vide doit être livrée AVANT que les consommateurs ne s'arment
+        callOrder.Should().ContainInOrder("OnNodesInitialized", "OnReset");
     }
 }

@@ -54,10 +54,14 @@ COPY src/SvxlinkManagerV2.Infrastructure/SvxLink/Resources/Logic.tcl /usr/share/
 RUN ldconfig
 
 # Configure ALSA null device for headless operation (pas de hardware audio)
-RUN echo 'pcm.null { type null }' > /etc/asound.conf && \
-    echo 'ctl.null { type null }' >> /etc/asound.conf && \
-    echo 'pcm.default { type null }' >> /etc/asound.conf && \
-    echo 'ctl.default { type null }' >> /etc/asound.conf
+# Le "!" est requis sur default : sans lui ALSA tente de fusionner avec la
+# définition existante et échoue en "default is not a compound".
+RUN printf '%s\n' \
+    'pcm.null { type null }' \
+    'ctl.null { type null }' \
+    'pcm.!default { type null }' \
+    'ctl.!default { type null }' \
+    > /etc/asound.conf
 
 # Create required directories
 RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d
