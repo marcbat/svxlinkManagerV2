@@ -15,10 +15,12 @@ namespace SvxlinkManagerV2.Infrastructure.Network;
 public class WifiService : IWifiService
 {
     private readonly ILogger<WifiService> _logger;
+    private readonly string _procNetWirelessPath;
 
-    public WifiService(ILogger<WifiService> logger)
+    public WifiService(ILogger<WifiService> logger, string? procNetWirelessPath = null)
     {
         _logger = logger;
+        _procNetWirelessPath = procNetWirelessPath ?? WifiLinkReader.ProcNetWirelessPath;
     }
 
     /// <inheritdoc/>
@@ -140,6 +142,69 @@ public class WifiService : IWifiService
                 _logger.LogWarning("Échec de suppression du profil WiFi : {Uuid}", uuid);
                 return Validation<Error, Unit>.Fail(errors);
             });
+    }
+
+    /// <inheritdoc/>
+    public async Task<Validation<Error, WifiLink>> GetActiveLinkAsync(CancellationToken cancellationToken = default)
+    {
+        // Volontairement sans scan : cette lecture est rafraîchie en continu par la
+        // page de supervision, un scan nmcli complet y serait bien trop coûteux.
+        var statusResult = await RunNmcliAsync(
+            new[] { "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status" },
+            cancellationToken);
+
+        var active = statusResult.Match(
+            Succ: WifiLinkReader.ParseActiveDevice,
+            Fail: _ => null);
+
+        if (active is null)
+        {
+            // nmcli absent ou aucun périphérique géré : les interfaces du runtime
+            // fournissent au moins l'adresse IP.
+            _logger.LogDebug("Aucun périphérique actif rapporté par nmcli, repli sur les interfaces système");
+            return Validation<Error, WifiLink>.Success(WifiLinkReader.ReadFromRuntimeInterfaces());
+        }
+
+        var (device, type, connection) = active.Value;
+        var isWifi = type.Contains("wifi", StringComparison.OrdinalIgnoreCase);
+
+        var addressResult = await RunNmcliAsync(
+            new[] { "-t", "-f", "IP4.ADDRESS", "device", "show", device },
+            cancellationToken);
+
+        var ipAddress = addressResult.Match(
+            Succ: WifiLinkReader.ParseIpAddress,
+            Fail: _ => null);
+
+        var link = new WifiLink(
+            IsConnected: true,
+            InterfaceName: device,
+            Ssid: isWifi && !string.IsNullOrWhiteSpace(connection) ? connection : null,
+            SignalPercent: isWifi ? await ReadSignalPercentAsync(device, cancellationToken) : null,
+            IpAddress: ipAddress);
+
+        return Validation<Error, WifiLink>.Success(link);
+    }
+
+    /// <summary>
+    /// Lit la qualité du lien sans fil depuis /proc/net/wireless.
+    /// Retourne null lorsque la source est absente (plateforme non Linux, conteneur restreint).
+    /// </summary>
+    private async Task<int?> ReadSignalPercentAsync(string device, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!File.Exists(_procNetWirelessPath))
+                return null;
+
+            var content = await File.ReadAllTextAsync(_procNetWirelessPath, cancellationToken);
+            return WifiLinkReader.ParseSignalPercent(content, device);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Qualité du lien sans fil illisible pour {Device}", device);
+            return null;
+        }
     }
 
     /// <summary>

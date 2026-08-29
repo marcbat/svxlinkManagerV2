@@ -6,8 +6,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
+using SvxlinkManagerV2.Application.Features.SystemStatus;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
+using SvxlinkManagerV2.Infrastructure.Monitoring;
 using SvxlinkManagerV2.Infrastructure.Network;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
@@ -100,10 +102,18 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<DtmfAnnounceService>();
             services.AddHostedService<ReflectorConnectionAnnouncementService>();
 
+            // Supervision système (page Système + annonces DTMF)
+            services.Configure<SystemMonitoringOptions>(Configuration.GetSection(SystemMonitoringOptions.SectionName));
+            services.AddSingleton<ISystemMetricsService, LinuxSystemMetricsService>();
+
             // TTS et providers d'information pour les commandes DTMF 301-398
             services.AddSingleton<ITtsService, PicoTtsService>();
             services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
             services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
+            services.AddSingleton<IInfoProvider, CpuLoadInfoProvider>();
+            services.AddSingleton<IInfoProvider, MemoryInfoProvider>();
+            services.AddSingleton<IInfoProvider, DiskSpaceInfoProvider>();
+            services.AddSingleton<IInfoProvider, UptimeInfoProvider>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
