@@ -98,11 +98,13 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
             services.AddHostedService<DtmfAnnounceService>();
+            services.AddHostedService<DtmfSystemCommandService>();
             services.AddHostedService<ReflectorConnectionAnnouncementService>();
 
             // TTS et providers d'information pour les commandes DTMF 301-398
             services.AddSingleton<ITtsService, PicoTtsService>();
             services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
+            services.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
             services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
 
             // Reflector services
