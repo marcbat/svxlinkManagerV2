@@ -102,6 +102,17 @@ RUN echo "/opt/svxlink-legacy/lib" > /etc/ld.so.conf.d/svxlink-legacy.conf && \
     echo "/opt/svxlink-modern/lib" > /etc/ld.so.conf.d/svxlink-modern.conf && \
     ldconfig
 
+# Configure ALSA null device for headless operation (pas de hardware audio)
+# Permet à SVXLink de démarrer dans le conteneur avec AUDIO_DEV=alsa:null.
+# Le "!" est requis sur default : sans lui ALSA tente de fusionner avec la
+# définition existante et échoue en "default is not a compound".
+RUN printf '%s\n' \
+    'pcm.null { type null }' \
+    'ctl.null { type null }' \
+    'pcm.!default { type null }' \
+    'ctl.!default { type null }' \
+    > /etc/asound.conf
+
 # Create required directories
 RUN mkdir -p /var/spool/svxlink /var/log/svxlink /var/lib/svxlink/pki \
     /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager \

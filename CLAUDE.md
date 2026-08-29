@@ -1,0 +1,150 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Langue
+
+**Toutes les interactions se font en français** : réponses, messages de commit, titres/descriptions de PR et d'issues, commentaires de review, documentation générée.
+
+**Exception** : le code source (noms de classes, méthodes, variables) suit les conventions .NET en anglais. Les commentaires XML/inline dans le code sont en français, comme le reste du code existant.
+
+## Commandes
+
+```bash
+dotnet build SvxlinkManagerV2.sln
+```
+
+```bash
+dotnet test SvxlinkManagerV2.sln
+```
+
+Un seul projet de test :
+
+```bash
+dotnet test tests/SvxlinkManagerV2.Domain.Tests/SvxlinkManagerV2.Domain.Tests.csproj
+```
+
+Un seul test / une classe de tests (filtre xUnit) :
+
+```bash
+dotnet test tests/SvxlinkManagerV2.Application.Tests --filter "FullyQualifiedName~CreateSalonCommandTests"
+```
+
+Couverture de code :
+
+```bash
+dotnet test SvxlinkManagerV2.sln --settings coverage.runsettings
+```
+
+Lancer l'application en local (mocks SA818/WiFi/daemon activés par `appsettings.Development.json`, SQLite dans un fichier local) :
+
+```bash
+dotnet run --project src/SvxlinkManagerV2.Presentation
+```
+
+Environnement Docker complet (app + second nœud SVXLink + réflecteur), app sur http://localhost:8080 :
+
+```bash
+docker compose up --build
+```
+
+Construire le paquet Debian ARM (`artifacts/deb/`) :
+
+```bash
+pwsh ./build-deb.ps1 -PackageVersion 0.1.0
+```
+
+**Note SDK** : les projets `src/` ciblent **net8.0**, les projets `tests/` ciblent **net9.0**. Le build fonctionne avec un SDK plus récent installé (9.x / 10.x).
+
+## Workflow Git
+
+**Gitflow strict** : `master`/`main` (production), `develop` (intégration), `feature/*`, `release/*`, `hotfix/*`.
+
+Versioning par **GitVersion** (`GitVersion.yml`, mode `ContinuousDeployment`). La CI (`.github/workflows/build-deb.yml`) construit un `.deb` sur push vers `main`/`master`/`develop`/`release/*`/`hotfix/*`, exécute les tests, et publie une GitHub Release avec un `manifest.json` consommé par le service de mise à jour OTA de l'application.
+
+**Commits** : `préfixe: description` en français. Préfixes : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
+
+**Issues** : titre explicite + description + **Critères d'Acceptation**. Les étapes intermédiaires sont des Task Lists Markdown (`- [ ] Tâche`).
+
+## Architecture
+
+Clean Architecture + DDD, 4 projets sources avec une structure miroir dans `tests/`. Sens des dépendances : `Presentation` → `Infrastructure` → `Application` → `Domain`.
+
+| Couche | Rôle |
+|--------|------|
+| `Domain` | Agrégats DDD, events de domaine, `Error`, `CtcssMapper`. Aucune dépendance hors LanguageExt. |
+| `Application` | Commands/Queries MediatR (`Features/`), interfaces (`Interfaces/`), modèles partagés (`Models/`). |
+| `Infrastructure` | **Seule couche autorisée à toucher SVXLink, le matériel, l'OS et la base** : EF Core, processus, ports série, `nmcli`, fichiers de config. |
+| `Presentation` | Blazor Server + composition racine de la DI. |
+
+### Conventions structurantes
+
+**Command/Query et Handler dans le même fichier.** `Features/Salons/CreateSalon/CreateSalonCommand.cs` contient le record `CreateSalonCommand` **et** la classe `CreateSalonCommandHandler`. Ne jamais les séparer.
+
+**Result pattern via LanguageExt** : les opérations faillibles retournent `Validation<Error, T>`, jamais d'exceptions métier. `Error` est un record `(Code, Message)` avec les factories `Validation()`, `NotFound()`, `Conflict()`. Les codes sont sémantiques et préfixés par domaine (`SALON_*`, `REFLECTOR_*`, `DTMF_*`, `SA818_*`) pour permettre la localisation côté UI.
+
+**La DI se configure dans [Startup.cs](src/SvxlinkManagerV2.Presentation/Startup.cs)** — le projet utilise l'ancien modèle `Startup` (pas de minimal hosting dans `Program.cs`). Tout nouveau service d'infrastructure doit y être enregistré. MediatR scanne l'assembly `Application` en s'ancrant sur le type `PingCommand`.
+
+**Les événements de domaine ne sont PAS dispatchés.** Les agrégats les accumulent via `AddDomainEvent()`, EF Core les ignore (`Ignore(e => e.DomainEvents)`), et les repositories appellent `ClearDomainEvents()` après sauvegarde. Il n'existe aucun `INotificationHandler` ni `IMediator.Publish` dans le code. La communication inter-composants runtime passe par des **événements C# (`event Action<T>`) exposés par des singletons d'infrastructure** — voir le pipeline DTMF ci-dessous. Ne pas supposer qu'ajouter un `DomainEvent` déclenche un effet de bord.
+
+**Persistance : `EnsureCreated()`, pas de migrations.** [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) appelle `context.Database.EnsureCreated()` au démarrage. `Migrations/` ne contient qu'un `ModelSnapshot`, aucune migration réelle. **Conséquence : toute modification du schéma impose de supprimer le fichier SQLite existant** (`svxlinkmanager-dev.db` en dev, `/app/data/` ou `/opt/svxlinkmanagerv2/data/` sinon) — `dotnet ef migrations add` n'est pas la voie utilisée ici.
+
+`SvxLinkConfiguration` est une owned entity de `SalonAggregate` sérialisée en JSON (`OwnsOne(...).ToJson()`) : ajouter un champ de configuration SVXLink ne change pas le schéma des colonnes.
+
+### Pipeline DTMF (chaîne à comprendre avant d'y toucher)
+
+```
+SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
+        → SvxLinkLogBuffer (event OnLogReceived)
+        → DtmfCommandTracker (parse le préfixe, event OnDtmfCommandReceived)
+        → DtmfSalonSwitchService (codes 1-9999 → change de salon)
+        → DtmfAnnounceService  (codes 300-399 → annonces TTS via IInfoProvider)
+```
+
+`Logic.tcl` est un `EmbeddedResource` de l'Infrastructure, déployé au démarrage dans les répertoires `events.d/local` des **deux** installations SVXLink par `LogicTclDeploymentService`.
+
+### Strategy Pattern — double version SVXLink
+
+L'application pilote deux installations SVXLink en parallèle, sélectionnées d'après le `ReflectorProtocol` du salon :
+
+| Stratégie | Version SVXLink | Préfixe | Protocole |
+|-----------|-----------------|---------|-----------|
+| `SvxLinkLegacyStrategy` | 19.09.2 | `/opt/svxlink-legacy` | V2 (AUTH_KEY) |
+| `SvxLinkModernStrategy` | 25.05 | `/opt/svxlink-modern` | V3 (certificats X.509, talk groups) |
+
+`ISvxLinkVersionStrategy` expose `BinaryPath`, `LibraryPath`, `ConfigDirectory`, `SoundsDirectory`, `EventsDirectory`, `EnvironmentVariables`, `Protocol`. `ISvxLinkStrategyResolver` fait la résolution. Les deux versions sont compilées dans des stages distincts du `Dockerfile` et installées côte à côte. **Tout chemin vers un binaire, un son ou un fichier de config SVXLink doit passer par la stratégie**, jamais être codé en dur.
+
+### Agrégats
+
+- **`SalonAggregate`** — une connexion réflecteur. `Name`, `IsDefault`, `IsDeleted` (soft delete), `DtmfCode` (1-9999), `Configuration` (owned). Les events `SalonActivated`/`SalonDeactivated` sont `[Obsolete]` : l'état actif est suivi au runtime par `IActiveSessionTracker` (singleton), pas en base.
+- **`SA818Aggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000001`. `Volume` (1-8), `Squelch` (0-8), `Bandwidth`, `PreEmph`, `HighPass`, `LowPass`.
+- **`GeneralConfigurationAggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000003`.
+- **`ReflectorAggregate`** — config INI brute du démon `svxreflector` local.
+- **`TestAggregate`** — placeholder pour les tests.
+
+### Services hébergés au démarrage
+
+`SA818InitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
+
+## Points de vigilance
+
+- **`svxlink-config/svxlink.conf` doit rester versionné** (exception dans `.gitignore`) : `SvxLinkConfigurationService` l'utilise comme template pour générer la config d'un salon. Le supprimer casse l'activation des salons.
+- **Mocks d'infrastructure activés par configuration** : `SA818:UseMock`, `Wifi:UseMock`, `SvxLink:UseMockDaemon`. Ce sont des implémentations de production destinées au développement sans matériel — **pas** des mocks de tests.
+- **Cible de production** : Orange Pi (ARM 32 bits, RID `linux-arm`, arch Debian `armhf`) sous Armbian, service systemd `svxlinkmanagerv2.service`. Le code d'infrastructure suppose un environnement Linux (`nmcli`, `pico2wave`, PTY, `/dev/ttyS2`).
+- **`src/SvxlinkManagerV2.Infrastructure/Class1.cs`** est un vestige de template vide, sans usage.
+
+## Tests
+
+Stack : **xUnit 2.9.2**, **FluentAssertions 8.8.0**, **NSubstitute 5.3.0**, **LanguageExt.UnitTesting 4.4.9.1** (`ShouldBeSuccess()` / `ShouldBeFail()` sur `Validation<Error, T>`), **ini-parser** pour valider les fichiers de config générés dans `Infrastructure.Tests`.
+
+Principes :
+- **Mocker les interfaces avec NSubstitute**, jamais écrire de classes mock concrètes dans les projets de tests.
+- Persistance : **SQLite in-memory** dans `Infrastructure.Tests`.
+- Les tests de génération de config SVXLink écrivent sur le **filesystem réel** dans un répertoire temporaire.
+- Chaque projet source déclare `InternalsVisibleTo` vers son projet de tests miroir.
+
+## Références externes
+
+- Projet legacy (spécification fonctionnelle de référence) : https://github.com/marcbat/svxlinkmanager et son wiki https://github.com/marcbat/svxlinkmanager/wiki
+- Sources SVXLink (validation des paramètres de config) : manpages `src/doc/man/*.5` et `src/doc/*.adoc` du dépôt SVXLink. Versions cibles **19.09.2** et **25.05**.
+- [docs/svxlink-hb9gxp-configuration-validee.md](docs/svxlink-hb9gxp-configuration-validee.md) : configuration matérielle/SVXLink validée en conditions réelles sur Orange Pi Zero, référence pour les valeurs par défaut.
