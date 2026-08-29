@@ -106,9 +106,9 @@ SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
 
 ### Supervision système
 
-`ISystemMetricsService` (implémenté par `LinuxSystemMetricsService`, dans `Infrastructure/Monitoring`) est **l'unique lecteur** de `/proc`, `/sys` et de l'espace disque. Il en découlent deux consommateurs :
+`ISystemMetricsService` (implémenté par `LinuxSystemMetricsService`, dans `Infrastructure/Monitoring`) est **l'unique lecteur** de `/proc`, `/sys` et de l'espace disque. En découlent deux consommateurs :
 
-- les `IInfoProvider` 301-305 (température, charge, mémoire, disque, uptime), qui n'en font que la mise en forme vocale française ;
+- les `IInfoProvider` 301, 304-307 (température, disque, uptime, charge, mémoire), qui n'en font que la mise en forme vocale française — les providers 302/303 (adresse IP, état réseau) lisent le réseau directement ;
 - la query `GetSystemStatusQuery`, qui agrège tout pour la page `/systeme`.
 
 Ajouter une métrique = une méthode sur `ISystemMetricsService`, puis un provider pour l'annonce et un champ dans `SystemStatusDto`. Chaque métrique retourne un `Validation<Error, T>` **indépendant** : une source absente sur la plateforme courante est affichée comme indisponible, jamais propagée en échec de page. Seuils d'alerte et chemins supervisés dans la section `SystemMonitoring` des appsettings.
