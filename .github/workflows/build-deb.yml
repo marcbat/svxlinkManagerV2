@@ -126,11 +126,23 @@ jobs:
             throw "Aucun projet de test trouve sous tests/."
           }
 
+          $failedProjects = @()
+
           foreach ($project in $testProjects) {
             $trxName = "$($project.BaseName).trx"
             Write-Host "Execution des tests: $($project.FullName)"
             dotnet test $project.FullName -c Release --logger "trx;LogFileName=$trxName" --results-directory artifacts/test-results
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::Tests en echec pour $($project.BaseName) (code de sortie $LASTEXITCODE)."
+              $failedProjects += $project.BaseName
+            }
           }
+
+          if ($failedProjects.Count -gt 0) {
+            throw "Tests en echec dans $($failedProjects.Count) projet(s) sur $($testProjects.Count): $($failedProjects -join ', ')."
+          }
+
+          Write-Host "Tous les projets de test sont au vert ($($testProjects.Count) projet(s))."
 
       - name: Upload test results
         if: always()
