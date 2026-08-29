@@ -6,7 +6,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 namespace SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
 
 /// <summary>
-/// Fournisseur d'information pour la commande DTMF 302.
+/// Fournisseur d'information pour la commande DTMF 306.
 /// Annonce la charge processeur moyenne sur la dernière minute, ramenée
 /// au nombre de cœurs de la machine.
 /// </summary>
@@ -16,7 +16,7 @@ public class CpuLoadInfoProvider : IInfoProvider
     private readonly ILogger<CpuLoadInfoProvider> _logger;
 
     /// <inheritdoc/>
-    public int DtmfCode => 302;
+    public int DtmfCode => 306;
 
     /// <inheritdoc/>
     public string Description => "Charge du processeur";

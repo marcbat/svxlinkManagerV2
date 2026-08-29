@@ -99,6 +99,7 @@ SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
         → DtmfCommandTracker (parse le préfixe, event OnDtmfCommandReceived)
         → DtmfSalonSwitchService (codes 1-9999 → change de salon)
         → DtmfAnnounceService  (codes 300-399 → annonces TTS via IInfoProvider)
+        → DtmfSystemCommandService (codes 310-320 → commandes système, cf. DtmfSystemCommands)
 ```
 
 `Logic.tcl` est un `EmbeddedResource` de l'Infrastructure, déployé au démarrage dans les répertoires `events.d/local` des **deux** installations SVXLink par `LogicTclDeploymentService`.
@@ -135,7 +136,7 @@ L'application pilote deux installations SVXLink en parallèle, sélectionnées d
 
 ### Services hébergés au démarrage
 
-`SA818InitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
+`SA818InitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
 
 ## Points de vigilance
 

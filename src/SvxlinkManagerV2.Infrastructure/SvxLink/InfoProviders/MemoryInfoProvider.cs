@@ -6,7 +6,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 namespace SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
 
 /// <summary>
-/// Fournisseur d'information pour la commande DTMF 303.
+/// Fournisseur d'information pour la commande DTMF 307.
 /// Annonce la mémoire disponible et le taux d'occupation de la machine.
 /// </summary>
 public class MemoryInfoProvider : IInfoProvider
@@ -15,7 +15,7 @@ public class MemoryInfoProvider : IInfoProvider
     private readonly ILogger<MemoryInfoProvider> _logger;
 
     /// <inheritdoc/>
-    public int DtmfCode => 303;
+    public int DtmfCode => 307;
 
     /// <inheritdoc/>
     public string Description => "Mémoire disponible";

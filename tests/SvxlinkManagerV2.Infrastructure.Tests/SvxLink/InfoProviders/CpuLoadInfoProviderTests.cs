@@ -26,9 +26,9 @@ public class CpuLoadInfoProviderTests
     }
 
     [Fact]
-    public void DtmfCode_ShouldBe302()
+    public void DtmfCode_ShouldBe306()
     {
-        _provider.DtmfCode.Should().Be(302);
+        _provider.DtmfCode.Should().Be(306);
     }
 
     [Fact]

@@ -28,9 +28,9 @@ public class MemoryInfoProviderTests
     }
 
     [Fact]
-    public void DtmfCode_ShouldBe303()
+    public void DtmfCode_ShouldBe307()
     {
-        _provider.DtmfCode.Should().Be(303);
+        _provider.DtmfCode.Should().Be(307);
     }
 
     [Fact]

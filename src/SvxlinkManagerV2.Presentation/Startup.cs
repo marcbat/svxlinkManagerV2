@@ -100,6 +100,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
             services.AddHostedService<DtmfAnnounceService>();
+            services.AddHostedService<DtmfSystemCommandService>();
             services.AddHostedService<ReflectorConnectionAnnouncementService>();
 
             // Supervision système (page Système + annonces DTMF)
@@ -109,16 +110,27 @@ namespace SvxlinkManagerV2.Presentation
             // TTS et providers d'information pour les commandes DTMF 301-398
             services.AddSingleton<ITtsService, PicoTtsService>();
             services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
+            services.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
             services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
-            services.AddSingleton<IInfoProvider, CpuLoadInfoProvider>();
-            services.AddSingleton<IInfoProvider, MemoryInfoProvider>();
+            services.AddSingleton<IInfoProvider, IpAddressInfoProvider>();
+            services.AddSingleton<IInfoProvider, NetworkStatusInfoProvider>();
             services.AddSingleton<IInfoProvider, DiskSpaceInfoProvider>();
             services.AddSingleton<IInfoProvider, UptimeInfoProvider>();
+            services.AddSingleton<IInfoProvider, CpuLoadInfoProvider>();
+            services.AddSingleton<IInfoProvider, MemoryInfoProvider>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
             services.AddSingleton<IReflectorDaemonService, ReflectorDaemonService>();
             services.AddScoped<IReflectorConfigurationService, ReflectorConfigurationService>();
+
+            // Contrôle d'alimentation de la machine (redémarrage / arrêt)
+            services.Configure<SystemControlOptions>(Configuration.GetSection(SystemControlOptions.SectionName));
+            var useSystemControlMock = Configuration.GetValue<bool>($"{SystemControlOptions.SectionName}:UseMock", false);
+            if (useSystemControlMock)
+                services.AddSingleton<ISystemControlService, SystemControlMockService>();
+            else
+                services.AddSingleton<ISystemControlService, SystemControlService>();
 
             // Diagnostics
             services.AddHostedService<SvxLinkDiagnosticsHostedService>();
