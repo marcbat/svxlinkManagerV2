@@ -489,3 +489,8 @@ $RECYCLE.BIN/
 # SQLite locale Docker (ne jamais versionner les données runtime)
 data/
 src/SvxlinkManagerV2.Presentation/svxlinkmanager-dev.db
+
+# Fichiers compagnons SQLite (mode WAL) — créés à chaque exécution
+*.db-shm
+*.db-wal
+*.db-journal
