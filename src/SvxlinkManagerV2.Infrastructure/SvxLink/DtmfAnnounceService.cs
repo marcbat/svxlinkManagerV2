@@ -87,6 +87,14 @@ public class DtmfAnnounceService : IHostedService
                 return;
             }
 
+            // Les commandes système (310-320) sont traitées par DtmfSystemCommandService
+            if (DtmfSystemCommands.IsSystemCommand(dtmfCode))
+            {
+                _logger.LogDebug(
+                    "Commande DTMF {DtmfCode} (système) ignorée dans DtmfAnnounceService", dtmfCode);
+                return;
+            }
+
             _logger.LogInformation("Commande d'annonce DTMF reçue : {DtmfCode}", dtmfCode);
 
             switch (dtmfCode)
