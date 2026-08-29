@@ -20,6 +20,14 @@ public interface IWifiService
     Task<Validation<Error, IReadOnlyList<WifiNetwork>>> ScanNetworksAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Récupère l'état du lien réseau actif sans déclencher de scan WiFi.
+    /// Destiné à la supervision système, où l'information est rafraîchie fréquemment.
+    /// </summary>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    /// <returns>État du lien actif (SSID, signal, adresse IP)</returns>
+    Task<Validation<Error, WifiLink>> GetActiveLinkAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Récupère les connexions WiFi sauvegardées dans NetworkManager.
     /// </summary>
     /// <param name="cancellationToken">Token d'annulation</param>

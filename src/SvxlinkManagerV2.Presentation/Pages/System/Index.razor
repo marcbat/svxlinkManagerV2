@@ -1,0 +1,502 @@
+@page "/systeme"
+@*
+    Namespace explicite : sans lui, le dossier « System » générerait le namespace
+    SvxlinkManagerV2.Presentation.Pages.System, qui masquerait le namespace System
+    du framework dans toutes les autres pages de Pages/.
+*@
+@namespace SvxlinkManagerV2.Presentation.Pages.SystemStatus
+@implements IDisposable
+@using SvxlinkManagerV2.Application.Features.SystemStatus
+@using SvxlinkManagerV2.Application.Features.SystemStatus.GetSystemStatus
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Domain.Wifi
+
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<!-- ── Page Header ─────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Système</h1>
+        <p class="page-subtitle">
+            État de la machine
+            @if (_status is not null)
+            {
+                <span> — dernière mesure à @_status.CollectedAt.ToString("HH:mm:ss")</span>
+            }
+        </p>
+    </div>
+    <div class="page-header-meta">
+        <button class="btn btn-secondary btn-sm" @onclick="RefreshAsync" disabled="@_isRefreshing">
+            <span class="material-symbols-outlined">refresh</span>
+            Rafraîchir
+        </button>
+    </div>
+</div>
+
+@if (_status is null)
+{
+    <div class="card"><div class="skeleton" style="height:200px"></div></div>
+}
+else
+{
+    <div class="system-grid">
+
+        <!-- ── Température CPU ─────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">thermostat</span>
+                Température du processeur
+            </div>
+
+            @if (_status.CpuTemperatureCelsius.IsAvailable)
+            {
+                <div class="metric-value @LevelTextClass(_status.CpuTemperatureCelsius.Level)">
+                    @_status.CpuTemperatureCelsius.Value!.Value.ToString("F1") °C
+                </div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill @LevelBarClass(_status.CpuTemperatureCelsius.Level)"
+                         style="width:@BarWidth(_status.CpuTemperatureCelsius.Value.Value, 0, 100)"></div>
+                </div>
+                @RenderLevelBadge(_status.CpuTemperatureCelsius.Level, "Température élevée", "Température critique")
+            }
+            else
+            {
+                @RenderUnavailable(_status.CpuTemperatureCelsius.UnavailableReason)
+            }
+        </div>
+
+        <!-- ── Charge processeur ───────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">memory</span>
+                Charge processeur
+            </div>
+
+            @if (_status.CpuLoad.Value is CpuLoadMetrics load)
+            {
+                <div class="metric-value @LevelTextClass(_status.CpuLoad.Level)">
+                    @Math.Round(load.LoadPercent) %
+                </div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill @LevelBarClass(_status.CpuLoad.Level)"
+                         style="width:@BarWidth(load.LoadPercent, 0, 100)"></div>
+                </div>
+                <div class="metric-detail">
+                    Moyennes : @load.Load1.ToString("F2") (1 min) ·
+                    @load.Load5.ToString("F2") (5 min) ·
+                    @load.Load15.ToString("F2") (15 min)
+                </div>
+                <div class="metric-detail">@load.CoreCount cœur(s) logique(s)</div>
+            }
+            else
+            {
+                @RenderUnavailable(_status.CpuLoad.UnavailableReason)
+            }
+        </div>
+
+        <!-- ── Mémoire ─────────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">database</span>
+                Mémoire
+            </div>
+
+            @if (_status.Memory.Value is MemoryMetrics memory)
+            {
+                <div class="metric-value @LevelTextClass(_status.Memory.Level)">
+                    @Math.Round(memory.UsedPercent) %
+                </div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill @LevelBarClass(_status.Memory.Level)"
+                         style="width:@BarWidth(memory.UsedPercent, 0, 100)"></div>
+                </div>
+                <div class="metric-detail">
+                    @FormatBytes(memory.UsedBytes) utilisés sur @FormatBytes(memory.TotalBytes)
+                </div>
+                <div class="metric-detail">@FormatBytes(memory.AvailableBytes) disponibles</div>
+                @RenderLevelBadge(_status.Memory.Level, "Mémoire tendue", "Mémoire saturée")
+            }
+            else
+            {
+                @RenderUnavailable(_status.Memory.UnavailableReason)
+            }
+        </div>
+
+        <!-- ── Espace disque ───────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">hard_drive</span>
+                Espace disque
+            </div>
+
+            @foreach (var disk in _status.Disks)
+            {
+                <div class="disk-row">
+                    <div class="disk-header">
+                        <span class="disk-label">@disk.Label</span>
+                        <span class="disk-path">@disk.Path</span>
+                    </div>
+
+                    @if (disk.Metric.Value is DiskMetrics metrics)
+                    {
+                        <div class="metric-bar">
+                            <div class="metric-bar-fill @LevelBarClass(disk.Metric.Level)"
+                                 style="width:@BarWidth(metrics.UsedPercent, 0, 100)"></div>
+                        </div>
+                        <div class="metric-detail">
+                            @FormatBytes(metrics.UsedBytes) utilisés sur @FormatBytes(metrics.TotalBytes)
+                            (@Math.Round(metrics.UsedPercent) %) —
+                            @FormatBytes(metrics.AvailableBytes) libres
+                        </div>
+                        @RenderLevelBadge(disk.Metric.Level, "Espace disque faible", "Espace disque critique")
+                    }
+                    else
+                    {
+                        @RenderUnavailable(disk.Metric.UnavailableReason)
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- ── Uptime ──────────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">schedule</span>
+                Durée de fonctionnement
+            </div>
+
+            @if (_status.Uptime.Value is UptimeMetrics uptime)
+            {
+                <div class="detail-row">
+                    <span class="detail-label">Machine</span>
+                    <span class="detail-value">@FormatDuration(uptime.Machine)</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Application</span>
+                    <span class="detail-value">@FormatDuration(uptime.Process)</span>
+                </div>
+            }
+            else
+            {
+                @RenderUnavailable(_status.Uptime.UnavailableReason)
+            }
+        </div>
+
+        <!-- ── Réseau ──────────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">wifi</span>
+                Réseau
+            </div>
+
+            @if (_status.Network.Value is WifiLink network)
+            {
+                <div class="detail-row">
+                    <span class="detail-label">État</span>
+                    <span class="badge @(network.IsConnected ? "badge-success" : "badge-danger")">
+                        @(network.IsConnected ? "Connecté" : "Déconnecté")
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Interface</span>
+                    <span class="detail-value">@(network.InterfaceName ?? "Inconnue")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">SSID</span>
+                    <span class="detail-value">@(network.Ssid ?? "Non applicable")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Signal</span>
+                    @if (network.SignalPercent is int signal)
+                    {
+                        <span class="detail-value @LevelTextClass(_status.Network.Level)">@signal %</span>
+                    }
+                    else
+                    {
+                        <span class="detail-value detail-value--muted">Indisponible</span>
+                    }
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Adresse IP</span>
+                    <span class="detail-value">@(network.IpAddress ?? "Non attribuée")</span>
+                </div>
+                @RenderLevelBadge(_status.Network.Level, "Signal faible", "Signal très faible")
+            }
+            else
+            {
+                @RenderUnavailable(_status.Network.UnavailableReason)
+            }
+        </div>
+
+        <!-- ── Versions ────────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">deployed_code</span>
+                Versions
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">SvxLink Manager</span>
+                <span class="detail-value">@_status.ApplicationVersion</span>
+            </div>
+
+            @foreach (var installation in _status.SvxLinkInstallations)
+            {
+                <div class="detail-row">
+                    <span class="detail-label">@installation.Name (@installation.Protocol)</span>
+                    <span class="detail-value">
+                        @installation.Version
+                        <span class="badge @(installation.IsInstalled ? "badge-success" : "badge-muted")">
+                            @(installation.IsInstalled ? "Installé" : "Absent")
+                        </span>
+                    </span>
+                </div>
+            }
+        </div>
+
+    </div>
+}
+
+<style>
+    .system-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 16px;
+        align-items: start;
+    }
+
+    .metric-value {
+        font-size: 32px;
+        font-weight: 700;
+        line-height: 1.1;
+        margin: 10px 0 12px;
+        color: var(--text);
+    }
+
+    .metric-value--warning { color: var(--warning); }
+    .metric-value--critical { color: var(--danger); }
+
+    .metric-bar {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(160, 160, 192, 0.15);
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+
+    .metric-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--success);
+        transition: width 0.4s ease;
+    }
+
+    .metric-bar-fill--warning { background: var(--warning); }
+    .metric-bar-fill--critical { background: var(--danger); }
+
+    .metric-detail {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 3px;
+    }
+
+    .metric-alert {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 8px;
+    }
+
+    .metric-unavailable {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-muted);
+        padding: 12px 0;
+    }
+
+    .metric-unavailable .material-symbols-outlined { font-size: 18px; }
+
+    .disk-row { margin-bottom: 18px; }
+    .disk-row:last-child { margin-bottom: 0; }
+
+    .disk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .disk-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .disk-path { font-size: 12px; color: var(--text-muted); }
+
+    .detail-value--muted { color: var(--text-muted); }
+</style>
+
+@code {
+    private SystemStatusDto? _status;
+    private bool _isRefreshing;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    /// <summary>Intervalle de rafraîchissement automatique de la page.</summary>
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(5);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        StartPolling();
+    }
+
+    private void StartPolling()
+    {
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(RefreshInterval);
+        _ = PollAsync(_cts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Arrêt normal lors de la destruction du composant.
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _isRefreshing = true;
+        try
+        {
+            await LoadAsync();
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _status = await Mediator.Send(new GetSystemStatusQuery());
+        }
+        catch (Exception ex)
+        {
+            // Les métriques indisponibles ne remontent pas d'exception : seul un incident
+            // inattendu passe ici, et il ne doit pas figer le rafraîchissement.
+            ToastService.ShowError($"Lecture de l'état système impossible : {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _timer?.Dispose();
+    }
+
+    // -------------------------------------------------------------------------
+    // Rendu partagé
+    // -------------------------------------------------------------------------
+
+    private RenderFragment RenderUnavailable(string? reason) => @<div class="metric-unavailable" title="@reason">
+        <span class="material-symbols-outlined">help</span>
+        <span>Indisponible sur cette plateforme@(string.IsNullOrWhiteSpace(reason) ? "" : $" — {reason}")</span>
+    </div>;
+
+    private RenderFragment RenderLevelBadge(MetricLevel level, string warningText, string criticalText)
+    {
+        if (level == MetricLevel.Normal)
+        {
+            return @<text></text>;
+        }
+
+        var isCritical = level == MetricLevel.Critical;
+
+        return @<span class="badge @(isCritical ? "badge-danger" : "badge-warning") metric-alert">
+            <span class="material-symbols-outlined" style="font-size:16px;">warning</span>
+            @(isCritical ? criticalText : warningText)
+        </span>;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers de présentation
+    // -------------------------------------------------------------------------
+
+    private static string LevelTextClass(MetricLevel level) => level switch
+    {
+        MetricLevel.Critical => "metric-value--critical",
+        MetricLevel.Warning => "metric-value--warning",
+        _ => string.Empty
+    };
+
+    private static string LevelBarClass(MetricLevel level) => level switch
+    {
+        MetricLevel.Critical => "metric-bar-fill--critical",
+        MetricLevel.Warning => "metric-bar-fill--warning",
+        _ => string.Empty
+    };
+
+    private static string BarWidth(double value, double min, double max)
+    {
+        var ratio = max <= min ? 0d : (value - min) / (max - min) * 100d;
+        // "F0" ne produit aucune décimale : la largeur CSS reste valide quelle que soit la culture.
+        return $"{Math.Clamp(ratio, 0d, 100d).ToString("F0")}%";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["o", "Ko", "Mo", "Go", "To"];
+        double value = bytes;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        var format = unitIndex == 0 ? "F0" : "F1";
+        return $"{value.ToString(format)} {units[unitIndex]}";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 1)
+        {
+            return "moins d'une minute";
+        }
+
+        var parts = new List<string>();
+
+        if (duration.Days > 0)
+        {
+            parts.Add($"{duration.Days} j");
+        }
+
+        if (duration.Hours > 0)
+        {
+            parts.Add($"{duration.Hours} h");
+        }
+
+        if (duration.Minutes > 0 && duration.Days == 0)
+        {
+            parts.Add($"{duration.Minutes} min");
+        }
+
+        return parts.Count == 0 ? "moins d'une minute" : string.Join(" ", parts);
+    }
+}

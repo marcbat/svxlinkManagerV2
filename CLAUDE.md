@@ -104,6 +104,17 @@ SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
 
 `Logic.tcl` est un `EmbeddedResource` de l'Infrastructure, déployé au démarrage dans les répertoires `events.d/local` des **deux** installations SVXLink par `LogicTclDeploymentService`.
 
+### Supervision système
+
+`ISystemMetricsService` (implémenté par `LinuxSystemMetricsService`, dans `Infrastructure/Monitoring`) est **l'unique lecteur** de `/proc`, `/sys` et de l'espace disque. En découlent deux consommateurs :
+
+- les `IInfoProvider` 301, 304-307 (température, disque, uptime, charge, mémoire), qui n'en font que la mise en forme vocale française — les providers 302/303 (adresse IP, état réseau) lisent le réseau directement ;
+- la query `GetSystemStatusQuery`, qui agrège tout pour la page `/systeme`.
+
+Ajouter une métrique = une méthode sur `ISystemMetricsService`, puis un provider pour l'annonce et un champ dans `SystemStatusDto`. Chaque métrique retourne un `Validation<Error, T>` **indépendant** : une source absente sur la plateforme courante est affichée comme indisponible, jamais propagée en échec de page. Seuils d'alerte et chemins supervisés dans la section `SystemMonitoring` des appsettings.
+
+Le feature Application s'appelle `Features/SystemStatus` (et non `System`) et `Pages/System/Index.razor` déclare un `@namespace` explicite : un namespace nommé `System` masquerait celui du framework dans tous les fichiers voisins.
+
 ### Strategy Pattern — double version SVXLink
 
 L'application pilote deux installations SVXLink en parallèle, sélectionnées d'après le `ReflectorProtocol` du salon :
