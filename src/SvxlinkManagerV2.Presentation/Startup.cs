@@ -104,6 +104,8 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<ITtsService, PicoTtsService>();
             services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
             services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
+            services.AddSingleton<IInfoProvider, IpAddressInfoProvider>();
+            services.AddSingleton<IInfoProvider, NetworkStatusInfoProvider>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
