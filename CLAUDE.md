@@ -91,6 +91,19 @@ Clean Architecture + DDD, 4 projets sources avec une structure miroir dans `test
 
 `SvxLinkConfiguration` est une owned entity de `SalonAggregate` sérialisée en JSON (`OwnsOne(...).ToJson()`) : ajouter un champ de configuration SVXLink ne change pas le schéma des colonnes.
 
+### Authentification
+
+L'application est protégée par **ASP.NET Identity** avec un **compte unique** créé à l'étape 0 du wizard d'installation. Points à connaître avant d'ajouter une page :
+
+- **Tout est protégé par défaut.** `_Imports.razor` porte `@attribute [Authorize]` et `App.razor` route les composants via `AuthorizeRouteView` : une nouvelle page Blazor est protégée **sans rien faire** ; l'ouvrir au public demande `@attribute [AllowAnonymous]`.
+- **Le middleware ne peut pas arbitrer les routes Blazor.** Elles sont toutes servies par la même page hôte `/_Host`, qui porte donc `@attribute [AllowAnonymous]` ; l'autorisation est faite côté composant. Le hub Blazor est également anonyme, sinon la négociation du circuit boucle en `ERR_TOO_MANY_REDIRECTS`.
+- **`.AllowAnonymous()` posé en convention sur `MapFallbackToPage(...)` n'a aucun effet** — la métadonnée n'atteint pas l'endpoint de fallback Razor Pages. C'est la raison de l'attribut directement sur `_Host.cshtml`. La `FallbackPolicy` globale reste en place pour les Razor Pages explicites.
+- **Login, logout et auto-login sont des Razor Pages**, pas des composants : écrire un cookie d'authentification est impossible depuis un circuit Blazor Server (WebSocket, réponse déjà émise).
+- **`/setup` (Step0Account) est la seule page anonyme du wizard.** Les étapes suivantes (`/setup/callsign` … `/setup/summary`) sont protégées ; la transition passe par un **token à usage unique** en mémoire (`IPendingSetupLoginService`, TTL 5 min) consommé par `/account/setup-complete`, qui ouvre la session puis redirige.
+- `SvxlinkDbContext` dérive d'`IdentityDbContext<IdentityUser>` : **appeler `base.OnModelCreating(modelBuilder)`** avant toute configuration, sinon le schéma Identity n'est pas construit.
+
+**Mise à jour d'une installation existante** : `EnsureCreated()` ne touchant pas une base déjà créée, les tables `AspNet*` n'apparaîtraient jamais sur un déploiement antérieur à l'authentification. `IdentitySchemaInitializer` (appelé par [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) quand la base préexiste) rejoue les seules instructions DDL Identity du script de création du modèle. C'est **la seule exception** à la règle « changement de schéma = suppression du fichier SQLite » ci-dessus, et elle ne vaut que pour Identity.
+
 ### Pipeline DTMF (chaîne à comprendre avant d'y toucher)
 
 ```

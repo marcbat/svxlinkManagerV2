@@ -157,6 +157,78 @@ a { color: inherit; text-decoration: none; }
     text-align: center;
 }
 
+/* ── Sidebar Compte utilisateur ─────────────────────────────── */
+.sidebar-account {
+    border-top: 1px solid var(--border-card);
+    padding-top: 10px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-account-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 14px 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sidebar-account-info .material-symbols-outlined {
+    font-size: 22px;
+    color: var(--accent);
+}
+
+.sidebar-account-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-account-links form {
+    margin: 0;
+}
+
+.sidebar-account .nav-item-account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 14px;
+    border: none;
+    background: none;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+}
+
+.sidebar-account .nav-item-account:hover {
+    background: var(--accent-light);
+    color: var(--text);
+}
+
+.sidebar-account .nav-item-account.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.sidebar-account .nav-item-account .material-symbols-outlined {
+    font-size: 22px;
+}
+
+.sidebar-account .nav-item-logout:hover {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
 /* ── Sidebar Collapsed State ────────────────────────────────── */
 .app-layout.sidebar-collapsed .sidebar {
     width: var(--sidebar-w-collapsed);
@@ -167,6 +239,8 @@ a { color: inherit; text-decoration: none; }
 
 .app-layout.sidebar-collapsed .logo-text,
 .app-layout.sidebar-collapsed .sidebar-version,
+.app-layout.sidebar-collapsed .account-username,
+.app-layout.sidebar-collapsed .sidebar-account .nav-item-account span:not(.material-symbols-outlined),
 .app-layout.sidebar-collapsed .sidebar-nav .nav-item span:not(.material-symbols-outlined) {
     display: none;
 }
@@ -179,6 +253,13 @@ a { color: inherit; text-decoration: none; }
 }
 
 .app-layout.sidebar-collapsed .sidebar-nav .nav-item {
+    justify-content: center;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.app-layout.sidebar-collapsed .sidebar-account-info,
+.app-layout.sidebar-collapsed .sidebar-account .nav-item-account {
     justify-content: center;
     padding-left: 8px;
     padding-right: 8px;
@@ -711,6 +792,8 @@ a { color: inherit; text-decoration: none; }
 
     .logo-text,
     .sidebar-version,
+    .account-username,
+    .sidebar-account .nav-item-account span:not(.material-symbols-outlined),
     .sidebar-nav .nav-item span:not(.material-symbols-outlined) {
         display: none;
     }
@@ -723,6 +806,13 @@ a { color: inherit; text-decoration: none; }
     }
 
     .sidebar-nav .nav-item {
+        justify-content: center;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .sidebar-account-info,
+    .sidebar-account .nav-item-account {
         justify-content: center;
         padding-left: 8px;
         padding-right: 8px;

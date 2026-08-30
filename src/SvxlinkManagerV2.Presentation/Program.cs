@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -63,6 +64,12 @@ namespace SvxlinkManagerV2.Presentation
                     logger.LogInformation(
                         "EnsureCreated: le schéma SQLite existait déjà, aucune action effectuée. Chemin: {DbPath}",
                         resolvedDbPath);
+
+                // EnsureCreated() ne modifie pas une base existante : sur une installation
+                // antérieure à l'authentification, les tables ASP.NET Identity doivent être
+                // ajoutées explicitement, sans quoi la connexion échouerait au démarrage.
+                if (!created)
+                    IdentitySchemaInitializer.EnsureIdentityTables(context, logger);
             }
 
             await host.RunAsync();

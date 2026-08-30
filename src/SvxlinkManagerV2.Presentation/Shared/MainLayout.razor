@@ -6,6 +6,7 @@
 @inject IActiveSessionTracker ActiveSessionTracker
 @inject ISvxLinkDaemonService SvxLinkDaemonService
 @inject IReflectorDaemonService ReflectorDaemonService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="app-layout @( _isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
     <nav class="sidebar">
@@ -84,6 +85,26 @@
                 </NavLink>
             </li>
         </ul>
+
+        <div class="sidebar-account">
+            <div class="sidebar-account-info">
+                <span class="material-symbols-outlined">account_circle</span>
+                <span class="account-username">@_username</span>
+            </div>
+            <div class="sidebar-account-links">
+                <NavLink href="/account/password" class="nav-item nav-item-account" title="Mot de passe" ActiveClass="active">
+                    <span class="material-symbols-outlined">key</span>
+                    <span>Mot de passe</span>
+                </NavLink>
+                <form method="post" action="/account/logout">
+                    <button type="submit" class="nav-item nav-item-account nav-item-logout" title="Déconnexion">
+                        <span class="material-symbols-outlined">logout</span>
+                        <span>Déconnexion</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <div class="sidebar-version">v@_appVersion</div>
     </nav>
 
@@ -97,6 +118,7 @@
 @code {
     private string _appVersion = "?";
     private bool _isSidebarCollapsed;
+    private string _username = string.Empty;
     private bool _isSalonRuntimeActive;
     private bool _isReflectorRuntimeActive;
     private PeriodicTimer? _statusTimer;
@@ -120,6 +142,10 @@
                 return;
             }
         }
+
+        // Nom de l'utilisateur connecté, affiché en bas de la barre latérale
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _username = authState.User.Identity?.Name ?? string.Empty;
 
         await RefreshRuntimeStatusAsync();
         StartStatusPolling();

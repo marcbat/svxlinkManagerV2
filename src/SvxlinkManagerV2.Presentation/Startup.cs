@@ -1,6 +1,9 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +40,49 @@ namespace SvxlinkManagerV2.Presentation
             var connectionString = Configuration.GetConnectionString("SQLite") ?? "Data Source=svxlinkmanager.db";
             services.AddDbContext<SvxlinkDbContext>(options =>
                 options.UseSqlite(connectionString));
+
+            // ASP.NET Identity - compte unique administrateur
+            services.AddIdentity<IdentityUser, IdentityRole>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequiredLength = 8;
+                options.SignIn.RequireConfirmedAccount = false;
+
+                // Verrouillage temporaire après échecs répétés (protection anti-force brute)
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.AllowedForNewUsers = true;
+            })
+            .AddEntityFrameworkStores<SvxlinkDbContext>()
+            .AddDefaultTokenProviders();
+
+            // Options du cookie d'authentification
+            services.ConfigureApplicationCookie(options =>
+            {
+                options.LoginPath = "/login";
+                options.LogoutPath = "/account/logout";
+                options.AccessDeniedPath = "/login";
+                options.SlidingExpiration = true;
+                options.ExpireTimeSpan = TimeSpan.FromHours(8);
+            });
+
+            // Fallback policy : toutes les routes requièrent une authentification par défaut
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
+
+            // État d'authentification pour Blazor Server
+            services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
+
+            // Gestion du compte utilisateur
+            services.AddScoped<IUserAccountService, UserAccountService>();
+            services.AddSingleton<IPendingSetupLoginService, PendingSetupLoginService>();
 
             // MediatR - découverte auto dans l'assembly Application
             services.AddMediatR(cfg =>
@@ -157,10 +203,27 @@ namespace SvxlinkManagerV2.Presentation
             app.UseStaticFiles();
             app.UseRouting();
 
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapBlazorHub();
+                // Le hub Blazor doit rester accessible anonymement, sinon la négociation
+                // du circuit boucle en ERR_TOO_MANY_REDIRECTS.
+                endpoints.MapBlazorHub().AllowAnonymous();
+
+                // La page hôte porte son propre [AllowAnonymous] (voir _Host.cshtml) :
+                // toutes les routes Blazor étant servies par ce même fallback, le
+                // middleware ne peut pas les distinguer. L'autorisation des routes
+                // Blazor est donc portée par AuthorizeRouteView (App.razor) + le
+                // [Authorize] par défaut de _Imports.razor.
+                // Attention : .AllowAnonymous() posé ici en convention n'atteint pas
+                // l'endpoint de fallback Razor Pages — d'où l'attribut sur la page.
                 endpoints.MapFallbackToPage("/_Host");
+
+                // La FallbackPolicy reste en place : elle protège les Razor Pages
+                // explicites qui seraient ajoutées sans attribut d'autorisation.
+                endpoints.MapRazorPages();
             });
         }
     }
