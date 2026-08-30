@@ -36,6 +36,23 @@ public static class ValidationExtensions
         => Fail<Error, T>(Seq(errors));
 
     /// <summary>
+    /// Retourne la valeur d'une validation en succès, ou null si elle est en échec.
+    ///
+    /// À préférer systématiquement à <c>Match(Succ: v =&gt; v, Fail: _ =&gt; null)</c> : LanguageExt
+    /// passe le résultat de <c>Match</c> par <c>Check.NullReturn</c> et lève
+    /// <c>ResultIsNullException</c> dès qu'une branche rend null.
+    /// </summary>
+    /// <typeparam name="T">Type du résultat</typeparam>
+    /// <param name="validation">Validation à dénouer</param>
+    /// <returns>La valeur en cas de succès, null en cas d'échec</returns>
+    public static T? SuccessOrNull<T>(this Validation<Error, T> validation) where T : class
+        => validation.IsSuccess
+            ? validation.Match(
+                Succ: value => value,
+                Fail: _ => throw new InvalidOperationException("Succès déjà établi."))
+            : null;
+
+    /// <summary>
     /// Combine plusieurs validations en une seule
     /// </summary>
     /// <typeparam name="T">Type du résultat</typeparam>

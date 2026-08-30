@@ -29,12 +29,18 @@ public class DatabaseMigratorTests : IDisposable
 {
     /// <summary>
     /// Identifiants attendus dans <c>__EFMigrationsHistory</c> une fois la base à jour.
+    ///
+    /// Les trois premiers correspondent à un état de base héritée reconnu par
+    /// <see cref="DatabaseMigrator.AdoptLegacyDatabase"/>, d'où leurs constantes. Les suivants
+    /// n'en ont pas : aucune base créée par <c>EnsureCreated()</c> ne les reflète, elles sont
+    /// simplement appliquées par <c>Migrate()</c>. Toute nouvelle migration s'ajoute ici.
     /// </summary>
     private static readonly string[] AllMigrations =
     [
         DatabaseMigrator.InitialCreateId,
         DatabaseMigrator.AddSalonTypeId,
-        DatabaseMigrator.AddIdentitySchemaId
+        DatabaseMigrator.AddIdentitySchemaId,
+        "20260830140047_AddAudioConfiguration"
     ];
 
     private readonly SqliteConnection _connection;
@@ -189,6 +195,10 @@ public class DatabaseMigratorTests : IDisposable
 
         if (!withSalonType)
             context.Database.ExecuteSqlRaw("ALTER TABLE \"Salons\" DROP COLUMN \"SalonType\";");
+
+        // Aucune base héritée ne connaît les niveaux audio : la table est postérieure à l'abandon
+        // d'EnsureCreated(), c'est Migrate() qui doit la créer.
+        context.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"AudioConfigurations\";");
 
         context.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsHistory\";");
     }

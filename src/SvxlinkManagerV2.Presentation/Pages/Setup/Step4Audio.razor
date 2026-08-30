@@ -1,0 +1,225 @@
+@page "/setup/audio"
+@layout SetupLayout
+@namespace SvxlinkManagerV2.Presentation.Pages.Setup
+@using SvxlinkManagerV2.Application.Features.Audio
+@using SvxlinkManagerV2.Application.Features.Audio.GetAudioSettings
+@using SvxlinkManagerV2.Application.Features.Audio.UpdateAudioLevels
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Domain.Common
+@using SvxlinkManagerV2.Presentation.Services
+
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ToastService ToastService
+@inject ISetupStatusService SetupStatusService
+
+<div class="setup-card">
+    <div class="setup-card-header">
+        <span class="material-symbols-outlined setup-card-icon">tune</span>
+        <div>
+            <h2 class="setup-card-title">Niveaux audio</h2>
+            <p class="setup-card-desc">
+                Réglez le gain d'entrée et le niveau de sortie de la carte son. Cette étape est
+                optionnelle : les niveaux restent modifiables à tout moment depuis la page Audio.
+            </p>
+        </div>
+    </div>
+
+    <div class="setup-card-body">
+        @if (_isLoading)
+        {
+            <div class="card skeleton-card">
+                <div class="skeleton" style="height:180px"></div>
+            </div>
+        }
+        else if (_settings?.LevelsError is not null)
+        {
+            <div class="setup-audio-banner setup-audio-banner--danger">
+                <span class="material-symbols-outlined">error</span>
+                <span>@_settings.LevelsError</span>
+            </div>
+        }
+        else if (_settings?.Capture is not null && _settings.Playback is not null)
+        {
+            <div class="setup-audio-level">
+                <div class="setup-audio-header">
+                    <span class="setup-audio-label">
+                        <span class="material-symbols-outlined">mic</span>
+                        Réception — gain d'entrée
+                    </span>
+                    <span class="setup-audio-value">@_captureLevel<span class="setup-audio-max">/@_settings.Capture.MaxValue</span></span>
+                </div>
+                <input type="range" class="setup-audio-slider"
+                       min="@_settings.Capture.MinValue" max="@_settings.Capture.MaxValue" step="1"
+                       value="@_captureLevel"
+                       @oninput="e => _captureLevel = ParseInt(e.Value, _captureLevel)"
+                       @onchange="ApplyLevelsAsync" />
+                <span class="setup-audio-hint">Contrôle ALSA « @_settings.Capture.ControlName »</span>
+            </div>
+
+            <div class="setup-audio-level">
+                <div class="setup-audio-header">
+                    <span class="setup-audio-label">
+                        <span class="material-symbols-outlined">campaign</span>
+                        Émission — niveau de sortie
+                    </span>
+                    <span class="setup-audio-value">@_playbackLevel<span class="setup-audio-max">/@_settings.Playback.MaxValue</span></span>
+                </div>
+                <input type="range" class="setup-audio-slider"
+                       min="@_settings.Playback.MinValue" max="@_settings.Playback.MaxValue" step="1"
+                       value="@_playbackLevel"
+                       @oninput="e => _playbackLevel = ParseInt(e.Value, _playbackLevel)"
+                       @onchange="ApplyLevelsAsync" />
+                <span class="setup-audio-hint">Contrôle ALSA « @_settings.Playback.ControlName »</span>
+            </div>
+
+            <div class="setup-audio-banner setup-audio-banner--info">
+                <span class="material-symbols-outlined">info</span>
+                <span>
+                    Le test d'émission demande un salon actif : il vous attend sur la page Audio
+                    une fois l'installation terminée. Les niveaux réglés ici sont appliqués
+                    immédiatement et conservés.
+                </span>
+            </div>
+        }
+    </div>
+
+    <div class="setup-card-footer">
+        <button class="btn btn-secondary" @onclick="GoBack">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Retour
+        </button>
+        <button class="btn btn-primary setup-btn-next" @onclick="GoNext">
+            Suivant
+            <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+    </div>
+</div>
+
+<style>
+    .setup-audio-level { margin-bottom: 24px; }
+
+    .setup-audio-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .setup-audio-label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+    .setup-audio-label .material-symbols-outlined { font-size: 18px; color: var(--text-muted); }
+
+    .setup-audio-value { font-size: 20px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .setup-audio-max { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+
+    .setup-audio-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-card);
+        outline: none;
+        cursor: pointer;
+    }
+
+    .setup-audio-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 0 6px rgba(108,92,231,0.5);
+    }
+    .setup-audio-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border: none;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+    }
+
+    .setup-audio-hint { display: block; font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+    .setup-audio-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .setup-audio-banner .material-symbols-outlined { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .setup-audio-banner--info { border: 1px solid rgba(108,92,231,0.24); background: var(--accent-light); color: var(--text); }
+    .setup-audio-banner--info .material-symbols-outlined { color: var(--accent); }
+    .setup-audio-banner--danger { border: 1px solid rgba(255,107,107,0.3); background: var(--danger-light); color: var(--text); }
+    .setup-audio-banner--danger .material-symbols-outlined { color: var(--danger); }
+</style>
+
+@code {
+    private AudioSettingsDto? _settings;
+    private bool _isLoading = true;
+    private int _captureLevel;
+    private int _playbackLevel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var setupRequired = await SetupStatusService.IsSetupRequiredAsync();
+        if (!setupRequired)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+            return;
+        }
+
+        var result = await Mediator.Send<Validation<Error, AudioSettingsDto>>(new GetAudioSettingsQuery());
+
+        result.Match(
+            Succ: dto =>
+            {
+                _settings = dto;
+                if (dto.Capture is not null) _captureLevel = dto.Capture.Value;
+                if (dto.Playback is not null) _playbackLevel = dto.Playback.Value;
+                return Unit.Default;
+            },
+            Fail: errors =>
+            {
+                ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                return Unit.Default;
+            });
+
+        _isLoading = false;
+    }
+
+    /// <summary>
+    /// Applique les deux niveaux à la carte son et les mémorise, sans attendre la fin du wizard :
+    /// un réglage de niveau ne prend son sens que si l'utilisateur en entend l'effet tout de suite.
+    /// </summary>
+    private async Task ApplyLevelsAsync()
+    {
+        var result = await Mediator.Send<Validation<Error, AudioLevelsDto>>(
+            new UpdateAudioLevelsCommand(_captureLevel, _playbackLevel));
+
+        result.Match(
+            Succ: levels =>
+            {
+                _captureLevel = levels.Capture.Value;
+                _playbackLevel = levels.Playback.Value;
+                return Unit.Default;
+            },
+            Fail: errors =>
+            {
+                ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                return Unit.Default;
+            });
+    }
+
+    private static int ParseInt(object? value, int fallback) =>
+        int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+
+    private void GoBack() => Nav.NavigateTo("/setup/frequencies");
+
+    private void GoNext() => Nav.NavigateTo("/setup/summary");
+}

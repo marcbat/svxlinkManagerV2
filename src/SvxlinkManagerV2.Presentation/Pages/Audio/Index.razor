@@ -1,0 +1,679 @@
+@page "/audio"
+@implements IDisposable
+@using SvxlinkManagerV2.Application.Features.Audio
+@using SvxlinkManagerV2.Application.Features.Audio.GetAudioSettings
+@using SvxlinkManagerV2.Application.Features.Audio.GetRxSignal
+@using SvxlinkManagerV2.Application.Features.Audio.StartPttTest
+@using SvxlinkManagerV2.Application.Features.Audio.StopPttTest
+@using SvxlinkManagerV2.Application.Features.Audio.UpdateAudioLevels
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Domain.Common
+
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IPttTestService PttTestService
+@inject IRxDistortionService DistortionService
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Réglages audio</h1>
+        <p class="page-subtitle">
+            Niveaux de la carte son, test d'émission et qualité du signal reçu.
+            C'est le premier réglage d'une installation : sans lui, la station émet trop fort ou n'entend rien.
+        </p>
+        @if (_settings?.IsSimulated == true)
+        {
+            <div class="audio-banner audio-banner--info">
+                <span class="material-symbols-outlined">science</span>
+                <span>Mode simulé : aucune carte son ni broche PTT réelle n'est pilotée.</span>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="audio-grid">
+        <div class="card skeleton-card"><div class="skeleton" style="height:300px"></div></div>
+        <div class="card skeleton-card"><div class="skeleton" style="height:300px"></div></div>
+    </div>
+}
+else
+{
+    <div class="audio-grid">
+
+        <!-- ══ Niveaux de la carte son ════════════════════════════ -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">tune</span>
+                Niveaux de la carte son
+            </div>
+
+            @if (_settings?.LevelsError is not null)
+            {
+                <div class="audio-banner audio-banner--danger">
+                    <span class="material-symbols-outlined">error</span>
+                    <span>@_settings.LevelsError</span>
+                </div>
+            }
+            else if (_settings?.Capture is not null && _settings.Playback is not null)
+            {
+                <p class="audio-hint">
+                    <span class="material-symbols-outlined">bolt</span>
+                    Chaque déplacement de curseur est appliqué immédiatement à la carte et mémorisé :
+                    le réglage est retrouvé au redémarrage de l'application.
+                </p>
+
+                @RenderLevel(
+                    "Réception — gain d'entrée",
+                    "mic",
+                    _settings.Capture,
+                    _captureLevel,
+                    value => _captureLevel = value,
+                    ApplyCaptureAsync,
+                    "Trop bas, les correspondants sont inaudibles ; trop haut, l'audio sature.")
+
+                @RenderLevel(
+                    "Émission — niveau de sortie",
+                    "campaign",
+                    _settings.Playback,
+                    _playbackLevel,
+                    value => _playbackLevel = value,
+                    ApplyPlaybackAsync,
+                    "Règle l'excursion de l'émetteur : trop haut, la modulation est distordue.")
+            }
+        </div>
+
+        <!-- ══ Colonne droite ═════════════════════════════════════ -->
+        <div>
+
+            <!-- Test d'émission -->
+            <div class="card" style="margin-bottom:18px">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">settings_input_antenna</span>
+                    Test d'émission
+                </div>
+
+                @if (_settings?.Ptt.BlockedReason is not null)
+                {
+                    <div class="audio-banner audio-banner--warning">
+                        <span class="material-symbols-outlined">block</span>
+                        <span>@_settings.Ptt.BlockedReason</span>
+                    </div>
+                }
+                else
+                {
+                    <p class="audio-hint">
+                        <span class="material-symbols-outlined">warning</span>
+                        La station passe réellement en émission pendant la durée choisie.
+                        Vérifiez que l'antenne est raccordée avant de lancer le test.
+                    </p>
+                }
+
+                @if (_isTransmitting)
+                {
+                    <div class="ptt-live">
+                        <span class="ptt-live-dot"></span>
+                        <div class="ptt-live-text">
+                            <strong>Émission en cours</strong>
+                            <span>Relâchement automatique dans @_remainingSeconds s</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-danger ptt-button" @onclick="StopTestAsync" disabled="@_isPttBusy">
+                        <span class="material-symbols-outlined">stop_circle</span>
+                        Arrêter l'émission
+                    </button>
+                }
+                else
+                {
+                    <div class="slider-block">
+                        <div class="slider-header">
+                            <span class="slider-label">Durée du test</span>
+                            <span class="slider-value">@_testDuration s</span>
+                        </div>
+                        <input type="range" class="audio-slider"
+                               min="1" max="@_maxTestDuration" step="1" value="@_testDuration"
+                               disabled="@(_settings?.Ptt.CanStart != true)"
+                               @oninput="e => _testDuration = ParseInt(e.Value, _testDuration)"
+                               @onchange="e => _testDuration = ParseInt(e.Value, _testDuration)" />
+                        <div class="slider-bounds">
+                            <span>1 s</span>
+                            <span>@_maxTestDuration s</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-primary ptt-button"
+                            @onclick="StartTestAsync"
+                            disabled="@(_settings?.Ptt.CanStart != true || _isPttBusy)">
+                        <span class="material-symbols-outlined">radio_button_checked</span>
+                        Passer en émission
+                    </button>
+                }
+            </div>
+
+            <!-- Signal reçu -->
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">graphic_eq</span>
+                    Signal reçu
+                </div>
+
+                <div class="rx-row">
+                    <span class="rx-label">RSSI du module SA818</span>
+                    @if (_rxSignal?.Rssi is not null)
+                    {
+                        <span class="rx-value">@_rxSignal.Rssi<span class="rx-unit">/@RxSignalDto.RssiMax</span></span>
+                    }
+                    else
+                    {
+                        <span class="rx-value rx-value--muted">indisponible</span>
+                    }
+                </div>
+
+                <div class="rx-gauge">
+                    <div class="rx-gauge-fill" style="width:@(_rxSignal?.RssiPercent ?? 0)%"></div>
+                </div>
+
+                @if (_rxSignal?.RssiError is not null)
+                {
+                    <p class="audio-hint">
+                        <span class="material-symbols-outlined">info</span>
+                        @_rxSignal.RssiError
+                    </p>
+                }
+                else
+                {
+                    <p class="audio-hint">
+                        <span class="material-symbols-outlined">info</span>
+                        Valeur brute rapportée par le module, rafraîchie toutes les @(RefreshSeconds) secondes.
+                        Elle monte avec la puissance du signal présent sur la fréquence de réception.
+                    </p>
+                }
+
+                <div class="divider"></div>
+
+                <div class="rx-row">
+                    <span class="rx-label">Saturation de l'entrée</span>
+                    @if (_rxSignal is null || _rxSignal.DistortionCount == 0)
+                    {
+                        <span class="badge badge-success">aucune</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-danger">@_rxSignal.DistortionCount écrêtage@(_rxSignal.DistortionCount > 1 ? "s" : "")</span>
+                    }
+                </div>
+
+                @if (_rxSignal?.LastDistortionAt is not null)
+                {
+                    <p class="audio-hint audio-hint--danger">
+                        <span class="material-symbols-outlined">volume_off</span>
+                        Dernier écrêtage à @_rxSignal.LastDistortionAt.Value.ToLocalTime().ToString("HH:mm:ss") :
+                        baissez le gain d'entrée jusqu'à ce que le compteur cesse de monter.
+                    </p>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ResetDistortion">
+                        <span class="material-symbols-outlined">restart_alt</span>
+                        Remettre le compteur à zéro
+                    </button>
+                }
+                else
+                {
+                    <p class="audio-hint">
+                        <span class="material-symbols-outlined">info</span>
+                        SVXLink signale ici tout écrêtage de l'audio entrant, seul indicateur possible
+                        pendant qu'un salon occupe la carte son en exclusivité.
+                    </p>
+                }
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    .audio-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        align-items: start;
+    }
+    @@media (max-width: 900px) { .audio-grid { grid-template-columns: 1fr; } }
+
+    .audio-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .audio-banner .material-symbols-outlined { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .audio-banner--info    { border: 1px solid rgba(108,92,231,0.24); background: var(--accent-light); color: var(--text); }
+    .audio-banner--info .material-symbols-outlined { color: var(--accent); }
+    .audio-banner--warning { border: 1px solid rgba(253,203,110,0.3); background: var(--warning-light); color: var(--text); }
+    .audio-banner--warning .material-symbols-outlined { color: var(--warning); }
+    .audio-banner--danger  { border: 1px solid rgba(255,107,107,0.3); background: var(--danger-light); color: var(--text); }
+    .audio-banner--danger .material-symbols-outlined { color: var(--danger); }
+
+    .audio-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin: 12px 0 0;
+        line-height: 1.5;
+    }
+    .audio-hint .material-symbols-outlined { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .audio-hint--danger { color: var(--danger); }
+
+    .level-block { margin-top: 22px; }
+    .level-block:first-of-type { margin-top: 18px; }
+
+    .slider-block { margin-top: 18px; }
+
+    .slider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 10px;
+        gap: 12px;
+    }
+
+    .slider-label { font-size: 14px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .slider-label .material-symbols-outlined { font-size: 18px; color: var(--text-muted); }
+
+    .slider-value { font-size: 22px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .slider-value-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+
+    .audio-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-card);
+        outline: none;
+        cursor: pointer;
+    }
+    .audio-slider:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .audio-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 0 6px rgba(108,92,231,0.5);
+    }
+    .audio-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border: none;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+    }
+
+    .slider-bounds {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 6px;
+    }
+
+    .ptt-button { width: 100%; justify-content: center; margin-top: 18px; }
+
+    .ptt-live {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255,107,107,0.35);
+        border-radius: var(--radius-sm);
+        background: var(--danger-light);
+    }
+
+    .ptt-live-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--danger);
+        flex-shrink: 0;
+        animation: ptt-pulse 1s ease-in-out infinite;
+    }
+    @@keyframes ptt-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    .ptt-live-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+    .ptt-live-text strong { color: var(--danger); font-size: 14px; }
+    .ptt-live-text span { color: var(--text-muted); }
+
+    .rx-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+    }
+
+    .rx-label { font-size: 14px; color: var(--text); }
+    .rx-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .rx-value--muted { font-size: 14px; font-weight: 400; color: var(--text-muted); }
+    .rx-unit { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+
+    .rx-gauge {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--border-card);
+        overflow: hidden;
+        margin-top: 10px;
+    }
+    .rx-gauge-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 4px;
+        transition: width 0.4s ease;
+    }
+
+    .skeleton-card { padding: 0; overflow: hidden; }
+</style>
+
+@code {
+    /// <summary>
+    /// Période de rafraîchissement du RSSI et de la disponibilité du test d'émission.
+    /// </summary>
+    private const int RefreshSeconds = 3;
+
+    private AudioSettingsDto? _settings;
+    private RxSignalDto? _rxSignal;
+
+    private bool _isLoading = true;
+    private bool _isPttBusy;
+
+    private int _captureLevel;
+    private int _playbackLevel;
+    private int _testDuration = 5;
+    private int _maxTestDuration = 30;
+
+    private bool _isTransmitting;
+    private int _remainingSeconds;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+    private int _tick;
+
+    protected override async Task OnInitializedAsync()
+    {
+        PttTestService.OnStateChanged += OnPttStateChanged;
+
+        await LoadSettingsAsync();
+        await RefreshRxSignalAsync();
+
+        _isLoading = false;
+
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = PollAsync(_cts.Token);
+    }
+
+    /// <summary>
+    /// Charge l'état complet de la page : niveaux, disponibilité et état du test d'émission.
+    /// </summary>
+    private async Task LoadSettingsAsync()
+    {
+        var result = await Mediator.Send<Validation<Error, AudioSettingsDto>>(new GetAudioSettingsQuery());
+
+        result.Match(
+            Succ: dto =>
+            {
+                _settings = dto;
+                _maxTestDuration = Math.Max(1, dto.MaxTestDurationSeconds);
+                _testDuration = Math.Clamp(dto.DefaultTestDurationSeconds, 1, _maxTestDuration);
+
+                if (dto.Capture is not null) _captureLevel = dto.Capture.Value;
+                if (dto.Playback is not null) _playbackLevel = dto.Playback.Value;
+
+                _isTransmitting = dto.Ptt.IsTransmitting;
+                _remainingSeconds = dto.Ptt.RemainingSeconds;
+
+                return Unit.Default;
+            },
+            Fail: errors =>
+            {
+                ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                return Unit.Default;
+            });
+    }
+
+    /// <summary>
+    /// Rafraîchit le RSSI et le compteur d'écrêtages.
+    /// </summary>
+    private async Task RefreshRxSignalAsync()
+    {
+        var result = await Mediator.Send<Validation<Error, RxSignalDto>>(new GetRxSignalQuery());
+
+        result.Match(
+            Succ: dto => { _rxSignal = dto; return Unit.Default; },
+            Fail: _ => Unit.Default);
+    }
+
+    /// <summary>
+    /// Rafraîchissement périodique : décompte du test d'émission chaque seconde, RSSI et
+    /// disponibilité du PTT toutes les <see cref="RefreshSeconds"/> secondes.
+    /// </summary>
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(cancellationToken))
+            {
+                _tick++;
+
+                if (_isTransmitting)
+                    _remainingSeconds = PttTestService.State.RemainingSeconds;
+
+                if (_tick % RefreshSeconds == 0)
+                {
+                    await RefreshRxSignalAsync();
+                    await RefreshAvailabilityAsync();
+                }
+
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Page quittée : arrêt normal du rafraîchissement.
+        }
+    }
+
+    /// <summary>
+    /// Réévalue la disponibilité du test d'émission, qui dépend du salon actif.
+    /// </summary>
+    private async Task RefreshAvailabilityAsync()
+    {
+        var result = await Mediator.Send<Validation<Error, AudioSettingsDto>>(new GetAudioSettingsQuery());
+
+        result.Match(
+            Succ: dto =>
+            {
+                // Seul _settings est remplacé : la position des curseurs vit dans _captureLevel et
+                // _playbackLevel, que ce rafraîchissement ne touche pas — l'utilisateur peut être
+                // en train d'en manipuler un.
+                _settings = dto;
+                return Unit.Default;
+            },
+            Fail: _ => Unit.Default);
+    }
+
+    private async Task ApplyCaptureAsync(int value)
+    {
+        _captureLevel = value;
+        await ApplyLevelsAsync();
+    }
+
+    private async Task ApplyPlaybackAsync(int value)
+    {
+        _playbackLevel = value;
+        await ApplyLevelsAsync();
+    }
+
+    /// <summary>
+    /// Applique les deux niveaux à la carte son et les mémorise.
+    /// </summary>
+    private async Task ApplyLevelsAsync()
+    {
+        var result = await Mediator.Send<Validation<Error, AudioLevelsDto>>(
+            new UpdateAudioLevelsCommand(_captureLevel, _playbackLevel));
+
+        result.Match(
+            Succ: levels =>
+            {
+                _captureLevel = levels.Capture.Value;
+                _playbackLevel = levels.Playback.Value;
+                if (_settings is not null)
+                    _settings = _settings with { Capture = levels.Capture, Playback = levels.Playback };
+
+                return Unit.Default;
+            },
+            Fail: errors =>
+            {
+                ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                return Unit.Default;
+            });
+    }
+
+    private async Task StartTestAsync()
+    {
+        _isPttBusy = true;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, PttTestStatusDto>>(
+                new StartPttTestCommand(_testDuration));
+
+            result.Match(
+                Succ: status =>
+                {
+                    _isTransmitting = status.IsTransmitting;
+                    _remainingSeconds = status.RemainingSeconds;
+                    ToastService.ShowWarning($"Émission en cours pour {_testDuration} secondes.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                });
+        }
+        finally
+        {
+            _isPttBusy = false;
+        }
+    }
+
+    private async Task StopTestAsync()
+    {
+        _isPttBusy = true;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, PttTestStatusDto>>(new StopPttTestCommand());
+
+            result.Match(
+                Succ: status =>
+                {
+                    _isTransmitting = status.IsTransmitting;
+                    _remainingSeconds = status.RemainingSeconds;
+                    ToastService.ShowInfo("Émission arrêtée.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                });
+        }
+        finally
+        {
+            _isPttBusy = false;
+        }
+    }
+
+    private void ResetDistortion()
+    {
+        DistortionService.Reset();
+        _rxSignal = _rxSignal is null ? null : _rxSignal with { LastDistortionAt = null, DistortionCount = 0 };
+    }
+
+    /// <summary>
+    /// Le relâchement automatique du PTT est décidé par le singleton, pas par cette page :
+    /// l'état est donc reçu par événement plutôt que déduit du décompte affiché.
+    /// </summary>
+    private void OnPttStateChanged(PttTestState state)
+    {
+        _isTransmitting = state.IsTransmitting;
+        _remainingSeconds = state.RemainingSeconds;
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static int ParseInt(object? value, int fallback) =>
+        int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+
+    /// <summary>
+    /// Bloc de réglage d'un niveau : libellé, valeur brute, plage et curseur.
+    /// </summary>
+    private RenderFragment RenderLevel(
+        string label,
+        string icon,
+        AudioLevelDto level,
+        int currentValue,
+        Action<int> onInput,
+        Func<int, Task> onCommit,
+        string hint) => __builder =>
+    {
+        <div class="level-block">
+            <div class="slider-header">
+                <span class="slider-label">
+                    <span class="material-symbols-outlined">@icon</span>
+                    @label
+                </span>
+                <span class="slider-value">
+                    @currentValue<span class="slider-value-sub">/@level.MaxValue</span>
+                </span>
+            </div>
+
+            <input type="range" class="audio-slider"
+                   min="@level.MinValue" max="@level.MaxValue" step="1" value="@currentValue"
+                   @oninput="e => onInput(ParseInt(e.Value, currentValue))"
+                   @onchange="e => onCommit(ParseInt(e.Value, currentValue))" />
+
+            <div class="slider-bounds">
+                <span>@level.MinValue</span>
+                <span>contrôle ALSA « @level.ControlName »</span>
+                <span>@level.MaxValue</span>
+            </div>
+
+            <p class="audio-hint">
+                <span class="material-symbols-outlined">info</span>
+                @hint
+            </p>
+        </div>
+    };
+
+    public void Dispose()
+    {
+        PttTestService.OnStateChanged -= OnPttStateChanged;
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _timer?.Dispose();
+    }
+}
