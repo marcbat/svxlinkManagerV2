@@ -2,6 +2,7 @@ using LanguageExt;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using Unit = LanguageExt.Unit;
@@ -27,6 +28,7 @@ public class RestartSvxLinkCommandHandler : IRequestHandler<RestartSvxLinkComman
     private readonly IActiveSessionTracker _tracker;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ILogger<RestartSvxLinkCommandHandler> _logger;
 
     public RestartSvxLinkCommandHandler(
@@ -34,12 +36,14 @@ public class RestartSvxLinkCommandHandler : IRequestHandler<RestartSvxLinkComman
         IActiveSessionTracker tracker,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
+        IReflectorLinkStateService linkStateService,
         ILogger<RestartSvxLinkCommandHandler> logger)
     {
         _repository = repository;
         _tracker = tracker;
         _daemonService = daemonService;
         _connectedNodesService = connectedNodesService;
+        _linkStateService = linkStateService;
         _logger = logger;
     }
 
@@ -47,12 +51,20 @@ public class RestartSvxLinkCommandHandler : IRequestHandler<RestartSvxLinkComman
         RestartSvxLinkCommand command,
         CancellationToken cancellationToken)
     {
-        var protocol = await ResolveProtocolAsync(cancellationToken);
+        var salon = await ResolveActiveSalonAsync(cancellationToken);
+        var protocol = salon?.Configuration.ReflectorProtocol ?? ReflectorProtocol.V3;
 
         _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol})", protocol);
 
         // Réarme le service d'annonce de connexion pour la reconnexion à venir.
         _connectedNodesService.Reset();
+
+        // Sans salon réflecteur, la configuration rechargée ne comporte pas de ReflectorLogic :
+        // aucune liaison n'est à surveiller.
+        if (salon is null || salon.SalonType == SalonType.Parrot)
+            _linkStateService.MarkNotApplicable();
+        else
+            _linkStateService.BeginConnecting();
 
         var daemonResult = await _daemonService.RestartAsync(protocol, cancellationToken);
         if (daemonResult.IsFail)
@@ -63,27 +75,29 @@ public class RestartSvxLinkCommandHandler : IRequestHandler<RestartSvxLinkComman
     }
 
     /// <summary>
-    /// Détermine le protocole réflecteur à utiliser d'après le salon actif.
+    /// Récupère le salon actif, ou <c>null</c> quand le redémarrage se fait en mode autonome.
+    /// Le salon porte à la fois le protocole réflecteur et le type de salon.
     /// </summary>
-    private async Task<ReflectorProtocol> ResolveProtocolAsync(CancellationToken cancellationToken)
+    private async Task<SalonAggregate?> ResolveActiveSalonAsync(CancellationToken cancellationToken)
     {
         var activeSalonId = _tracker.ActiveSalonId;
         if (!activeSalonId.HasValue)
         {
             _logger.LogInformation("Aucun salon actif : redémarrage en mode autonome");
-            return ReflectorProtocol.V3;
+            return null;
         }
 
         var aggregateResult = await _repository.GetByIdAsync(activeSalonId.Value, cancellationToken);
+        if (aggregateResult.IsFail)
+        {
+            _logger.LogWarning(
+                "Salon actif {SalonId} introuvable : redémarrage avec le protocole V3 par défaut",
+                activeSalonId.Value);
+            return null;
+        }
 
         return aggregateResult.Match(
-            Succ: salon => salon.Configuration.ReflectorProtocol,
-            Fail: _ =>
-            {
-                _logger.LogWarning(
-                    "Salon actif {SalonId} introuvable : redémarrage avec le protocole V3 par défaut",
-                    activeSalonId.Value);
-                return ReflectorProtocol.V3;
-            });
+            Succ: salon => salon,
+            Fail: _ => throw new InvalidOperationException());
     }
 }
