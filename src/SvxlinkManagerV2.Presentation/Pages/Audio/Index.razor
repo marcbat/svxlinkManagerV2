@@ -3,6 +3,7 @@
 @using SvxlinkManagerV2.Application.Features.Audio
 @using SvxlinkManagerV2.Application.Features.Audio.GetAudioSettings
 @using SvxlinkManagerV2.Application.Features.Audio.GetRxSignal
+@using SvxlinkManagerV2.Application.Features.Audio.StartModulationTest
 @using SvxlinkManagerV2.Application.Features.Audio.StartPttTest
 @using SvxlinkManagerV2.Application.Features.Audio.StopPttTest
 @using SvxlinkManagerV2.Application.Features.Audio.UpdateAudioLevels
@@ -109,6 +110,11 @@ else
                         La station passe réellement en émission pendant la durée choisie.
                         Vérifiez que l'antenne est raccordée avant de lancer le test.
                     </p>
+                    <p class="audio-hint">
+                        <span class="material-symbols-outlined">info</span>
+                        La porteuse est émise sans audio : elle valide le PTT et l'antenne, mais reste
+                        silencieuse. Pour juger le niveau de sortie, utilisez l'annonce vocale ci-dessous.
+                    </p>
                 }
 
                 @if (_isTransmitting)
@@ -148,9 +154,34 @@ else
                             @onclick="StartTestAsync"
                             disabled="@(_settings?.Ptt.CanStart != true || _isPttBusy)">
                         <span class="material-symbols-outlined">radio_button_checked</span>
-                        Passer en émission
+                        Émettre la porteuse
                     </button>
                 }
+
+                <div class="divider"></div>
+
+                <div class="slider-header">
+                    <span class="slider-label">
+                        <span class="material-symbols-outlined">record_voice_over</span>
+                        Annonce vocale de test
+                    </span>
+                </div>
+
+                <p class="audio-hint">
+                    <span class="material-symbols-outlined">hearing</span>
+                    Diffuse « Test audio, un, deux, trois… » sur la fréquence, PTT commandé par SVXLink.
+                    Écoutez-la sur un récepteur voisin : c'est le seul moyen de juger le niveau de sortie
+                    réglé à gauche — trop bas, la modulation est faible ; trop haut, la voix est distordue.
+                </p>
+
+                <button type="button" class="btn btn-secondary ptt-button"
+                        @onclick="StartModulationTestAsync"
+                        disabled="@(_settings?.Ptt.CanStart != true || _isTransmitting || _isAnnounceBusy || _announceCooldown > 0)">
+                    <span class="material-symbols-outlined">record_voice_over</span>
+                    @(_announceCooldown > 0
+                        ? $"Diffusion en cours… ({_announceCooldown} s)"
+                        : "Diffuser l'annonce de test")
+                </button>
             </div>
 
             <!-- Signal reçu -->
@@ -390,6 +421,14 @@ else
     /// </summary>
     private const int RefreshSeconds = 3;
 
+    /// <summary>
+    /// Délai d'inhibition après une annonce de test, en secondes.
+    ///
+    /// SVXLink lit le WAV de façon asynchrone : le régénérer avant la fin de la lecture
+    /// l'écraserait en cours de route et l'annonce sortirait tronquée.
+    /// </summary>
+    private const int AnnounceCooldownSeconds = 12;
+
     private AudioSettingsDto? _settings;
     private RxSignalDto? _rxSignal;
 
@@ -403,6 +442,9 @@ else
 
     private bool _isTransmitting;
     private int _remainingSeconds;
+
+    private bool _isAnnounceBusy;
+    private int _announceCooldown;
 
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
@@ -477,6 +519,9 @@ else
 
                 if (_isTransmitting)
                     _remainingSeconds = PttTestService.State.RemainingSeconds;
+
+                if (_announceCooldown > 0)
+                    _announceCooldown--;
 
                 if (_tick % RefreshSeconds == 0)
                 {
@@ -575,6 +620,38 @@ else
         finally
         {
             _isPttBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Diffuse l'annonce vocale de test. Contrairement au test de porteuse, le PTT est commandé
+    /// par SVXLink le temps de la lecture : l'application n'a rien à relâcher.
+    /// </summary>
+    private async Task StartModulationTestAsync()
+    {
+        _isAnnounceBusy = true;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new StartModulationTestCommand());
+
+            result.Match(
+                Succ: _ =>
+                {
+                    _announceCooldown = AnnounceCooldownSeconds;
+                    ToastService.ShowWarning(
+                        "Annonce de test diffusée : écoutez-la sur un récepteur réglé sur la fréquence d'émission.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(" ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                });
+        }
+        finally
+        {
+            _isAnnounceBusy = false;
         }
     }
 
