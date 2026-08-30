@@ -50,11 +50,19 @@ public class LoginModel : PageModel
             return Page();
         }
 
-        var result = await _signInManager.PasswordSignInAsync(username, password, rememberMe, lockoutOnFailure: false);
+        var result = await _signInManager.PasswordSignInAsync(username, password, rememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
-            return LocalRedirect(returnUrl ?? "/");
+            // LocalRedirect refuse une URL absolue : protège contre l'open redirect
+            // via un returnUrl forgé.
+            return LocalRedirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+        }
+
+        if (result.IsLockedOut)
+        {
+            ErrorMessage = "Compte temporairement verrouillé après plusieurs tentatives infructueuses. Réessayez dans quelques minutes.";
+            return Page();
         }
 
         ErrorMessage = "Nom d'utilisateur ou mot de passe incorrect.";

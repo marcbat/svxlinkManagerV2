@@ -44,7 +44,7 @@
             <input type="password" id="password" class="form-control"
                    @bind="_password"
                    autocomplete="new-password" />
-            <small class="form-text text-muted">Minimum 6 caractères.</small>
+            <small class="form-text text-muted">Minimum 8 caractères.</small>
         </div>
 
         <div class="form-group">
@@ -97,7 +97,7 @@
     private bool IsValid =>
         !string.IsNullOrWhiteSpace(_username) &&
         !string.IsNullOrWhiteSpace(_password) &&
-        _password.Length >= 6 &&
+        _password.Length >= 8 &&
         _password == _confirmPassword;
 
     private async Task Submit()
@@ -110,9 +110,9 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_password) || _password.Length < 6)
+        if (string.IsNullOrWhiteSpace(_password) || _password.Length < 8)
         {
-            _errorMessages.Add("Le mot de passe doit contenir au moins 6 caractères.");
+            _errorMessages.Add("Le mot de passe doit contenir au moins 8 caractères.");
             return;
         }
 

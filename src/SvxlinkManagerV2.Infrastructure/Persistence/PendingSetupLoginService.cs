@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 
@@ -29,7 +30,9 @@ public class PendingSetupLoginService : IPendingSetupLoginService
                 _tokens.TryRemove(kvp.Key, out _);
         }
 
-        var token = Guid.NewGuid().ToString("N");
+        // Token cryptographiquement aléatoire (256 bits) : un GUID n'offre aucune
+        // garantie d'imprévisibilité, or ce token vaut ouverture de session.
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         _tokens[token] = (username, now.Add(TokenTtl));
         _logger.LogDebug("Token de setup généré pour {Username}", username);
         return token;

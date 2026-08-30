@@ -91,6 +91,18 @@ Clean Architecture + DDD, 4 projets sources avec une structure miroir dans `test
 
 `SvxLinkConfiguration` est une owned entity de `SalonAggregate` sérialisée en JSON (`OwnsOne(...).ToJson()`) : ajouter un champ de configuration SVXLink ne change pas le schéma des colonnes.
 
+### Authentification
+
+L'application est protégée par **ASP.NET Identity** avec un **compte unique** créé à l'étape 0 du wizard d'installation. Points à connaître avant d'ajouter une page :
+
+- **Tout est protégé par défaut.** Une `FallbackPolicy` globale (`Startup.cs`) exige un utilisateur authentifié, et `App.razor` route les composants via `AuthorizeRouteView`. Une nouvelle page Blazor est donc protégée **sans rien faire** ; l'ouvrir explicitement demande `@attribute [AllowAnonymous]`.
+- **Le hub Blazor et `/_Host` sont en `AllowAnonymous`** — indispensable, sinon la négociation du circuit boucle en `ERR_TOO_MANY_REDIRECTS`. L'autorisation réelle est faite par `AuthorizeRouteView`, pas par le middleware.
+- **Login, logout et auto-login sont des Razor Pages**, pas des composants : écrire un cookie d'authentification est impossible depuis un circuit Blazor Server (WebSocket, réponse déjà émise).
+- **`/setup` (Step0Account) est la seule page anonyme du wizard.** Les étapes suivantes (`/setup/callsign` … `/setup/summary`) sont protégées ; la transition passe par un **token à usage unique** en mémoire (`IPendingSetupLoginService`, TTL 5 min) consommé par `/account/setup-complete`, qui ouvre la session puis redirige.
+- `SvxlinkDbContext` dérive d'`IdentityDbContext<IdentityUser>` : **appeler `base.OnModelCreating(modelBuilder)`** avant toute configuration, sinon le schéma Identity n'est pas construit.
+
+**Mise à jour d'une installation existante** : `EnsureCreated()` ne touchant pas une base déjà créée, les tables `AspNet*` n'apparaîtraient jamais sur un déploiement antérieur à l'authentification. `IdentitySchemaInitializer` (appelé par [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) quand la base préexiste) rejoue les seules instructions DDL Identity du script de création du modèle. C'est **la seule exception** à la règle « changement de schéma = suppression du fichier SQLite » ci-dessus, et elle ne vaut que pour Identity.
+
 ### Pipeline DTMF (chaîne à comprendre avant d'y toucher)
 
 ```
