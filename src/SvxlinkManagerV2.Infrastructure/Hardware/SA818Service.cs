@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Configuration;
@@ -21,6 +22,11 @@ public class SA818Service : ISA818Service, IDisposable
     private readonly int _writeTimeout;
     private readonly int _commandDelay;
     private bool _portConfigured;
+
+    /// <summary>
+    /// Réponse du module à la commande « RSSI? », de la forme « RSSI=020 ».
+    /// </summary>
+    private static readonly Regex RssiRegex = new(@"RSSI\s*=\s*(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public SA818Service(IConfiguration configuration, ILogger<SA818Service> logger)
     {
@@ -112,6 +118,48 @@ public class SA818Service : ISA818Service, IDisposable
         }
     }
 
+    public async Task<Validation<Error, int>> ReadRssiAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var openResult = await OpenPortAsync(cancellationToken);
+            if (openResult.IsFail)
+            {
+                return Error.New(500, "Port série indisponible pour la lecture du RSSI");
+            }
+
+            // Le module répond « RSSI=020 » : cette réponse ne suit pas la forme d'acquittement
+            // « +COMMANDE:0 » des commandes de configuration, d'où la lecture brute.
+            var response = await SendRawCommandAsync("RSSI?", cancellationToken);
+            ClosePort();
+
+            if (response.IsFail)
+            {
+                return Error.New(500, "Le module SA818 n'a pas répondu à la demande de RSSI");
+            }
+
+            var raw = response.Match(Succ: value => value, Fail: _ => string.Empty);
+            var match = RssiRegex.Match(raw);
+
+            if (!match.Success)
+            {
+                _logger.LogWarning("Réponse RSSI non reconnue du module SA818 : {Response}", raw);
+                return Error.New(500, $"Réponse RSSI non reconnue : {raw}");
+            }
+
+            var rssi = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            _logger.LogDebug("RSSI lu sur le module SA818 : {Rssi}", rssi);
+
+            return rssi;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la lecture du RSSI du SA818");
+            ClosePort();
+            return Error.New(500, "Erreur lors de la lecture du RSSI", ex);
+        }
+    }
+
     private Task<Validation<Error, Unit>> OpenPortAsync(CancellationToken cancellationToken)
     {
         try
@@ -150,7 +198,36 @@ public class SA818Service : ISA818Service, IDisposable
         }
     }
 
-    private Task<Validation<Error, string>> SendCommandAsync(string command, CancellationToken cancellationToken)
+    /// <summary>
+    /// Envoie une commande de configuration et n'accepte que les réponses d'acquittement connues
+    /// du module (les firmwares répondent SETFILTER ou DMOSETFILTER selon les versions).
+    /// </summary>
+    private async Task<Validation<Error, string>> SendCommandAsync(string command, CancellationToken cancellationToken)
+    {
+        var result = await SendRawCommandAsync(command, cancellationToken);
+
+        return result.Bind<string>(response =>
+        {
+            if (response.Contains("+DMOSETGROUP:0") ||
+                response.Contains("+DMOSETVOLUME:0") ||
+                response.Contains("+SETFILTER:0") ||
+                response.Contains("+DMOSETFILTER:0") ||
+                response.Equals("OK", StringComparison.OrdinalIgnoreCase))
+            {
+                return response;
+            }
+
+            _logger.LogWarning("Réponse invalide du module SA818: {Response}", response);
+            return Error.New(500, $"Réponse invalide: {response}");
+        });
+    }
+
+    /// <summary>
+    /// Envoie une commande sur le port série et retourne la première ligne de réponse, sans
+    /// interpréter son contenu : les commandes d'interrogation (RSSI, VERSION) ne suivent pas
+    /// la forme d'acquittement des commandes de configuration.
+    /// </summary>
+    private Task<Validation<Error, string>> SendRawCommandAsync(string command, CancellationToken cancellationToken)
     {
         try
         {
@@ -183,18 +260,7 @@ public class SA818Service : ISA818Service, IDisposable
 
             _logger.LogDebug("Réponse reçue: {Response}", response);
 
-            // Vérifier si la réponse indique un succès (les firmwares peuvent répondre SETFILTER ou DMOSETFILTER)
-            if (response.Contains("+DMOSETGROUP:0") || 
-                response.Contains("+DMOSETVOLUME:0") || 
-                response.Contains("+SETFILTER:0") ||
-                response.Contains("+DMOSETFILTER:0") ||
-                response.Equals("OK", StringComparison.OrdinalIgnoreCase))
-            {
-                return Task.FromResult<Validation<Error, string>>(response);
-            }
-
-            _logger.LogWarning("Réponse invalide du module SA818: {Response}", response);
-            return Task.FromResult<Validation<Error, string>>(Error.New(500, $"Réponse invalide: {response}"));
+            return Task.FromResult<Validation<Error, string>>(response);
         }
         catch (TimeoutException ex)
         {

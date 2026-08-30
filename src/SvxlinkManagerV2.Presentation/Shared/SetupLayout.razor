@@ -42,7 +42,15 @@
         </div>
         <div class="setup-step-connector @(CurrentStep > 4 ? "active" : "")"></div>
         <div class="setup-step @GetStepClass(5)">
-            <div class="setup-step-circle"><span>5</span></div>
+            <div class="setup-step-circle">
+                @if (CurrentStep > 5) { <span class="material-symbols-outlined">check</span> }
+                else { <span>5</span> }
+            </div>
+            <span class="setup-step-label">Audio</span>
+        </div>
+        <div class="setup-step-connector @(CurrentStep > 5 ? "active" : "")"></div>
+        <div class="setup-step @GetStepClass(6)">
+            <div class="setup-step-circle"><span>6</span></div>
             <span class="setup-step-label">Récapitulatif</span>
         </div>
     </div>
@@ -58,7 +66,8 @@
         var u when u.Contains("/setup/callsign") => 2,
         var u when u.Contains("/setup/wifi") => 3,
         var u when u.Contains("/setup/frequencies") => 4,
-        var u when u.Contains("/setup/summary") => 5,
+        var u when u.Contains("/setup/audio") => 5,
+        var u when u.Contains("/setup/summary") => 6,
         _ => 1
     };
 

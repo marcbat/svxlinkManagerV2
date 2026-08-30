@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using SvxlinkManagerV2.Domain.Aggregates.AudioConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
@@ -16,6 +17,7 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
     public DbSet<SA818Aggregate> SA818 => Set<SA818Aggregate>();
     public DbSet<ReflectorAggregate> Reflectors => Set<ReflectorAggregate>();
     public DbSet<GeneralConfigurationAggregate> GeneralConfigurations => Set<GeneralConfigurationAggregate>();
+    public DbSet<AudioConfigurationAggregate> AudioConfigurations => Set<AudioConfigurationAggregate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +26,7 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
         modelBuilder.Entity<SA818Aggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<ReflectorAggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<GeneralConfigurationAggregate>().Ignore(e => e.DomainEvents);
+        modelBuilder.Entity<AudioConfigurationAggregate>().Ignore(e => e.DomainEvents);
 
         modelBuilder.Entity<SalonAggregate>(entity =>
         {
@@ -62,6 +65,15 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
             entity.Property(e => e.StartDefaultSalonOnStartup);
             entity.Property(e => e.DefaultRxFrequency);
             entity.Property(e => e.DefaultTxFrequency);
+        });
+
+        modelBuilder.Entity<AudioConfigurationAggregate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CaptureControl);
+            entity.Property(e => e.CaptureLevel);
+            entity.Property(e => e.PlaybackControl);
+            entity.Property(e => e.PlaybackLevel);
         });
     }
 }

@@ -99,6 +99,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddScoped<ISalonRepository, SalonRepository>();
             services.AddScoped<IGeneralConfigurationRepository, GeneralConfigurationRepository>();
             services.AddScoped<IReflectorRepository, ReflectorRepository>();
+            services.AddScoped<IAudioConfigurationRepository, AudioConfigurationRepository>();
 
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
@@ -118,6 +119,23 @@ namespace SvxlinkManagerV2.Presentation
                 services.AddScoped<ISA818Service, SA818MockService>();
             else
                 services.AddScoped<ISA818Service, SA818Service>();
+
+            // Chaîne audio de la machine : niveaux ALSA et test d'émission (réels ou simulés)
+            services.Configure<AudioOptions>(Configuration.GetSection(AudioOptions.SectionName));
+            var useAudioMock = Configuration.GetValue<bool>($"{AudioOptions.SectionName}:UseMock", false);
+            if (useAudioMock)
+            {
+                services.AddSingleton<IAudioService, AudioMockService>();
+                services.AddSingleton<IPttTestService, PttTestMockService>();
+            }
+            else
+            {
+                services.AddSingleton<IAudioService, AlsaAudioService>();
+                services.AddSingleton<IPttTestService, GpioPttTestService>();
+            }
+
+            // Réapplication des niveaux mémorisés au démarrage
+            services.AddHostedService<AudioInitializerHostedService>();
 
             // WiFi service (réel ou mock)
             var useWifiMock = Configuration.GetValue<bool>("Wifi:UseMock", false);
@@ -140,6 +158,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
+            services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddSingleton<ISvxLinkConfigurationReader, SvxLinkConfigurationReader>();
