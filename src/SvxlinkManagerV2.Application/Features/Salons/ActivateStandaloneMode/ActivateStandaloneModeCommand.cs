@@ -33,6 +33,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
     public ActivateStandaloneModeCommandHandler(
@@ -43,6 +44,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         ISvxLinkDaemonService daemonService,
         IActiveSessionTracker tracker,
         IConnectedNodesService connectedNodesService,
+        IReflectorLinkStateService linkStateService,
         ILogger<ActivateStandaloneModeCommandHandler> logger)
     {
         _generalConfigRepository = generalConfigRepository;
@@ -52,6 +54,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         _daemonService = daemonService;
         _tracker = tracker;
         _connectedNodesService = connectedNodesService;
+        _linkStateService = linkStateService;
         _logger = logger;
     }
 
@@ -105,6 +108,10 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
             rxFrequency, txFrequency, SvxLinkConfPath, cancellationToken);
         if (configResult.IsFail)
             return Error.Validation("SVXLINK_CONFIG_ERROR", "Impossible de générer le fichier svxlink.conf en mode standalone").ToFailure<Unit>();
+
+        // Mode autonome : la configuration générée ne comporte pas de ReflectorLogic,
+        // il n'y a donc aucune liaison à surveiller.
+        _linkStateService.MarkNotApplicable();
 
         _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone (version moderne)");
         var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V3, cancellationToken);

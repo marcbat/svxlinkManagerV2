@@ -22,6 +22,7 @@ public class RestartSvxLinkCommandTests
     private readonly IActiveSessionTracker _tracker;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ILogger<RestartSvxLinkCommandHandler> _logger;
 
     public RestartSvxLinkCommandTests()
@@ -30,17 +31,63 @@ public class RestartSvxLinkCommandTests
         _tracker = Substitute.For<IActiveSessionTracker>();
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
+        _linkStateService = Substitute.For<IReflectorLinkStateService>();
         _logger = Substitute.For<ILogger<RestartSvxLinkCommandHandler>>();
     }
 
     private async Task<Validation<Error, Unit>> CallHandle() =>
         await new RestartSvxLinkCommandHandler(
-                _repository, _tracker, _daemonService, _connectedNodesService, _logger)
+                _repository, _tracker, _daemonService, _connectedNodesService, _linkStateService, _logger)
             .Handle(new RestartSvxLinkCommand(), CancellationToken.None);
 
     private void GivenDaemonRestartSucceeds() =>
         _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+    [Fact]
+    public async Task Handle_WithActiveReflectorSalon_ShouldBeginConnecting()
+    {
+        var salonId = Guid.NewGuid();
+        _tracker.ActiveSalonId.Returns(salonId);
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(CreateAggregate(salonId, ReflectorProtocol.V2).ToSuccess());
+        GivenDaemonRestartSucceeds();
+
+        var result = await CallHandle();
+
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).BeginConnecting();
+        _linkStateService.DidNotReceive().MarkNotApplicable();
+    }
+
+    [Fact]
+    public async Task Handle_WithoutActiveSalon_ShouldMarkLinkNotApplicable()
+    {
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        GivenDaemonRestartSucceeds();
+
+        var result = await CallHandle();
+
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).MarkNotApplicable();
+        _linkStateService.DidNotReceive().BeginConnecting();
+    }
+
+    [Fact]
+    public async Task Handle_WithActiveParrotSalon_ShouldMarkLinkNotApplicable()
+    {
+        var salonId = Guid.NewGuid();
+        _tracker.ActiveSalonId.Returns(salonId);
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(CreateAggregate(salonId, ReflectorProtocol.V3, SalonType.Parrot).ToSuccess());
+        GivenDaemonRestartSucceeds();
+
+        var result = await CallHandle();
+
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).MarkNotApplicable();
+        _linkStateService.DidNotReceive().BeginConnecting();
+    }
 
     [Fact]
     public async Task Handle_WithActiveSalon_ShouldRestartWithItsProtocol()
@@ -129,8 +176,11 @@ public class RestartSvxLinkCommandTests
             Fail: errors => errors.Head.Code.Should().Be("SVXLINK_RESTART_ERROR"));
     }
 
-    private static SalonAggregate CreateAggregate(Guid id, ReflectorProtocol protocol) =>
-        SalonAggregate.Create(id, "Salon Test", isDefault: false, CreateValidConfiguration(protocol))
+    private static SalonAggregate CreateAggregate(
+        Guid id,
+        ReflectorProtocol protocol,
+        SalonType salonType = SalonType.Reflector) =>
+        SalonAggregate.Create(id, "Salon Test", isDefault: false, CreateValidConfiguration(protocol), salonType)
             .Match(
                 Succ: a => a,
                 Fail: errors => throw new InvalidOperationException($"Failed to create aggregate: {string.Join(", ", errors)}"));

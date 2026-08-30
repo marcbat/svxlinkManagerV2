@@ -125,6 +125,15 @@ SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
 
 `Logic.tcl` est un `EmbeddedResource` de l'Infrastructure, déployé au démarrage dans les répertoires `events.d/local` des **deux** installations SVXLink par `LogicTclDeploymentService`.
 
+### État du daemon vs état de la liaison réflecteur
+
+Deux notions distinctes, à ne pas confondre :
+
+- `ISvxLinkDaemonService.IsRunningAsync()` ne dit que si le **processus** svxlink tourne ;
+- `IReflectorLinkStateService` (implémenté par `ReflectorLinkStateTracker`, singleton) suit l'état de la **liaison** au réflecteur en parsant les lignes `ReflectorLogic` du flux de logs, et le publie via `OnStateChanged`.
+
+Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoignable ou certificat rejeté laissent le processus en vie sans que le nœud soit relié. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
+
 ### Supervision système
 
 `ISystemMetricsService` (implémenté par `LinuxSystemMetricsService`, dans `Infrastructure/Monitoring`) est **l'unique lecteur** de `/proc`, `/sys` et de l'espace disque. En découlent deux consommateurs :

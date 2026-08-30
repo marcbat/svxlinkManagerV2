@@ -29,6 +29,7 @@ public class ActivateStandaloneModeCommandTests
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
     public ActivateStandaloneModeCommandTests()
@@ -40,6 +41,7 @@ public class ActivateStandaloneModeCommandTests
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _tracker = Substitute.For<IActiveSessionTracker>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
+        _linkStateService = Substitute.For<IReflectorLinkStateService>();
         _logger = Substitute.For<ILogger<ActivateStandaloneModeCommandHandler>>();
     }
 
@@ -225,6 +227,31 @@ public class ActivateStandaloneModeCommandTests
         await _sa818Service.DidNotReceive().ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Handle_ShouldMarkLinkNotApplicable()
+    {
+        // Arrange : en mode autonome, svxlink.conf ne contient pas de ReflectorLogic
+        var command = new ActivateStandaloneModeCommand();
+        _generalConfigRepository.GetAsync(Arg.Any<CancellationToken>())
+            .Returns(CreateValidGeneralConfig());
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns((SA818ConfigurationDto?)null);
+        _configurationService.GenerateStandaloneAsync(
+                Arg.Any<decimal>(), Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<LangExtError, Unit>>(unit));
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+
+        // Act
+        var result = await CreateHandler().Handle(command, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).MarkNotApplicable();
+        _linkStateService.DidNotReceive().BeginConnecting();
+    }
+
     private ActivateStandaloneModeCommandHandler CreateHandler()
         => new(
             _generalConfigRepository,
@@ -234,6 +261,7 @@ public class ActivateStandaloneModeCommandTests
             _daemonService,
             _tracker,
             _connectedNodesService,
+            _linkStateService,
             _logger);
 
     private static GeneralConfigurationAggregate CreateValidGeneralConfig(
