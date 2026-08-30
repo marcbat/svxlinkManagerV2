@@ -13,9 +13,12 @@ services:
       - ConnectionStrings__SQLite=Data Source=/app/data/svxlinkmanager.db
       - SA818__UseMock=true
       - SvxLink__UseMockDaemon=false
+      - SystemMonitoring__DataPath=/app/data
       - ApplicationUpdate__GitHubToken=${GITHUB_TOKEN}
     volumes:
-      - ./svxlink-config:/etc/svxlink
+      # Variante Docker du template (audio/PTT en null/Dummy, pas de hardware
+      # dans le conteneur). svxlink-config/ reste le template de production.
+      - ./svxlink-config-docker:/etc/svxlink
       - ./logs:/app/logs
       - ./data:/app/data
       - svxlink-spool:/var/spool/svxlink

@@ -2,20 +2,17 @@ using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
-using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
 
 /// <summary>
 /// Fournisseur d'information pour la commande DTMF 301.
-/// Lit la température du processeur depuis le système de fichiers Linux
-/// (<c>/sys/class/thermal/thermal_zone0/temp</c>) et retourne une phrase en français.
+/// Annonce la température du processeur lue par <see cref="ISystemMetricsService"/>.
 /// </summary>
 public class CpuTemperatureInfoProvider : IInfoProvider
 {
+    private readonly ISystemMetricsService _metrics;
     private readonly ILogger<CpuTemperatureInfoProvider> _logger;
-    private readonly string _thermalZonePath;
-    internal const string DefaultThermalZonePath = "/sys/class/thermal/thermal_zone0/temp";
 
     /// <inheritdoc/>
     public int DtmfCode => 301;
@@ -23,46 +20,29 @@ public class CpuTemperatureInfoProvider : IInfoProvider
     /// <inheritdoc/>
     public string Description => "Température du processeur";
 
-    public CpuTemperatureInfoProvider(ILogger<CpuTemperatureInfoProvider> logger, string? thermalZonePath = null)
+    public CpuTemperatureInfoProvider(
+        ISystemMetricsService metrics,
+        ILogger<CpuTemperatureInfoProvider> logger)
     {
+        _metrics = metrics;
         _logger = logger;
-        _thermalZonePath = thermalZonePath ?? DefaultThermalZonePath;
     }
 
     /// <inheritdoc/>
     public async Task<Validation<Error, string>> GetInfoTextAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Lecture de la température CPU depuis {Path}", _thermalZonePath);
+        var result = await _metrics.GetCpuTemperatureCelsiusAsync(cancellationToken);
 
-        try
-        {
-            if (!File.Exists(_thermalZonePath))
+        return result.Match(
+            Succ: celsius =>
             {
-                var errorMsg = $"Fichier de température introuvable : {_thermalZonePath}";
-                _logger.LogWarning(errorMsg);
-                return Validation<Error, string>.Fail(Seq1(Error.New(errorMsg)));
-            }
+                var rounded = Math.Round(celsius, MidpointRounding.AwayFromZero);
+                _logger.LogInformation("Température CPU : {Temp}°C", rounded);
 
-            var rawContent = await File.ReadAllTextAsync(_thermalZonePath, cancellationToken);
-
-            if (!int.TryParse(rawContent.Trim(), out var rawTemp))
-            {
-                var errorMsg = $"Valeur de température invalide : « {rawContent.Trim()} »";
-                _logger.LogWarning(errorMsg);
-                return Validation<Error, string>.Fail(Seq1(Error.New(errorMsg)));
-            }
-
-            var tempCelsius = rawTemp / 1000;
-            var degreeWord = tempCelsius <= 1 ? "degré" : "degrés";
-            var infoText = $"La température du processeur est de {tempCelsius} {degreeWord}";
-
-            _logger.LogInformation("Température CPU : {Temp}°C", tempCelsius);
-            return Validation<Error, string>.Success(infoText);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Exception lors de la lecture de la température CPU");
-            return Validation<Error, string>.Fail(Seq1(Error.New(ex)));
-        }
+                var degreeWord = InfoTextFormatter.Plural(rounded, "degré", "degrés");
+                return Validation<Error, string>.Success(
+                    $"La température du processeur est de {InfoTextFormatter.Round(rounded)} {degreeWord}");
+            },
+            Fail: errors => InfoProviderFailure.From(errors, _logger, Description));
     }
 }

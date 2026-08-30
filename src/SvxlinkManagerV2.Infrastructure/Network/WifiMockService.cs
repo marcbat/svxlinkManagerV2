@@ -20,6 +20,10 @@ public class WifiMockService : IWifiService
     private const string SavedUuid1 = "aaaaaaaa-0000-0000-0000-000000000001";
     private const string SavedUuid2 = "bbbbbbbb-0000-0000-0000-000000000002";
 
+    // Interface et adresse IP simulées du lien actif
+    private const string MockInterfaceName = "wlan0";
+    private const string MockIpAddress = "192.168.1.42";
+
     // État interne : SSID actuellement connecté
     private string? _connectedSsid;
     private string? _connectedUuid;
@@ -103,6 +107,28 @@ public class WifiMockService : IWifiService
             .AsReadOnly();
 
         return Task.FromResult(Validation<Error, IReadOnlyList<WifiNetwork>>.Success((IReadOnlyList<WifiNetwork>)networks));
+    }
+
+    /// <inheritdoc/>
+    public Task<Validation<Error, WifiLink>> GetActiveLinkAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("MOCK WiFi: Lecture du lien actif simulé");
+
+        if (_connectedSsid is null)
+            return Task.FromResult(Validation<Error, WifiLink>.Success(
+                new WifiLink(false, MockInterfaceName, null, null, null)));
+
+        var network = FakeNetworks.FirstOrDefault(n =>
+            string.Equals(n.Ssid, _connectedSsid, StringComparison.OrdinalIgnoreCase));
+
+        var link = new WifiLink(
+            IsConnected: true,
+            InterfaceName: MockInterfaceName,
+            Ssid: _connectedSsid,
+            SignalPercent: network?.Signal,
+            IpAddress: MockIpAddress);
+
+        return Task.FromResult(Validation<Error, WifiLink>.Success(link));
     }
 
     /// <inheritdoc/>

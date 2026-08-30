@@ -47,15 +47,6 @@ get_installed_package_version() {
   printf ''
 }
 
-should_reset_database() {
-  package_version="$1"
-
-  case "$package_version" in
-    *~alpha.*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 # Créer un répertoire de manière robuste : si le chemin existe en tant que fichier,
 # le supprimer avant de créer le répertoire.
 ensure_directory() {
@@ -145,18 +136,11 @@ sanitize_runtime_github_tokens
 # d'un éventuel remplacement du fichier unité principal lors des upgrades.
 ensure_systemd_secrets_dropin
 
-# Suppression de la base SQLite uniquement pour les builds alpha (branche develop).
-# En beta/stable (ou version indétectable), la base est préservée pour garder les données utilisateur.
-if should_reset_database "$package_version"; then
-  rm -f "$APP_DIR/data/svxlinkmanager.db"
-  log "Base SQLite supprimée (build alpha détecté: $package_version)"
-else
-  if [ -n "$package_version" ]; then
-    log "Base SQLite préservée (build non-alpha: $package_version)"
-  else
-    log "Base SQLite préservée (version indétectable, mode sécurisé non destructif)"
-  fi
-fi
+# La base SQLite est TOUJOURS préservée : le schéma est mis à niveau au démarrage
+# de l'application par les migrations EF Core (DatabaseMigrator), y compris pour une
+# base créée avant leur introduction. Ne jamais réintroduire de suppression ici :
+# elle détruirait les salons et la configuration de l'utilisateur.
+log "Base SQLite préservée (mise à niveau du schéma par les migrations EF Core au démarrage)"
 
 # --- Répertoires SVXLink requis par les deux versions ---
 log "Création des répertoires SVXLink..."

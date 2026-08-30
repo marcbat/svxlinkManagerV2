@@ -13,6 +13,12 @@ public class SvxLinkLegacyStrategy : ISvxLinkVersionStrategy
 
     public ReflectorProtocol Protocol => ReflectorProtocol.V2;
 
+    public string DisplayName => "SVXLink legacy";
+
+    public string Version => "19.09.2";
+
+    public bool IsInstalled => File.Exists(BinaryPath);
+
     public string BinaryPath => $"{Prefix}/bin/svxlink";
 
     public string LibraryPath => $"{Prefix}/lib";

@@ -14,6 +14,21 @@ public interface ISvxLinkVersionStrategy
     ReflectorProtocol Protocol { get; }
 
     /// <summary>
+    /// Human readable name of this installation (e.g. "SVXLink legacy").
+    /// </summary>
+    string DisplayName { get; }
+
+    /// <summary>
+    /// Upstream SVXLink version bundled in this installation (e.g. 19.09.2).
+    /// </summary>
+    string Version { get; }
+
+    /// <summary>
+    /// Indicates whether this SVXLink installation is actually present on the machine.
+    /// </summary>
+    bool IsInstalled { get; }
+
+    /// <summary>
     /// Absolute path to the svxlink binary (e.g. /opt/svxlink-legacy/bin/svxlink).
     /// </summary>
     string BinaryPath { get; }

@@ -14,7 +14,7 @@
                 @if (CurrentStep > 1) { <span class="material-symbols-outlined">check</span> }
                 else { <span>1</span> }
             </div>
-            <span class="setup-step-label">Indicatif</span>
+            <span class="setup-step-label">Compte</span>
         </div>
         <div class="setup-step-connector @(CurrentStep > 1 ? "active" : "")"></div>
         <div class="setup-step @GetStepClass(2)">
@@ -22,7 +22,7 @@
                 @if (CurrentStep > 2) { <span class="material-symbols-outlined">check</span> }
                 else { <span>2</span> }
             </div>
-            <span class="setup-step-label">WiFi</span>
+            <span class="setup-step-label">Indicatif</span>
         </div>
         <div class="setup-step-connector @(CurrentStep > 2 ? "active" : "")"></div>
         <div class="setup-step @GetStepClass(3)">
@@ -30,11 +30,19 @@
                 @if (CurrentStep > 3) { <span class="material-symbols-outlined">check</span> }
                 else { <span>3</span> }
             </div>
-            <span class="setup-step-label">Fréquences</span>
+            <span class="setup-step-label">WiFi</span>
         </div>
         <div class="setup-step-connector @(CurrentStep > 3 ? "active" : "")"></div>
         <div class="setup-step @GetStepClass(4)">
-            <div class="setup-step-circle"><span>4</span></div>
+            <div class="setup-step-circle">
+                @if (CurrentStep > 4) { <span class="material-symbols-outlined">check</span> }
+                else { <span>4</span> }
+            </div>
+            <span class="setup-step-label">Fréquences</span>
+        </div>
+        <div class="setup-step-connector @(CurrentStep > 4 ? "active" : "")"></div>
+        <div class="setup-step @GetStepClass(5)">
+            <div class="setup-step-circle"><span>5</span></div>
             <span class="setup-step-label">Récapitulatif</span>
         </div>
     </div>
@@ -47,9 +55,10 @@
 @code {
     private int CurrentStep => Nav.Uri switch
     {
-        var u when u.Contains("/setup/wifi") => 2,
-        var u when u.Contains("/setup/frequencies") => 3,
-        var u when u.Contains("/setup/summary") => 4,
+        var u when u.Contains("/setup/callsign") => 2,
+        var u when u.Contains("/setup/wifi") => 3,
+        var u when u.Contains("/setup/frequencies") => 4,
+        var u when u.Contains("/setup/summary") => 5,
         _ => 1
     };
 

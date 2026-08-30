@@ -93,11 +93,101 @@
                 </td>
                 <td>Annoncer la température du processeur</td>
             </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        302
+                    </span>
+                </td>
+                <td>Annoncer l'adresse IP du nœud, groupe par groupe</td>
+            </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        303
+                    </span>
+                </td>
+                <td>Annoncer l'état du réseau WiFi (mode, SSID, niveau de signal)</td>
+            </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        304
+                    </span>
+                </td>
+                <td>Annoncer l'espace disque disponible</td>
+            </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        305
+                    </span>
+                </td>
+                <td>Annoncer la durée de fonctionnement de la station</td>
+            </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        306
+                    </span>
+                </td>
+                <td>Annoncer la charge du processeur</td>
+            </tr>
+            <tr>
+                <td>
+                    <span class="badge badge-accent">
+                        <span class="material-symbols-outlined">dialpad</span>
+                        307
+                    </span>
+                </td>
+                <td>Annoncer la mémoire disponible</td>
+            </tr>
         </tbody>
     </table>
     <p class="help-dtmf-hint">
         <span class="material-symbols-outlined">info</span>
         Ces commandes déclenchent une annonce vocale sur la fréquence sans changer le salon actif.
+    </p>
+</div>
+
+<!-- ── Commandes système ────────────────────────────────────── -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="section-header">
+        <span class="material-symbols-outlined">settings_remote</span>
+        Commandes système
+    </div>
+
+    <table class="help-dtmf-table">
+        <thead>
+            <tr>
+                <th>Code DTMF</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var command in DtmfSystemCommands.All)
+            {
+                <tr>
+                    <td>
+                        <span class="badge badge-accent">
+                            <span class="material-symbols-outlined">dialpad</span>
+                            @command.Code
+                        </span>
+                    </td>
+                    <td>@command.Description</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="help-dtmf-hint">
+        <span class="material-symbols-outlined">info</span>
+        Ces commandes pilotent le nœud depuis le transceiver, sans passer par l'interface web.
+        Chacune est confirmée par une annonce vocale.
     </p>
 </div>
 
@@ -167,7 +257,7 @@
             </tr>
             <tr>
                 <td><span class="badge badge-accent">300 — 399</span></td>
-                <td>Commandes d'annonce vocale et commandes internes</td>
+                <td>Commandes d'annonce vocale, commandes système et commandes internes</td>
             </tr>
             <tr>
                 <td><span class="badge badge-accent">400 — 9999</span></td>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +15,7 @@ namespace SvxlinkManagerV2.Presentation
         {
             var host = CreateHostBuilder(args).Build();
 
-            // Créer le schéma SQLite et journaliser les informations de démarrage critique
+            // Mettre le schéma SQLite à niveau et journaliser les informations de démarrage critique
             using (var scope = host.Services.CreateScope())
             {
                 var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -49,20 +50,12 @@ namespace SvxlinkManagerV2.Presentation
                     Directory.GetCurrentDirectory(),
                     resolvedDbPath);
 
-                var dbFileExisted = File.Exists(resolvedDbPath);
-                logger.LogInformation("Fichier SQLite existant avant EnsureCreated: {DbFileExisted}", dbFileExisted);
+                logger.LogInformation("Fichier SQLite existant avant migration: {DbFileExisted}", File.Exists(resolvedDbPath));
 
+                // Le schéma est piloté par les migrations EF Core : une base existante est
+                // mise à niveau sans perte, une base absente est créée de bout en bout.
                 var context = scope.ServiceProvider.GetRequiredService<SvxlinkDbContext>();
-                var created = context.Database.EnsureCreated();
-
-                if (created)
-                    logger.LogWarning(
-                        "EnsureCreated a créé un NOUVEAU schéma SQLite — la base était absente ou vide. Chemin: {DbPath}",
-                        resolvedDbPath);
-                else
-                    logger.LogInformation(
-                        "EnsureCreated: le schéma SQLite existait déjà, aucune action effectuée. Chemin: {DbPath}",
-                        resolvedDbPath);
+                await DatabaseMigrator.MigrateAsync(context, logger);
             }
 
             await host.RunAsync();
