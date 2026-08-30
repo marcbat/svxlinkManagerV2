@@ -208,11 +208,21 @@ namespace SvxlinkManagerV2.Presentation
 
             app.UseEndpoints(endpoints =>
             {
-                // Le hub Blazor et la page fallback doivent rester accessibles anonymement :
-                // la FallbackPolicy protège les Razor Pages explicites, tandis que
-                // l'autorisation des routes Blazor est gérée par AuthorizeRouteView dans App.razor.
+                // Le hub Blazor doit rester accessible anonymement, sinon la négociation
+                // du circuit boucle en ERR_TOO_MANY_REDIRECTS.
                 endpoints.MapBlazorHub().AllowAnonymous();
-                endpoints.MapFallbackToPage("/_Host").AllowAnonymous();
+
+                // La page hôte porte son propre [AllowAnonymous] (voir _Host.cshtml) :
+                // toutes les routes Blazor étant servies par ce même fallback, le
+                // middleware ne peut pas les distinguer. L'autorisation des routes
+                // Blazor est donc portée par AuthorizeRouteView (App.razor) + le
+                // [Authorize] par défaut de _Imports.razor.
+                // Attention : .AllowAnonymous() posé ici en convention n'atteint pas
+                // l'endpoint de fallback Razor Pages — d'où l'attribut sur la page.
+                endpoints.MapFallbackToPage("/_Host");
+
+                // La FallbackPolicy reste en place : elle protège les Razor Pages
+                // explicites qui seraient ajoutées sans attribut d'autorisation.
                 endpoints.MapRazorPages();
             });
         }

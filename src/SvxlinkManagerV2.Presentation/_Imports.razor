@@ -13,3 +13,9 @@
 @using LanguageExt
 @using static LanguageExt.Prelude
 @using Unit = LanguageExt.Unit
+
+@* Toute page routable exige une session authentifiée : la protection est portée par
+   AuthorizeRouteView (App.razor), le middleware ne pouvant pas distinguer les routes
+   Blazor, toutes servies par la même page hôte anonyme.
+   Une page volontairement publique déclare @attribute [AllowAnonymous]. *@
+@attribute [Authorize]
