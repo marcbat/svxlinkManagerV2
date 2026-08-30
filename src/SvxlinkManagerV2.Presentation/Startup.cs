@@ -141,6 +141,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
+            services.AddSingleton<ISvxLinkConfigurationReader, SvxLinkConfigurationReader>();
             services.AddScoped<ISalonAnnouncementService, SalonAnnouncementService>();
             services.AddScoped<ILogicTclDeploymentService, LogicTclDeploymentService>();
             services.AddHostedService<LogicTclInitializerHostedService>();

@@ -1,6 +1,8 @@
 @page "/logs"
 @using SvxlinkManagerV2.Application.Models
 @using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Application.Features.Diagnostics
+@using System.Text
 @inject ISvxLinkLogService LogService
 @inject ISvxLinkDaemonService DaemonService
 @inject IJSRuntime JS
@@ -27,10 +29,16 @@
             </span>
         }
     </div>
-    <button class="btn btn-danger btn-sm" @onclick="ClearLogs">
-        <span class="material-symbols-outlined">delete</span>
-        Effacer
-    </button>
+    <div class="page-actions">
+        <button type="button" class="btn btn-secondary btn-sm" @onclick="ExportLogsAsync" disabled="@(FilteredLogs.Count == 0)">
+            <span class="material-symbols-outlined">download</span>
+            Exporter
+        </button>
+        <button class="btn btn-danger btn-sm" @onclick="ClearLogs">
+            <span class="material-symbols-outlined">delete</span>
+            Effacer
+        </button>
+    </div>
 </div>
 
 <div class="log-controls">
@@ -107,10 +115,7 @@
     private ElementReference _logContainer;
     private DotNetObjectReference<Index>? _dotNetRef;
 
-    private List<SvxLinkLogEntry> FilteredLogs =>
-        string.IsNullOrEmpty(_searchTerm)
-            ? _allLogs
-            : _allLogs.Where(l => l.Message.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+    private List<SvxLinkLogEntry> FilteredLogs => DiagnosticLogFormatter.Filter(_allLogs, _searchTerm);
 
     protected override async Task OnInitializedAsync()
     {
@@ -153,6 +158,21 @@
             _allLogs = LogService.GetLogs().ToList();
             StateHasChanged();
         });
+    }
+
+    /// <summary>
+    /// Exporte les logs affichés — filtre courant compris — dans un fichier texte horodaté.
+    /// </summary>
+    private async Task ExportLogsAsync()
+    {
+        var exportedAt = DateTime.Now;
+        var content = DiagnosticLogFormatter.Format("SVXLink", FilteredLogs, _searchTerm, exportedAt);
+
+        await JS.InvokeVoidAsync(
+            "fileDownload.fromBase64",
+            DiagnosticLogFormatter.BuildFileName("svxlink", exportedAt),
+            "text/plain;charset=utf-8",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(content)));
     }
 
     private void ClearLogs()
@@ -224,6 +244,12 @@
         display: flex;
         align-items: center;
         gap: 16px;
+    }
+
+    .page-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
         .page-title-group h1 {
