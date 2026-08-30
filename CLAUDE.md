@@ -87,7 +87,15 @@ Clean Architecture + DDD, 4 projets sources avec une structure miroir dans `test
 
 **Les événements de domaine ne sont PAS dispatchés.** Les agrégats les accumulent via `AddDomainEvent()`, EF Core les ignore (`Ignore(e => e.DomainEvents)`), et les repositories appellent `ClearDomainEvents()` après sauvegarde. Il n'existe aucun `INotificationHandler` ni `IMediator.Publish` dans le code. La communication inter-composants runtime passe par des **événements C# (`event Action<T>`) exposés par des singletons d'infrastructure** — voir le pipeline DTMF ci-dessous. Ne pas supposer qu'ajouter un `DomainEvent` déclenche un effet de bord.
 
-**Persistance : `EnsureCreated()`, pas de migrations.** [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) appelle `context.Database.EnsureCreated()` au démarrage. `Migrations/` ne contient qu'un `ModelSnapshot`, aucune migration réelle. **Conséquence : toute modification du schéma impose de supprimer le fichier SQLite existant** (`svxlinkmanager-dev.db` en dev, `/app/data/` ou `/opt/svxlinkmanagerv2/data/` sinon) — `dotnet ef migrations add` n'est pas la voie utilisée ici.
+**Persistance : migrations EF Core.** [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) appelle `DatabaseMigrator.MigrateAsync()` au démarrage, qui applique les migrations en attente. **Toute modification du schéma impose donc une migration** — jamais la suppression du fichier SQLite, qui détruirait les salons et la configuration de l'utilisateur :
+
+```bash
+dotnet ef migrations add NomDeLaMigration --project src/SvxlinkManagerV2.Infrastructure --startup-project src/SvxlinkManagerV2.Infrastructure
+```
+
+`SvxlinkDbContextFactory` (`IDesignTimeDbContextFactory`) permet aux outils EF de travailler sur la seule couche Infrastructure, sans démarrer l'hôte Blazor et ses services hébergés.
+
+**Adoption des bases héritées.** Les installations déployées avant les migrations ont été créées par `EnsureCreated()` et n'ont pas de table `__EFMigrationsHistory`. `DatabaseMigrator.AdoptLegacyDatabase()` inspecte le schéma réel et inscrit comme déjà appliquées les seules migrations qui y correspondent, avant de laisser `Migrate()` appliquer le reste. Trois états sont reconnus : antérieur aux salons Parrot (pas de colonne `Salons.SalonType`), v1.0.0 (colonne présente, pas d'authentification) et post-authentification (table `AspNetUsers` présente). **Ajouter un état à reconnaître impose de mettre à jour cette méthode et ses constantes d'identifiants de migration.**
 
 `SvxLinkConfiguration` est une owned entity de `SalonAggregate` sérialisée en JSON (`OwnsOne(...).ToJson()`) : ajouter un champ de configuration SVXLink ne change pas le schéma des colonnes.
 
@@ -102,7 +110,7 @@ L'application est protégée par **ASP.NET Identity** avec un **compte unique** 
 - **`/setup` (Step0Account) est la seule page anonyme du wizard.** Les étapes suivantes (`/setup/callsign` … `/setup/summary`) sont protégées ; la transition passe par un **token à usage unique** en mémoire (`IPendingSetupLoginService`, TTL 5 min) consommé par `/account/setup-complete`, qui ouvre la session puis redirige.
 - `SvxlinkDbContext` dérive d'`IdentityDbContext<IdentityUser>` : **appeler `base.OnModelCreating(modelBuilder)`** avant toute configuration, sinon le schéma Identity n'est pas construit.
 
-**Mise à jour d'une installation existante** : `EnsureCreated()` ne touchant pas une base déjà créée, les tables `AspNet*` n'apparaîtraient jamais sur un déploiement antérieur à l'authentification. `IdentitySchemaInitializer` (appelé par [Program.cs](src/SvxlinkManagerV2.Presentation/Program.cs) quand la base préexiste) rejoue les seules instructions DDL Identity du script de création du modèle. C'est **la seule exception** à la règle « changement de schéma = suppression du fichier SQLite » ci-dessus, et elle ne vaut que pour Identity.
+**Mise à jour d'une installation existante** : les tables `AspNet*` sont créées par la migration `AddIdentitySchema` sur les déploiements antérieurs à l'authentification — voir l'adoption des bases héritées ci-dessus.
 
 ### Pipeline DTMF (chaîne à comprendre avant d'y toucher)
 
