@@ -2,6 +2,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.CreateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Common
 
 @inject IMediator Mediator
@@ -36,13 +37,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Nom du salon <span class="required">*</span></label>
+                    <label class="form-label">Nom du salon <span class="required">*</span> <span class="info-tip" data-tip="Nom affiché dans l'interface et utilisé pour générer l'annonce vocale TTS lors de l'activation du salon."><span class="material-symbols-outlined">help</span></span></label>
                     <InputText class="form-control" @bind-Value="_model.Name" placeholder="ex: Salon National France" />
                     <ValidationMessage For="() => _model.Name" class="field-error" />
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Code DTMF</label>
+                    <label class="form-label">Code DTMF <span class="info-tip" data-tip="Numéro à envoyer depuis le clavier DTMF de votre radio pour activer ce salon à distance. Optionnel, de 1 à 9999. Ex : tapez 9 puis 6 pour le code 96."><span class="material-symbols-outlined">help</span></span></label>
                     <InputNumber class="form-control" @bind-Value="_model.DtmfCode"
                                  placeholder="ex: 96" />
                     <div class="field-hint">Optionnel, 1 – 9999. Permet de changer de salon par commande radio.</div>
@@ -58,14 +59,6 @@
                         <InputCheckbox @bind-Value="_model.IsDefault" class="toggle-input" id="chk-default" />
                         <label class="toggle-switch" for="chk-default"></label>
                     </label>
-                    <label class="toggle-row">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Temporisé</span>
-                            <span class="toggle-desc">Déconnexion automatique après inactivité</span>
-                        </div>
-                        <InputCheckbox @bind-Value="_model.IsTemporized" class="toggle-input" id="chk-temp" />
-                        <label class="toggle-switch" for="chk-temp"></label>
-                    </label>
                 </div>
             </div>
 
@@ -78,14 +71,14 @@
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Fréquence RX (MHz) <span class="required">*</span></label>
+                        <label class="form-label">Fréquence RX (MHz) <span class="required">*</span> <span class="info-tip" data-tip="Fréquence d'écoute de votre nœud radio. La radio reçoit les signaux sur cette fréquence. En simplex, RX = TX."><span class="material-symbols-outlined">help</span></span></label>
                         <InputNumber class="form-control" @bind-Value="_model.RxFrequency"
                                      placeholder="145.550" step="0.005" />
                         <div class="field-hint">30 – 3000 MHz</div>
                         <ValidationMessage For="() => _model.RxFrequency" class="field-error" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Fréquence TX (MHz) <span class="required">*</span></label>
+                        <label class="form-label">Fréquence TX (MHz) <span class="required">*</span> <span class="info-tip" data-tip="Fréquence d'émission de votre nœud radio. Le transpondeur émet sur cette fréquence. En simplex, TX = RX."><span class="material-symbols-outlined">help</span></span></label>
                         <InputNumber class="form-control" @bind-Value="_model.TxFrequency"
                                      placeholder="145.550" step="0.005" />
                         <div class="field-hint">30 – 3000 MHz</div>
@@ -95,7 +88,7 @@
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">CTCSS RX</label>
+                        <label class="form-label">CTCSS RX <span class="info-tip" data-tip="Sous-tonalité CTCSS attendue pour ouvrir le squelch de votre nœud. Sélectionnez Aucun si vous n'utilisez pas de ton sous-porteur."><span class="material-symbols-outlined">help</span></span></label>
                         <select class="form-select" @bind="_model.RxCtcssStr">
                             <option value="">Aucun</option>
                             @foreach (var (freq, label) in _ctcssOptions)
@@ -105,7 +98,7 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">CTCSS TX</label>
+                        <label class="form-label">CTCSS TX <span class="info-tip" data-tip="Sous-tonalité CTCSS transmise dans les émissions audio de votre nœud. Utilisé pour activer le squelch de répéteurs ou de relais voisins."><span class="material-symbols-outlined">help</span></span></label>
                         <select class="form-select" @bind="_model.TxCtcssStr">
                             <option value="">Aucun</option>
                             @foreach (var (freq, label) in _ctcssOptions)
@@ -129,7 +122,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Hôte <span class="required">*</span></label>
+                    <label class="form-label">Hôte <span class="required">*</span> <span class="info-tip" data-tip="Adresse IP ou nom DNS du serveur SVXReflector auquel se connecter. Ex: rrf.music-all.fr ou 192.168.1.100"><span class="material-symbols-outlined">help</span></span></label>
                     <InputText class="form-control" @bind-Value="_model.Host"
                                placeholder="ex: rrf.music-all.fr" />
                     <ValidationMessage For="() => _model.Host" class="field-error" />
@@ -137,7 +130,7 @@
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Port <span class="required">*</span></label>
+                        <label class="form-label">Port <span class="required">*</span> <span class="info-tip" data-tip="Numéro de port TCP du serveur SVXReflector. Valeur standard : 5300. Vérifiez la configuration serveur si différent."><span class="material-symbols-outlined">help</span></span></label>
                         <InputNumber class="form-control" @bind-Value="_model.Port"
                                      placeholder="5300" />
                         <ValidationMessage For="() => _model.Port" class="field-error" />
@@ -145,72 +138,160 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Callsign <span class="required">*</span></label>
+                    <label class="form-label">Callsign <span class="required">*</span> <span class="info-tip" data-tip="Indicatif radioamateur du nœud (ex: F5ABC ou F5ABC-L). Doit correspondre à l'indicatif autorisé sur le réflecteur distant."><span class="material-symbols-outlined">help</span></span></label>
                     <InputText class="form-control" @bind-Value="_model.Callsign"
                                placeholder="ex: F1ABC" />
                     <ValidationMessage For="() => _model.Callsign" class="field-error" />
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Clé d'authentification <span class="required">*</span></label>
-                    <InputText class="form-control" @bind-Value="_model.AuthKey"
-                               placeholder="ex: my_secret_key" type="password" />
-                    <ValidationMessage For="() => _model.AuthKey" class="field-error" />
+                    <label class="form-label">Protocole réflecteur <span class="info-tip" data-tip="V2 (Legacy) : compatible SVXLink 19.09.2, authentification par clé partagée (AUTH_KEY). V3 (Moderne) : compatible SVXLink 25.05+, authentification par certificats X.509."><span class="material-symbols-outlined">help</span></span></label>
+                    <InputSelect class="form-control" @bind-Value="_model.ReflectorProtocol">
+                        <option value="@ReflectorProtocol.V2">Legacy (19.09.2 — AUTH_KEY)</option>
+                        <option value="@ReflectorProtocol.V3">Moderne (25.05+ — Certificats X.509)</option>
+                    </InputSelect>
                 </div>
-            </div>
 
-            <!-- Section avancée SVXLink (collapsible) -->
-            <div class="card card-advanced">
-                <button type="button" class="advanced-toggle" @onclick="() => _showAdvanced = !_showAdvanced">
-                    <span class="material-symbols-outlined">settings</span>
-                    <span>Configuration SVXLink avancée</span>
-                    <span class="material-symbols-outlined advanced-chevron @(_showAdvanced ? "open" : "")">
-                        keyboard_arrow_down
-                    </span>
-                </button>
-
-                @if (!_showAdvanced)
+                @if (_model.ReflectorProtocol == ReflectorProtocol.V2)
                 {
-                    <p class="advanced-hint">
-                        Cliquez pour afficher les paramètres avancés (identifiants, logs, timeouts).
-                    </p>
+                    <div class="form-group">
+                        <label class="form-label">Clé d'authentification <span class="required">*</span> <span class="info-tip" data-tip="Mot de passe partagé entre votre nœud et le réflecteur (AUTH_KEY). Doit correspondre exactement à la valeur configurée côté serveur."><span class="material-symbols-outlined">help</span></span></label>
+                        <InputText class="form-control" @bind-Value="_model.AuthKey"
+                                   placeholder="ex: my_secret_key" type="password" />
+                        <ValidationMessage For="() => _model.AuthKey" class="field-error" />
+                    </div>
                 }
                 else
                 {
-                    <div class="advanced-body">
-                        <div class="form-group">
-                            <label class="form-label">Callsign Simplex</label>
-                            <InputText class="form-control" @bind-Value="_model.SimplexCallsign"
-                                       placeholder="ex: F1ABC-S" />
-                        </div>
-
-                        <div class="form-row-2">
-                            <div class="form-group">
-                                <label class="form-label">Intervalle ident. court (s)</label>
-                                <InputNumber class="form-control" @bind-Value="_model.ShortIdentInterval" />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Intervalle ident. long (s)</label>
-                                <InputNumber class="form-control" @bind-Value="_model.LongIdentInterval" />
-                            </div>
-                        </div>
-
-                        <div class="form-row-2">
-                            <div class="form-group">
-                                <label class="form-label">Délai son de roger (ms)</label>
-                                <InputNumber class="form-control" @bind-Value="_model.RgrSoundDelay" />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Langue par défaut</label>
-                                <select class="form-select" @bind="_model.DefaultLang">
-                                    <option value="fr_FR">fr_FR</option>
-                                    <option value="en_US">en_US</option>
-                                </select>
-                            </div>
-                        </div>
-
+                    <div class="form-group">
+                        <label class="form-label">Email certificat <span class="info-tip" data-tip="Adresse email intégrée au certificat X.509 généré pour l'authentification V3. Optionnel, laissez vide si votre réflecteur ne l'exige pas."><span class="material-symbols-outlined">help</span></span></label>
+                        <InputText class="form-control" @bind-Value="_model.CertEmail"
+                                   placeholder="ex: f1abc@example.com (optionnel)" />
                     </div>
                 }
+            </div>
+
+            @if (_model.ReflectorProtocol == ReflectorProtocol.V3)
+            {
+                <div class="card" style="margin-bottom:18px">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">groups</span>
+                        Talk Groups
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TG par défaut <span class="info-tip" data-tip="Numéro du Talk Group activé automatiquement à la connexion. 0 = aucun TG pré-sélectionné."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputNumber class="form-control" @bind-Value="_model.DefaultTg" />
+                            <ValidationMessage For="() => _model.DefaultTg" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Monitor TGs (CSV) <span class="info-tip" data-tip="Talk Groups surveillés en écoute passive, séparés par des virgules. Le suffixe '+' indique une surveillance permanente. Ex : 91,208+,226+."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputText class="form-control" @bind-Value="_model.MonitorTgs"
+                                       placeholder="ex: 91,208,226+,228+" />
+                            <ValidationMessage For="() => _model.MonitorTgs" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TG Select Timeout (s) <span class="info-tip" data-tip="Durée en secondes avant de revenir au TG précédent si aucune activité sur le TG sélectionné."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputNumber class="form-control" @bind-Value="_model.TgSelectTimeout" />
+                            <ValidationMessage For="() => _model.TgSelectTimeout" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">TG Select Inhibit Timeout (s) <span class="info-tip" data-tip="Délai en secondes bloquant la sélection automatique de TG après une émission. Optionnel, laissez vide pour désactiver."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputNumber class="form-control" @bind-Value="_model.TgSelectInhibitTimeout" />
+                            <ValidationMessage For="() => _model.TgSelectInhibitTimeout" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">TMP Monitor Timeout (s) <span class="info-tip" data-tip="Durée en secondes de surveillance temporaire d'un TG avant retour automatique au TG par défaut."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputNumber class="form-control" @bind-Value="_model.TmpMonitorTimeout" />
+                            <ValidationMessage For="() => _model.TmpMonitorTimeout" class="field-error" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">QSY Pending Timeout (s) <span class="info-tip" data-tip="Délai en secondes avant de basculer vers un autre TG en attente. -1 = désactivé."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputNumber class="form-control" @bind-Value="_model.QsyPendingTimeout" />
+                            <ValidationMessage For="() => _model.QsyPendingTimeout" class="field-error" />
+                        </div>
+                    </div>
+
+                    <div class="toggles-group">
+                        <label class="toggle-row">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Mute first TX local</span>
+                                <span class="toggle-desc">Mute la première TX locale après sélection TG</span>
+                            </div>
+                            <InputCheckbox @bind-Value="_model.MuteFirstTxLoc" class="toggle-input" id="chk-mute-first-tx-loc" />
+                            <label class="toggle-switch" for="chk-mute-first-tx-loc"></label>
+                        </label>
+                        <label class="toggle-row">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Mute first TX distant</span>
+                                <span class="toggle-desc">Mute la première TX distante après sélection TG</span>
+                            </div>
+                            <InputCheckbox @bind-Value="_model.MuteFirstTxRem" class="toggle-input" id="chk-mute-first-tx-rem" />
+                            <label class="toggle-switch" for="chk-mute-first-tx-rem"></label>
+                        </label>
+                    </div>
+                </div>
+            }
+
+            <!-- Section Identification -->
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">badge</span>
+                    Identification
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        Callsign Simplex
+                        <span class="info-tip" data-tip="Indicatif utilisé pour le mode simplex local (sans réflecteur). Peut différer du callsign réflecteur. Laissez vide pour réutiliser le callsign principal."><span class="material-symbols-outlined">help</span></span>
+                    </label>
+                    <InputText class="form-control" @bind-Value="_model.SimplexCallsign"
+                               placeholder="ex: F1ABC-S" />
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">
+                            Intervalle ident. court (s)
+                            <span class="info-tip" data-tip="Durée en secondes entre deux identifications courtes automatiques (bip + indicatif). Ex: 600 = toutes les 10 minutes."><span class="material-symbols-outlined">help</span></span>
+                        </label>
+                        <InputNumber class="form-control" @bind-Value="_model.ShortIdentInterval" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            Intervalle ident. long (s)
+                            <span class="info-tip" data-tip="Durée en secondes entre deux identifications longues (message vocal complet). Ex: 3600 = toutes les heures."><span class="material-symbols-outlined">help</span></span>
+                        </label>
+                        <InputNumber class="form-control" @bind-Value="_model.LongIdentInterval" />
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">
+                            Délai son de roger (ms)
+                            <span class="info-tip" data-tip="Délai en millisecondes après la fin d'une émission avant de jouer le bip de confirmation (roger). 0 = immédiat."><span class="material-symbols-outlined">help</span></span>
+                        </label>
+                        <InputNumber class="form-control" @bind-Value="_model.RgrSoundDelay" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            Langue par défaut
+                            <span class="info-tip" data-tip="Langue utilisée pour les annonces vocales TTS et les messages système SVXLink. Nécessite les fichiers sons correspondants."><span class="material-symbols-outlined">help</span></span>
+                        </label>
+                        <select class="form-select" @bind="_model.DefaultLang">
+                            <option value="fr_FR">fr_FR</option>
+                            <option value="en_US">en_US</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -343,45 +424,44 @@
         transform: translateX(18px);
     }
 
-    /* ── Section avancée ─────────────────────────────────────── */
-    .card-advanced { padding-top: 16px; }
-
-    .advanced-toggle {
-        display: flex;
+    /* ── Tooltip info ─────────────────────────────────────────── */
+    .info-tip {
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
-        width: 100%;
-        background: none;
-        border: none;
-        color: var(--text);
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        padding: 0;
-        text-align: left;
-    }
-
-    .advanced-toggle .material-symbols-outlined { font-size: 20px; color: var(--accent); }
-
-    .advanced-chevron {
-        margin-left: auto;
-        font-size: 20px !important;
-        color: var(--text-muted) !important;
-        transition: transform 0.2s;
-    }
-    .advanced-chevron.open { transform: rotate(180deg); }
-
-    .advanced-hint {
-        font-size: 13px;
+        position: relative;
         color: var(--text-muted);
-        margin-top: 10px;
-        padding: 12px;
-        background: rgba(108,92,231,0.06);
-        border-radius: var(--radius-sm);
-        border-left: 3px solid var(--accent);
+        cursor: help;
+        margin-left: 4px;
+        vertical-align: middle;
     }
 
-    .advanced-body { margin-top: 18px; }
+    .info-tip .material-symbols-outlined { font-size: 15px; line-height: 1; }
+
+    .info-tip::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        min-width: 210px;
+        max-width: 280px;
+        white-space: normal;
+        line-height: 1.45;
+        background: #1c1d32;
+        border: 1px solid var(--border-card);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 400;
+        padding: 8px 10px;
+        border-radius: 6px;
+        z-index: 300;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+    }
+
+    .info-tip:hover::after { opacity: 1; }
 
     /* ── Erreurs globales ─────────────────────────────────────── */
     .global-errors {
@@ -419,7 +499,6 @@
 @code {
     private readonly SalonFormModel _model = new();
     private Dictionary<decimal, string> _ctcssOptions = [];
-    private bool _showAdvanced;
     private bool _isSubmitting;
     private List<string> _errors = [];
 
@@ -444,8 +523,14 @@
                 Host:                _model.Host.Trim(),
                 Port:                _model.Port,
                 Callsign:            _model.Callsign.Trim().ToUpperInvariant(),
-                AuthKey:             _model.AuthKey,
+                AuthKey:             _model.ReflectorProtocol == ReflectorProtocol.V2
+                                         ? _model.AuthKey
+                                         : null,
                 JitterBufferDelay:   0,
+                ReflectorProtocol:   _model.ReflectorProtocol,
+                CertEmail:           _model.ReflectorProtocol == ReflectorProtocol.V3
+                                         ? (string.IsNullOrWhiteSpace(_model.CertEmail) ? null : _model.CertEmail.Trim())
+                                         : null,
                 SimplexCallsign:     string.IsNullOrWhiteSpace(_model.SimplexCallsign)
                                          ? _model.Callsign.Trim().ToUpperInvariant()
                                          : _model.SimplexCallsign.Trim().ToUpperInvariant(),
@@ -458,14 +543,25 @@
                 RxFrequency:         _model.RxFrequency,
                 TxFrequency:         _model.TxFrequency,
                 RxCtcss:             ParseCtcss(_model.RxCtcssStr),
-                TxCtcss:             ParseCtcss(_model.TxCtcssStr)
+                TxCtcss:             ParseCtcss(_model.TxCtcssStr),
+                DefaultTg:           _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.DefaultTg : 0,
+                MonitorTgs:          _model.ReflectorProtocol == ReflectorProtocol.V3 && !string.IsNullOrWhiteSpace(_model.MonitorTgs)
+                                         ? _model.MonitorTgs.Trim()
+                                         : null,
+                TgSelectTimeout:     _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.TgSelectTimeout : 30,
+                TgSelectInhibitTimeout: _model.ReflectorProtocol == ReflectorProtocol.V3
+                                         ? _model.TgSelectInhibitTimeout
+                                         : null,
+                MuteFirstTxLoc:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxLoc : true,
+                MuteFirstTxRem:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxRem : false,
+                TmpMonitorTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.TmpMonitorTimeout : 3600,
+                QsyPendingTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.QsyPendingTimeout : -1
             );
 
             var command = new CreateSalonCommand(
                 Id:           Guid.NewGuid(),
                 Name:         _model.Name.Trim(),
                 IsDefault:    _model.IsDefault,
-                IsTemporized: _model.IsTemporized,
                 RxFrequency:  _model.RxFrequency,
                 TxFrequency:  _model.TxFrequency,
                 RxCtcss:      ParseCtcss(_model.RxCtcssStr),
@@ -528,7 +624,7 @@
     }
 
     // ── Modèle de formulaire ──────────────────────────────────
-    private class SalonFormModel
+    public class SalonFormModel
     {
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Le nom est obligatoire.")]
         [System.ComponentModel.DataAnnotations.StringLength(100, MinimumLength = 2,
@@ -536,7 +632,6 @@
         public string Name { get; set; } = "";
 
         public bool IsDefault { get; set; }
-        public bool IsTemporized { get; set; }
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La fréquence RX est obligatoire.")]
         [System.ComponentModel.DataAnnotations.Range(30, 3000, ErrorMessage = "La fréquence doit être entre 30 et 3000 MHz.")]
@@ -558,8 +653,32 @@
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Le callsign est obligatoire.")]
         public string Callsign { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La clé d'authentification est obligatoire.")]
         public string AuthKey { get; set; } = "";
+
+        public ReflectorProtocol ReflectorProtocol { get; set; } = ReflectorProtocol.V2;
+
+        public string CertEmail { get; set; } = "";
+        
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TG par défaut doit être supérieur ou égal à 0.")]
+        public int DefaultTg { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.CustomValidation(typeof(SalonFormModel), nameof(ValidateMonitorTgs))]
+        public string MonitorTgs { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Le timeout de sélection TG doit être supérieur à 0.")]
+        public int TgSelectTimeout { get; set; } = 30;
+
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le timeout d'inhibition TG doit être supérieur ou égal à 0.")]
+        public int? TgSelectInhibitTimeout { get; set; }
+
+        public bool MuteFirstTxLoc { get; set; } = true;
+        public bool MuteFirstTxRem { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TMP monitor timeout doit être supérieur ou égal à 0.")]
+        public int TmpMonitorTimeout { get; set; } = 3600;
+
+        [System.ComponentModel.DataAnnotations.Range(-1, int.MaxValue, ErrorMessage = "Le QSY pending timeout doit être supérieur ou égal à -1.")]
+        public int QsyPendingTimeout { get; set; } = -1;
 
         public string SimplexCallsign { get; set; } = "";
         public int ShortIdentInterval { get; set; } = 6;
@@ -569,5 +688,20 @@
 
         [System.ComponentModel.DataAnnotations.Range(1, 9999, ErrorMessage = "Le code DTMF doit être entre 1 et 9999.")]
         public int? DtmfCode { get; set; }
+
+        public static System.ComponentModel.DataAnnotations.ValidationResult? ValidateMonitorTgs(string? value, System.ComponentModel.DataAnnotations.ValidationContext context)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return System.ComponentModel.DataAnnotations.ValidationResult.Success;
+
+            var entries = value.Split(',', StringSplitOptions.TrimEntries);
+            var hasInvalidEntry = entries.Length == 0
+                || entries.Any(string.IsNullOrWhiteSpace)
+                || entries.Any(entry => !System.Text.RegularExpressions.Regex.IsMatch(entry, @"^\d+\+?$"));
+
+            return hasInvalidEntry
+                ? new System.ComponentModel.DataAnnotations.ValidationResult("Le format doit être un CSV de nombres avec suffixe '+' optionnel (ex: 91,208,226+).")
+                : System.ComponentModel.DataAnnotations.ValidationResult.Success;
+        }
     }
 }

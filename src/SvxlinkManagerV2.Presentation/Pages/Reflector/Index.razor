@@ -11,6 +11,8 @@
 @inject IMediator Mediator
 @inject IReflectorDaemonService DaemonService
 @inject ToastService ToastService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
 <div class="page-header">
@@ -123,6 +125,18 @@
 }
 else
 {
+    <div class="alert-info">
+        <span class="material-symbols-outlined">info</span>
+        <div>
+            <strong>Salon pré-configuré disponible</strong>
+            <span>
+                Le salon <strong>Réflecteur Local</strong> est déjà configuré pour se connecter à ce réflecteur
+                (<code>127.0.0.1:5300</code>). Il peut être activé directement depuis la page
+                <a href="/salons">Gestion des Salons</a> sans aucune modification.
+            </span>
+        </div>
+    </div>
+
     <div class="card config-card">
         <div class="section-header">
             <span class="material-symbols-outlined">settings</span>
@@ -132,9 +146,9 @@ else
             Éditez directement le fichier de configuration INI du reflector.
             La section <code>[GLOBAL]</code> est obligatoire.
         </p>
-        <textarea class="config-textarea @(_hasUnsavedChanges ? "config-textarea--modified" : "")"
-                  value="@_configText"
-                  @oninput="OnConfigChanged"
+        <textarea @ref="_configEditorTextarea"
+              class="config-textarea config-textarea--editor @(_hasUnsavedChanges ? "config-textarea--modified" : "")"
+              value="@_configText"
                   disabled="@_isActive"
                   rows="25"
                   spellcheck="false"
@@ -151,20 +165,34 @@ else
     private bool _isSaving;
     private bool _isToggling;
     private bool _hasUnsavedChanges;
+    private bool _isEditorInitialized;
+    private ElementReference _configEditorTextarea;
+    private DotNetObjectReference<Index>? _dotNetRef;
 
     private const string DefaultConfig =
         "[GLOBAL]\r\n" +
         "TIMESTAMP_FORMAT=\"%c\"\r\n" +
         "LISTEN_PORT=5300\r\n" +
+        "ACCEPT_CALLSIGN=.*\r\n" +
         "CODECS=OPUS\r\n" +
+        "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
         "\r\n" +
-        "[USERS]\r\n" +
-        "# Exemple : CALLSIGN=GroupeMotDePasse\r\n" +
-        "# F5ZZZ-L=Noeuds\r\n" +
+        "[ROOT_CA]\r\n" +
+        "COMMON_NAME=SvxReflector Root CA\r\n" +
+        "COUNTRY=CH\r\n" +
         "\r\n" +
-        "[PASSWORDS]\r\n" +
-        "# Exemple : GroupeMotDePasse=\"MotDePasse\"\r\n" +
-        "# Noeuds=\"Passw0rd\"\r\n";
+        "[ISSUING_CA]\r\n" +
+        "COMMON_NAME=SvxReflector Issuing CA\r\n" +
+        "COUNTRY=CH\r\n" +
+        "\r\n" +
+        "[SERVER_CERT]\r\n" +
+        "COMMON_NAME=svxreflector\r\n" +
+        "SUBJECT_ALT_NAME=DNS:localhost,IP:127.0.0.1\r\n" +
+        "\r\n" +
+        "[TG#0]\r\n" +
+        "AUTO_QSY_AFTER=0\r\n" +
+        "ALLOW=.*\r\n" +
+        "SHOW_ACTIVITY=1\r\n";
 
     protected override async Task OnInitializedAsync()
     {
@@ -204,6 +232,39 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        if (!_isEditorInitialized)
+        {
+            try
+            {
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+
+                _isEditorInitialized = await JS.InvokeAsync<bool>(
+                    "reflectorConfigEditor.init",
+                    _configEditorTextarea,
+                    _configText,
+                    _isActive,
+                    _dotNetRef);
+            }
+            catch (InvalidOperationException)
+            {
+                // Peut survenir pendant le prerendering Blazor Server.
+            }
+        }
+
+        if (_isEditorInitialized)
+        {
+            await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            await JS.InvokeVoidAsync("reflectorConfigEditor.refresh");
+        }
+    }
+
     private async Task SaveConfigAsync()
     {
         if (_reflector is null || _isActive)
@@ -213,6 +274,12 @@ else
 
         try
         {
+            if (_isEditorInitialized)
+            {
+                _configText = await JS.InvokeAsync<string>("reflectorConfigEditor.getValue");
+                _hasUnsavedChanges = _configText != _savedConfigText;
+            }
+
             var result = await Mediator.Send<Validation<Error, Unit>>(
                 new UpdateReflectorConfigurationCommand(_reflector.Id, _reflector.Name, _configText));
 
@@ -251,6 +318,11 @@ else
             result.Match(
                 Succ: _ => { _isActive = true; ToastService.ShowSuccess("Reflector démarré avec succès."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError("Erreur lors du démarrage : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
+
+            if (_isEditorInitialized)
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            }
         }
         catch (Exception ex)
         {
@@ -262,10 +334,12 @@ else
         }
     }
 
-    private void OnConfigChanged(ChangeEventArgs e)
+    [JSInvokable]
+    public void OnConfigEditorChanged(string value)
     {
-        _configText = e.Value?.ToString() ?? string.Empty;
+        _configText = value ?? string.Empty;
         _hasUnsavedChanges = _configText != _savedConfigText;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task StopReflectorAsync()
@@ -283,6 +357,11 @@ else
             result.Match(
                 Succ: _ => { _isActive = false; ToastService.ShowSuccess("Reflector arrêté avec succès."); return Unit.Default; },
                 Fail: errors => { ToastService.ShowError("Erreur lors de l'arrêt : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
+
+            if (_isEditorInitialized)
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.setReadOnly", _isActive);
+            }
         }
         catch (Exception ex)
         {
@@ -292,6 +371,23 @@ else
         {
             _isToggling = false;
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_isEditorInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.dispose");
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore when client disconnects during component disposal.
+            }
+        }
+
+        _dotNetRef?.Dispose();
     }
 }
 
@@ -475,6 +571,52 @@ else
         transition: border-color 0.2s;
     }
 
+    .config-textarea--editor {
+        display: none;
+    }
+
+    .config-card .CodeMirror {
+        height: 520px;
+        border-radius: 12px;
+        border: 1px solid var(--border-card);
+        font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    .config-card .CodeMirror-focused {
+        box-shadow: 0 0 0 3px rgba(108, 92, 231, .18);
+        border-color: var(--accent);
+    }
+
+    .config-card .CodeMirror-gutters {
+        border-right: 1px solid rgba(255, 255, 255, .06);
+        background: rgba(0, 0, 0, .16);
+    }
+
+    .config-card .CodeMirror-linenumber {
+        color: rgba(255, 255, 255, .35);
+    }
+
+    .config-card .cm-comment {
+        color: #9fb4c7;
+        font-style: italic;
+    }
+
+    .config-card .cm-header {
+        color: #72d7ff;
+        font-weight: 700;
+    }
+
+    .config-card .cm-def {
+        color: #ffd479;
+        font-weight: 600;
+    }
+
+    .config-card .cm-quote {
+        color: #9cf6c8;
+    }
+
         .config-textarea:focus {
             outline: none;
             border-color: var(--accent);
@@ -539,5 +681,44 @@ else
 
         .btn-success .material-symbols-outlined {
             font-size: 18px;
+        }
+
+    .alert-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        background: rgba(116, 185, 255, .08);
+        border: 1px solid rgba(116, 185, 255, .3);
+        color: #74b9ff;
+        margin-bottom: 18px;
+        font-size: 0.9rem;
+    }
+
+        .alert-info .material-symbols-outlined {
+            font-size: 22px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .alert-info div {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .alert-info strong {
+            font-weight: 600;
+        }
+
+        .alert-info span {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .alert-info a {
+            color: #74b9ff;
+            text-decoration: underline;
         }
 </style>

@@ -21,8 +21,6 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly string[] StandardPreReleaseLabels = ["alpha", "beta", "rc", "hotfix", "preview"];
-
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubReleaseUpdateService> _logger;
     private readonly ApplicationUpdateOptions _options;
@@ -88,7 +86,7 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
         try
         {
-            var requestUri = $"repos/{_options.Owner}/{_options.Repository}/releases?per_page=25";
+            var requestUri = $"repos/{_options.Owner}/{_options.Repository}/releases?per_page=100";
             using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -217,19 +215,19 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
         return channel switch
         {
             ApplicationUpdateChannel.Stable => !release.Prerelease,
-            ApplicationUpdateChannel.Prerelease => release.Prerelease && !IsFeatureRelease(release.TagName),
-            ApplicationUpdateChannel.Feature => release.Prerelease && IsFeatureRelease(release.TagName),
+            ApplicationUpdateChannel.Beta => release.Prerelease && HasPreReleaseLabel(release.TagName, "beta"),
+            ApplicationUpdateChannel.Development => release.Prerelease && HasPreReleaseLabel(release.TagName, "alpha"),
             _ => false
         };
     }
 
-    internal static bool IsFeatureRelease(string? tagName)
+    internal static bool HasPreReleaseLabel(string? tagName, string expectedLabel)
     {
         if (!TryParseComparableVersion(tagName, out var version) || string.IsNullOrWhiteSpace(version.PreRelease))
             return false;
 
         var label = version.PreRelease.Split('.', StringSplitOptions.RemoveEmptyEntries)[0];
-        return !StandardPreReleaseLabels.Contains(label, StringComparer.OrdinalIgnoreCase);
+        return string.Equals(label, expectedLabel, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string GetCurrentVersion()
@@ -257,9 +255,19 @@ public class GitHubReleaseUpdateService : IApplicationUpdateService
 
     internal static string BuildGitHubApiErrorMessage(int statusCode, string? token)
     {
+        if (statusCode == 401)
+        {
+            return "Impossible de récupérer les releases GitHub (HTTP 401 - Non autorisé). Le token GitHub est invalide ou a été révoqué. Génère un nouveau token et configure ApplicationUpdate:GitHubToken.";
+        }
+
         if (statusCode == 404 && string.IsNullOrWhiteSpace(token))
         {
             return "Impossible de récupérer les releases GitHub (HTTP 404). Si le dépôt est privé, configure ApplicationUpdate:GitHubToken.";
+        }
+
+        if (statusCode == 404 && !string.IsNullOrWhiteSpace(token))
+        {
+            return "Impossible de récupérer les releases GitHub (HTTP 404). Le token GitHub est peut-être révoqué ou invalide (GitHub retourne 404 pour les dépôts privés avec un token invalide). Génère un nouveau token.";
         }
 
         return $"Impossible de récupérer les releases GitHub (HTTP {statusCode}).";

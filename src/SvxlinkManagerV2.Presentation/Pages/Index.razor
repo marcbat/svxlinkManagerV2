@@ -24,66 +24,39 @@
         <h1 class="page-title">Tableau de bord</h1>
         <p class="page-subtitle">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"))</p>
     </div>
-    <div class="page-header-meta">
-        @if (_daemonRunning)
-        {
-            <span class="badge badge-success">
-                <span class="material-symbols-outlined">cell_tower</span>
-                Connecté
-            </span>
-        }
-        else
-        {
-            <span class="badge badge-danger">
-                <span class="material-symbols-outlined">cell_tower</span>
-                Hors ligne
-            </span>
-        }
-    </div>
 </div>
 
 <!-- ── Focus Dashboard (compact) ─────────────────────────────── -->
 <div class="dashboard-focus-grid">
 
+    @if (!_isLoading && _activeSalon is not null)
+    {
     <div class="card dashboard-focus-card">
-        <div class="card-title">
-            <span class="material-symbols-outlined">radio_button_checked</span>
-            Résumé en direct
-        </div>
-
         <div class="focus-metrics">
             <div class="focus-metric">
-                <span class="focus-label">Salon actif</span>
-                @if (_isLoading)
-                {
-                    <div class="skeleton" style="height:24px;width:180px;"></div>
-                }
-                else if (_activeSalon is not null)
-                {
-                    <div class="focus-value">@_activeSalon.Name</div>
-                    <span class="badge badge-success">Actif</span>
-                }
-                else
-                {
-                    <div class="focus-value focus-value--muted">Aucun salon</div>
-                    <span class="badge badge-muted">Inactif</span>
-                }
-            </div>
-
-            <div class="focus-metric">
-                <span class="focus-label">Nœuds connectés</span>
-                @if (_isLoading)
-                {
-                    <div class="skeleton" style="height:24px;width:90px;"></div>
-                }
-                else
-                {
-                    <div class="focus-value">@_connectedNodes.Count</div>
-                    <span class="focus-subvalue">@_connectedNodes.Count(n => n.IsTx) en émission</span>
-                }
+                <div class="focus-value">@_activeSalon.Name</div>
+                <div class="focus-active-details">
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">person</span>
+                        @_activeSalon.Configuration.Callsign
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">settings_input_antenna</span>
+                        RX @_activeSalon.Configuration.RxFrequency.ToString("F3") MHz
+                        &nbsp;/&nbsp;
+                        TX @_activeSalon.Configuration.TxFrequency.ToString("F3") MHz
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">tune</span>
+                        CTCSS RX @(_activeSalon.Configuration.RxCtcss.HasValue ? $"{_activeSalon.Configuration.RxCtcss.Value:F1} Hz" : "Aucun")
+                        &nbsp;/&nbsp;
+                        TX @(_activeSalon.Configuration.TxCtcss.HasValue ? $"{_activeSalon.Configuration.TxCtcss.Value:F1} Hz" : "Aucun")
+                    </span>
+                </div>
             </div>
         </div>
     </div>
+    }
 
     <div class="card dashboard-service-strip">
         <div class="compact-item">
@@ -125,49 +98,39 @@
         </div>
 
         <div class="actions-stack">
-            <div class="form-group">
-                <label class="form-label">Activer un salon</label>
-                <div class="action-group">
-                    <select class="form-select" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
-                        <option value="">— Choisir un salon —</option>
-                        @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
-                        {
-                            <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
-                        }
-                    </select>
-                    <button class="btn btn-primary btn-sm"
-                            disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
-                            @onclick="ActivateSalon">
-                        @if (_isActivating)
-                        {
-                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
-                        }
-                        else
-                        {
-                            <span class="material-symbols-outlined">play_arrow</span>
-                        }
-                        Activer
-                    </button>
-                </div>
-            </div>
-
-            <div class="divider" style="margin:6px 0;"></div>
-
-            <div>
-                <button class="btn btn-danger btn-sm"
-                        disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
-                        @onclick="DeactivateSalon">
-                    @if (_isDeactivating)
-                    {
-                        <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
-                    }
-                    else
-                    {
-                        <span class="material-symbols-outlined">power_settings_new</span>
-                    }
-                    Désactiver le salon actif
-                </button>
-            </div>
+            <select class="form-select" style="flex:1;min-width:200px;" @bind="_selectedSalonId" disabled="@(_isActivating || _isDeactivating)">
+                <option value="">— Choisir un salon —</option>
+                @foreach (var salon in _salons.Where(s => s.Id != _activeSalon?.Id && !s.IsDeleted))
+                {
+                    <option value="@salon.Id">@(string.IsNullOrWhiteSpace(salon.Name) ? "(sans nom)" : salon.Name)@(salon.IsDefault ? " ★" : "")</option>
+                }
+            </select>
+            <button class="btn btn-primary btn-sm"
+                    disabled="@(_selectedSalonId == null || _isActivating || _isDeactivating)"
+                    @onclick="ActivateSalon">
+                @if (_isActivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">play_arrow</span>
+                }
+                Activer
+            </button>
+            <button class="btn btn-danger btn-sm"
+                    disabled="@(_activeSalon is null || _isDeactivating || _isActivating)"
+                    @onclick="DeactivateSalon">
+                @if (_isDeactivating)
+                {
+                    <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined">power_settings_new</span>
+                }
+                Désactiver le salon actif
+            </button>
         </div>
     </div>
 
@@ -187,9 +150,13 @@
             <div class="node-list">
                 @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
                 {
-                    <div class="node-chip @(node.IsTx ? "node-chip--tx" : "")">
+                    <div class="@GetNodeChipCss(node)">
                         <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
                         @node.Name
+                        @if (IsCurrentNode(node))
+                        {
+                            <span class="node-chip-tag">Courant</span>
+                        }
                     </div>
                 }
             </div>
@@ -221,7 +188,7 @@
 
     .focus-metrics {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 16px;
         margin-top: 4px;
     }
@@ -251,6 +218,25 @@
         color: var(--text-muted);
         font-size: 20px;
     }
+
+    .focus-active-details {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
+    .focus-detail-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+        .focus-detail-item .material-symbols-outlined {
+            font-size: 14px;
+        }
 
     .focus-subvalue {
         font-size: 12px;
@@ -325,15 +311,60 @@
     .node-chip .material-symbols-outlined {
         color: var(--accent);
     }
+
+    .node-chip-tag {
+        margin-left: 4px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        background: rgba(0, 184, 148, 0.2);
+        color: var(--success);
+        border: 1px solid rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current {
+        background: rgba(0, 184, 148, 0.15);
+        border-color: rgba(0, 184, 148, 0.45);
+    }
+
+    .node-chip--current .material-symbols-outlined {
+        color: var(--success);
+    }
+
+    @@keyframes txPulse {
+        from {
+            transform: scale(1);
+            box-shadow: 0 0 0 rgba(251, 146, 60, 0);
+        }
+        to {
+            transform: scale(1.02);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.28);
+        }
+    }
     
     .node-chip--tx {
         background: rgba(251, 146, 60, 0.15);
         border-color: rgba(251, 146, 60, 0.4);
         color: var(--text-primary);
+        animation: txPulse 0.9s ease-in-out infinite alternate;
     }
     
     .node-chip--tx .material-symbols-outlined {
         color: #fb923c;
+    }
+
+    .node-chip--current.node-chip--tx {
+        background: rgba(255, 107, 107, 0.18);
+        border-color: rgba(255, 107, 107, 0.55);
+    }
+
+    .node-chip--current.node-chip--tx .material-symbols-outlined,
+    .node-chip--current.node-chip--tx .node-chip-tag {
+        color: var(--danger);
+        border-color: rgba(255, 107, 107, 0.5);
+        background: rgba(255, 107, 107, 0.18);
     }
 </style>
 
@@ -600,5 +631,33 @@
         {
             _isDeactivating = false;
         }
+    }
+
+    private bool IsCurrentNode(ConnectedNodeInfo node)
+    {
+        var currentCallsign = _activeSalon?.Configuration.Callsign;
+        if (string.IsNullOrWhiteSpace(currentCallsign))
+        {
+            return false;
+        }
+
+        return string.Equals(node.Name?.Trim(), currentCallsign.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetNodeChipCss(ConnectedNodeInfo node)
+    {
+        var classes = new List<string> { "node-chip" };
+
+        if (IsCurrentNode(node))
+        {
+            classes.Add("node-chip--current");
+        }
+
+        if (node.IsTx)
+        {
+            classes.Add("node-chip--tx");
+        }
+
+        return string.Join(' ', classes);
     }
 }

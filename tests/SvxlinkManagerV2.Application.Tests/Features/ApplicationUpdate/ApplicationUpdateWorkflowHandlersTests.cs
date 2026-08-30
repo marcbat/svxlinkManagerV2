@@ -26,11 +26,11 @@ public class ApplicationUpdateWorkflowHandlersTests
     public async Task GetStatusHandler_ShouldReturnWorkflowStatus()
     {
         var expected = CreateStatus();
-        _workflowService.GetStatusAsync(ApplicationUpdateChannel.Prerelease, Arg.Any<CancellationToken>())
+        _workflowService.GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Validation<Error, ApplicationUpdateWorkflowStatusDto>.Success(expected)));
 
         var handler = new GetApplicationUpdateWorkflowStatusQueryHandler(_workflowService);
-        var result = await handler.Handle(new GetApplicationUpdateWorkflowStatusQuery(ApplicationUpdateChannel.Prerelease), CancellationToken.None);
+        var result = await handler.Handle(new GetApplicationUpdateWorkflowStatusQuery(ApplicationUpdateChannel.Development), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Match(
@@ -68,7 +68,7 @@ public class ApplicationUpdateWorkflowHandlersTests
         => new(
             UpdateStatus: new ApplicationUpdateStatusDto(
                 CurrentVersion: "0.1.0-alpha.194",
-                Channel: ApplicationUpdateChannel.Prerelease,
+                Channel: ApplicationUpdateChannel.Development,
                 IsConfigured: true,
                 IsUpdateAvailable: true,
                 LatestRelease: new ApplicationReleaseInfo(

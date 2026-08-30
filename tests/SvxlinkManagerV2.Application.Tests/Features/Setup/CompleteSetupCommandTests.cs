@@ -38,7 +38,7 @@ public class CompleteSetupCommandTests
     }
 
     [Fact]
-    public async Task Handle_WhenDataIsValid_ShouldSeed6Salons()
+    public async Task Handle_WhenDataIsValid_ShouldSeed7Salons()
     {
         // Arrange
         var data = new SetupData
@@ -61,7 +61,7 @@ public class CompleteSetupCommandTests
 
         // Assert
         result.ShouldBeSuccess();
-        await _salonRepository.Received(6).SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
+        await _salonRepository.Received(7).SaveAsync(Arg.Any<SalonAggregate>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class CompleteSetupCommandTests
 
         // Assert
         result.ShouldBeSuccess();
-        await _salonRepository.Received(6).SaveAsync(
+        await _salonRepository.Received(7).SaveAsync(
             Arg.Is<SalonAggregate>(s =>
                 s.Configuration.Callsign == "F1XYZ" &&
                 s.Configuration.SimplexCallsign == "F1XYZ-L"),
@@ -121,7 +121,7 @@ public class CompleteSetupCommandTests
 
         // Assert
         result.ShouldBeSuccess();
-        await _salonRepository.Received(6).SaveAsync(
+        await _salonRepository.Received(7).SaveAsync(
             Arg.Is<SalonAggregate>(s =>
                 s.Configuration.RxFrequency == 430.100m &&
                 s.Configuration.TxFrequency == 430.600m &&

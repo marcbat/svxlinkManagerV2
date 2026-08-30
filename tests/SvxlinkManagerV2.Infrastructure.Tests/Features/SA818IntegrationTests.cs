@@ -8,6 +8,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
@@ -68,6 +69,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "fr_FR", 0,
             rxFrequency, txFrequency, rxCtcss, txCtcss);
@@ -195,7 +197,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             txFrequency: 145.775m,
             rxCtcss: 88.5m,
             txCtcss: 88.5m);
-        var salon = SalonAggregate.Create(salonId, "Salon Test", false, false, salonConfig)
+        var salon = SalonAggregate.Create(salonId, "Salon Test", false, salonConfig)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var salonRepository = new SalonRepository(_context);
@@ -233,7 +235,7 @@ public class SA818IntegrationTests : IAsyncLifetime
             txFrequency: 145.550m,
             rxCtcss: null,
             txCtcss: null);
-        var salon = SalonAggregate.Create(salonId, "Salon Sans CTCSS", false, false, salonConfig)
+        var salon = SalonAggregate.Create(salonId, "Salon Sans CTCSS", false, salonConfig)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var salonRepository = new SalonRepository(_context);

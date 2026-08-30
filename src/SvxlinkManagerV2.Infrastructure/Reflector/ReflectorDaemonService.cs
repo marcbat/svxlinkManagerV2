@@ -19,6 +19,7 @@ public class ReflectorDaemonService : IReflectorDaemonService, IDisposable
     private readonly IReflectorLogService _logService;
     private const int TimeoutSeconds = 30;
     private const string ReflectorConfigPath = "/etc/svxlink/svxreflector.conf";
+    private const string ReflectorBinaryPath = "/opt/svxlink-modern/bin/svxreflector";
     private Process? _reflectorProcess;
     private readonly object _processLock = new();
     private bool _disposed;
@@ -154,7 +155,7 @@ public class ReflectorDaemonService : IReflectorDaemonService, IDisposable
                 }
             }
 
-            // Lancer svxreflector via /bin/bash pour garantir le PATH
+            // Lancer svxreflector via /bin/bash avec chemin absolu
             _logger.LogInformation("Démarrage de svxreflector avec config {ConfigPath}", ReflectorConfigPath);
 
             var process = new Process
@@ -162,7 +163,7 @@ public class ReflectorDaemonService : IReflectorDaemonService, IDisposable
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "/bin/bash",
-                    Arguments = $"-c \"svxreflector --config={ReflectorConfigPath}\"",
+                    Arguments = $"-c \"{ReflectorBinaryPath} --config={ReflectorConfigPath}\"",
                     RedirectStandardOutput = true,
                     StandardOutputEncoding = Encoding.UTF8,
                     RedirectStandardError = true,

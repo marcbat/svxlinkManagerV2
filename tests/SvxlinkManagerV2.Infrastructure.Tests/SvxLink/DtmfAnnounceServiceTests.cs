@@ -9,6 +9,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using Xunit;
 using static LanguageExt.Prelude;
@@ -131,7 +132,7 @@ public class DtmfAnnounceServiceTests
     {
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon National France", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon National France", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
@@ -179,7 +180,7 @@ public class DtmfAnnounceServiceTests
     {
         var salonId = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var salon = SalonAggregate.Create(salonId, "Salon Test", false, false, config)
+        var salon = SalonAggregate.Create(salonId, "Salon Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         _mediator.Send(Arg.Any<GetActiveSalonQuery>(), Arg.Any<CancellationToken>())
@@ -354,7 +355,7 @@ public class DtmfAnnounceServiceTests
     {
         // RxFrequency == TxFrequency → pas d'annonce de fréquence
         var config = CreateValidConfiguration(); // 145.550 / 145.550
-        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Test", false, false, config)
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Test", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var text = DtmfAnnounceService.BuildAnnounceText(salon);
@@ -371,10 +372,11 @@ public class DtmfAnnounceServiceTests
             Guid.NewGuid(),
             "SimplexLogic,ReflectorLogic", "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300, "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F4XYZ", "ModuleHelp", 60, 60,
             null, "fr_FR", 0,
             145.600m, 145.000m, null, null);
-        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Split", false, false, config)
+        var salon = SalonAggregate.Create(Guid.NewGuid(), "Salon Split", false, config)
             .Match(Succ: s => s, Fail: _ => throw new InvalidOperationException());
 
         var text = DtmfAnnounceService.BuildAnnounceText(salon);
@@ -407,6 +409,7 @@ public class DtmfAnnounceServiceTests
             "svxlink.d", 16000, 1,
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key-123", 0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp,ModuleParrot", 60, 60,
             "71.9", "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);

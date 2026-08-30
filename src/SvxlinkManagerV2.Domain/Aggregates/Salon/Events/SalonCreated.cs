@@ -1,4 +1,5 @@
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
@@ -24,14 +25,14 @@ public record SalonCreated : DomainEvent
     public bool IsDefault { get; init; }
 
     /// <summary>
-    /// Indique si le salon est temporisé (activation automatique à horaires définis)
-    /// </summary>
-    public bool IsTemporized { get; init; }
-
-    /// <summary>
     /// Configuration complète SVXLink pour ce salon
     /// </summary>
     public SvxLinkConfiguration Configuration { get; init; } = null!;
+
+    /// <summary>
+    /// Type de salon (Reflector ou Parrot)
+    /// </summary>
+    public SalonType SalonType { get; init; }
 
     /// <summary>
     /// Constructeur
@@ -40,13 +41,13 @@ public record SalonCreated : DomainEvent
         Guid id,
         string name,
         bool isDefault,
-        bool isTemporized,
-        SvxLinkConfiguration configuration)
+        SvxLinkConfiguration configuration,
+        SalonType salonType = SalonType.Reflector)
     {
         Id = id;
         Name = name;
         IsDefault = isDefault;
-        IsTemporized = isTemporized;
         Configuration = configuration;
+        SalonType = salonType;
     }
 }

@@ -5,6 +5,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetSalonByDtmfCode;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 
@@ -105,7 +106,6 @@ public class GetSalonByDtmfCodeQueryTests
             Guid.NewGuid(),
             name,
             isDefault: false,
-            isTemporized: false,
             CreateValidConfiguration());
 
         return result.Match(
@@ -125,6 +125,8 @@ public class GetSalonByDtmfCodeQueryTests
         Callsign: "F5ABC-L",
         AuthKey: "test-auth-key-123",
         JitterBufferDelay: 0,
+        ReflectorProtocol: ReflectorProtocol.V2,
+        CertEmail: null,
         SimplexCallsign: "F5ABC",
         Modules: "ModuleHelp,ModuleParrot",
         ShortIdentInterval: 60,

@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Salons.DeleteSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -130,13 +131,14 @@ public class DeleteSalonCommandTests
             "ref.f5kri.fr", 5300,
             "F5ABC-L", "test-auth-key",
             0,
+            ReflectorProtocol.V2, null,
             "F5ABC", "ModuleHelp",
             60, 60,
             null,
             "fr_FR", 0,
             145.550m, 145.550m, 136.5m, 136.5m);
 
-        var result = SalonAggregate.Create(id, "Salon Test", isDefault, false, config);
+        var result = SalonAggregate.Create(id, "Salon Test", isDefault, config);
         return result.Match(
             Succ: a => { a.ClearDomainEvents(); return a; },
             Fail: _ => throw new InvalidOperationException("Failed to create test aggregate"));

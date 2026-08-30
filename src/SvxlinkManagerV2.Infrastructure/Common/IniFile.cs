@@ -95,6 +95,11 @@ public class IniFile
     }
 
     /// <summary>
+    /// Supprime une section entière du fichier INI.
+    /// </summary>
+    public bool RemoveSection(string section) => _sections.Remove(section);
+
+    /// <summary>
     /// Convertit l'objet INI en string formaté.
     /// </summary>
     public override string ToString()

@@ -28,11 +28,11 @@ public class DtmfAnnounceService : IHostedService
     private readonly ILogger<DtmfAnnounceService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    /// <summary>Borne inférieure de la plage des commandes d'annonce.</summary>
-    internal const int RangeMin = 300;
+    /// <summary>Borne inférieure de la plage des commandes d'annonce (synchronisée avec DtmfCodeRanges).</summary>
+    internal const int RangeMin = DtmfCodeRanges.AnnounceRangeMin;
 
-    /// <summary>Borne supérieure de la plage des commandes d'annonce.</summary>
-    internal const int RangeMax = 399;
+    /// <summary>Borne supérieure de la plage des commandes d'annonce (synchronisée avec DtmfCodeRanges).</summary>
+    internal const int RangeMax = DtmfCodeRanges.AnnounceRangeMax;
 
     /// <summary>Code interne de déclenchement TTS côté SVXLink (jamais exposé aux opérateurs).</summary>
     internal const int TtsInternalCode = 399;
@@ -84,6 +84,14 @@ public class DtmfAnnounceService : IHostedService
             if (dtmfCode == TtsInternalCode)
             {
                 _logger.LogDebug("Commande DTMF 399 (interne) ignorée dans DtmfAnnounceService");
+                return;
+            }
+
+            // Les commandes système (310-320) sont traitées par DtmfSystemCommandService
+            if (DtmfSystemCommands.IsSystemCommand(dtmfCode))
+            {
+                _logger.LogDebug(
+                    "Commande DTMF {DtmfCode} (système) ignorée dans DtmfAnnounceService", dtmfCode);
                 return;
             }
 

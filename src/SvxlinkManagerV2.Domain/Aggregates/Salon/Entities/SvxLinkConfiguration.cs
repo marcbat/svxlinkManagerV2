@@ -1,3 +1,5 @@
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
+
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 
 /// <summary>
@@ -16,8 +18,17 @@ public record SvxLinkConfiguration(
     string Host,
     int Port,
     string Callsign,
-    string AuthKey,
+    string? AuthKey,
     int JitterBufferDelay,
+    /// <summary>
+    /// Protocol version for the reflector connection.
+    /// V3 = modern (25.05+, X.509 certificates), V2 = legacy (19.09.2, AUTH_KEY).
+    /// </summary>
+    ReflectorProtocol ReflectorProtocol,
+    /// <summary>
+    /// Email address for the X.509 certificate (V3 protocol only). Optional.
+    /// </summary>
+    string? CertEmail,
     // Section SimplexLogic
     string SimplexCallsign,
     string Modules,
@@ -42,5 +53,27 @@ public record SvxLinkConfiguration(
     /// <summary>
     /// Tonalité CTCSS de transmission en Hz (format: 136.5). Plage valide: 67.0-250.3 Hz. Null = aucun CTCSS.
     /// </summary>
-    decimal? TxCtcss
+    decimal? TxCtcss,
+    // Section ReflectorLogic (SVXLink 25.05+ / protocole V3)
+    int DefaultTg = 0,
+    string? MonitorTgs = null,
+    int TgSelectTimeout = 30,
+    int? TgSelectInhibitTimeout = null,
+    bool MuteFirstTxLoc = true,
+    bool MuteFirstTxRem = false,
+    int TmpMonitorTimeout = 3600,
+    int QsyPendingTimeout = -1,
+    // Section ModuleParrot (Parrot salon only)
+    /// <summary>
+    /// Audio FIFO buffer length in seconds (ModuleParrot). Default: 60.
+    /// </summary>
+    int ParrotFifoLen = 60,
+    /// <summary>
+    /// Delay in milliseconds before playback after squelch close (ModuleParrot). Default: 1000.
+    /// </summary>
+    int ParrotRepeatDelay = 1000,
+    /// <summary>
+    /// Module inactivity timeout in seconds (ModuleParrot). Default: 180.
+    /// </summary>
+    int ParrotTimeout = 180
 );

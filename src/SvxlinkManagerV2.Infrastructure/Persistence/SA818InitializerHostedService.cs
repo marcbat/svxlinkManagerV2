@@ -66,7 +66,7 @@ public class SA818InitializerHostedService : IHostedService
             var createResult = SA818Aggregate.Create(
                 volume: 4,
                 squelch: 4,
-                bandwidth: SA818Bandwidth.Wide25kHz,
+                bandwidth: SA818Bandwidth.Narrow12_5kHz,
                 preEmph: false,
                 highPass: false,
                 lowPass: false);
@@ -81,7 +81,7 @@ public class SA818InitializerHostedService : IHostedService
                         _ =>
                         {
                             _logger.LogInformation(
-                                "SA818 initialisé avec succès (ID: {SA818Id}, Volume: 4, Squelch: 4, Bandwidth: Wide25kHz)",
+                                "SA818 initialisé avec succès (ID: {SA818Id}, Volume: 4, Squelch: 4, Bandwidth: Narrow12_5kHz)",
                                 SA818Aggregate.FixedId);
                         },
                         errors =>

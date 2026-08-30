@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.SA818;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -32,6 +33,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly ISalonAnnouncementService _announcementService;
+    private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandHandler(
@@ -43,6 +45,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
         ISalonAnnouncementService announcementService,
+        IDtmfPtyWriter dtmfPtyWriter,
         ILogger<ActivateSalonCommandHandler> logger)
     {
         _repository = repository;
@@ -53,6 +56,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         _daemonService = daemonService;
         _connectedNodesService = connectedNodesService;
         _announcementService = announcementService;
+        _dtmfPtyWriter = dtmfPtyWriter;
         _logger = logger;
     }
 
@@ -120,10 +124,22 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         // Réinitialisation des nœuds connectés et armement du service d'annonce de connexion
         _connectedNodesService.Reset();
 
-        _logger.LogInformation("Redémarrage du daemon SVXLink");
-        var daemonResult = await _daemonService.RestartAsync(cancellationToken);
+        _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol})", aggregate.Configuration.ReflectorProtocol);
+        var daemonResult = await _daemonService.RestartAsync(aggregate.Configuration.ReflectorProtocol, cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de redémarrer le daemon SVXLink").ToFailure<Unit>();
+
+        // Auto-activation du module Perroquet via DTMF PTY (envoi "2#" pour activer ModuleParrot ID=2)
+        if (aggregate.SalonType == SalonType.Parrot)
+        {
+            _logger.LogInformation("Activation automatique du module Perroquet via DTMF PTY");
+            var dtmfResult = await _dtmfPtyWriter.SendCommandAsync("2", cancellationToken);
+            dtmfResult.Match(
+                Succ: _ => _logger.LogInformation("Module Perroquet activé via DTMF"),
+                Fail: errors => _logger.LogWarning(
+                    "Échec de l'activation automatique du module Perroquet via DTMF: {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message))));
+        }
 
         _tracker.SetActiveSalon(command.Id);
 

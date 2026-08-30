@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -218,6 +219,8 @@ public class UpdateSalonConfigurationCommandTests
             "F5ABC-L",
             "test-auth-key-123",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp,ModuleParrot",
             60,
@@ -244,6 +247,8 @@ public class UpdateSalonConfigurationCommandTests
             "F5ABC-L",
             "test-auth-key-123",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp,ModuleParrot",
             60,
@@ -259,7 +264,6 @@ public class UpdateSalonConfigurationCommandTests
         var result = SalonAggregate.Create(
             id,
             "Salon Test",
-            false,
             false,
             config);
 

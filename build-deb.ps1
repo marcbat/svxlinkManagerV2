@@ -73,6 +73,12 @@ Copy-Item (Join-Path $repoRoot "deploy/debian/postinst") (Join-Path $debianDir "
 Copy-Item (Join-Path $repoRoot "deploy/debian/prerm") (Join-Path $debianDir "prerm") -Force
 Copy-Item (Join-Path $repoRoot "deploy/debian/postrm") (Join-Path $debianDir "postrm") -Force
 Copy-Item (Join-Path $repoRoot "deploy/linux/install-update.sh") $helperPath -Force
+Copy-Item (Join-Path $repoRoot "deploy/docker/dev-ca-hook.sh") (Join-Path $appRoot "dev-ca-hook.sh") -Force
+Copy-Item (Join-Path $repoRoot "deploy/linux/setup-svxlink.sh") (Join-Path $appRoot "setup-svxlink.sh") -Force
+
+$svxlinkConfigDest = Join-Path $appRoot "svxlink-config"
+New-Item -ItemType Directory -Path $svxlinkConfigDest -Force | Out-Null
+Copy-Item (Join-Path $repoRoot "svxlink-config/svxlink.conf") $svxlinkConfigDest -Force
 
 $controlContent = @"
 Package: $PackageName
@@ -81,10 +87,11 @@ Section: misc
 Priority: optional
 Architecture: $DebArchitecture
 Maintainer: SvxlinkManager Team
-Depends: libc6 (>= 2.31)
+Depends: libc6 (>= 2.31), libsigc++-2.0-0v5, libgsm1, libpopt0, tcl8.6, libgcrypt20, libspeex1, libasound2, libopus0, libcurl4
 Description: SvxlinkManagerV2 (framework-dependent) for Armbian Focal armhf
  SvxlinkManagerV2 with systemd service for Orange Pi.
  Requires .NET 8 runtime (linux-arm) already installed on target.
+ SVXLink (legacy 19.09.2 + modern 25.05) must be installed via setup-svxlink.sh.
 "@
 
 Set-Content -Path (Join-Path $debianDir "control") -Value $controlContent
@@ -109,6 +116,10 @@ $dockerCmd = @(
     "chmod 0644 $packagePathInContainer/DEBIAN/control"
     "chmod 0644 $packagePathInContainer/etc/systemd/system/svxlinkmanagerv2.service"
     "chmod 0755 $packagePathInContainer/opt/$PackageName/install-update.sh"
+    "sed -i 's/\r$//' $packagePathInContainer/opt/$PackageName/dev-ca-hook.sh"
+    "chmod 0755 $packagePathInContainer/opt/$PackageName/dev-ca-hook.sh"
+    "sed -i 's/\r$//' $packagePathInContainer/opt/$PackageName/setup-svxlink.sh"
+    "chmod 0755 $packagePathInContainer/opt/$PackageName/setup-svxlink.sh"
     "dpkg-deb --build $packagePathInContainer $debPathInContainer"
 ) -join "`n"
 

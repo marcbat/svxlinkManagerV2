@@ -78,18 +78,52 @@ else if (_status != null)
         }
         else
         {
-            <div class="wifi-network-list">
-                @foreach (var network in _status.Networks)
+            var savedNetworks = _status.Networks.Where(n => n.InUse || n.HasSavedProfile).ToList();
+            var otherNetworks = _status.Networks.Where(n => !n.InUse && !n.HasSavedProfile).ToList();
+
+            @if (savedNetworks.Any())
+            {
+                <div class="wifi-section-label">
+                    <span class="material-symbols-outlined">bookmark</span>
+                    Réseaux connus (@savedNetworks.Count)
+                </div>
+                <div class="wifi-network-list">
+                    @foreach (var network in savedNetworks)
+                    {
+                        <WifiNetworkCard
+                            Network="@network"
+                            IsLoading="@(_actionSsid == network.Ssid)"
+                            OnDisconnect="HandleDisconnect"
+                            OnActivate="HandleActivate"
+                            OnDelete="HandleDelete"
+                            OnConnectNew="HandleConnectNew" />
+                    }
+                </div>
+            }
+
+            @if (otherNetworks.Any())
+            {
+                @if (savedNetworks.Any())
                 {
-                    <WifiNetworkCard
-                        Network="@network"
-                        IsLoading="@(_actionSsid == network.Ssid)"
-                        OnDisconnect="HandleDisconnect"
-                        OnActivate="HandleActivate"
-                        OnDelete="HandleDelete"
-                        OnConnectNew="HandleConnectNew" />
+                    <div class="wifi-section-divider"></div>
                 }
-            </div>
+                <div class="wifi-section-label">
+                    <span class="material-symbols-outlined">wifi_find</span>
+                    Autres réseaux détectés (@otherNetworks.Count)
+                </div>
+                <div class="wifi-network-list">
+                    @foreach (var network in otherNetworks)
+                    {
+                        <WifiNetworkCard
+                            Network="@network"
+                            IsLoading="@(_actionSsid == network.Ssid)"
+                            OnDisconnect="HandleDisconnect"
+                            OnActivate="HandleActivate"
+                            OnDelete="HandleDelete"
+                            OnConnectNew="HandleConnectNew" />
+                    }
+                </div>
+            }
         }
     </div>
 }

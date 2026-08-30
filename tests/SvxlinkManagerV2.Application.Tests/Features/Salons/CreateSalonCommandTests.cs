@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Salons.CreateSalon;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -31,7 +32,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon National France",
             IsDefault: true,
-            IsTemporized: false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 136.5m,
@@ -70,6 +70,8 @@ public class CreateSalonCommandTests
             "F5ABC-L",
             "test-key",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp",
             60,
@@ -85,7 +87,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
@@ -112,7 +113,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
@@ -142,7 +142,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 5000m, // Invalide - hors plage
             TxFrequency: 145.550m,
             RxCtcss: null,
@@ -168,7 +167,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Test",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 10m, // Invalide - en dessous de 30 MHz
@@ -196,7 +194,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: 300m, // Invalide - au-dessus de 250.3 Hz
@@ -223,7 +220,6 @@ public class CreateSalonCommandTests
             Guid.NewGuid(),
             "Salon Test",
             false,
-            false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
             RxCtcss: null,
@@ -249,7 +245,6 @@ public class CreateSalonCommandTests
         var command = new CreateSalonCommand(
             Guid.NewGuid(),
             "Salon Sans CTCSS",
-            false,
             false,
             RxFrequency: 145.550m,
             TxFrequency: 145.550m,
@@ -284,6 +279,8 @@ public class CreateSalonCommandTests
             "F5ABC-L",
             "test-auth-key-123",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp,ModuleParrot",
             60,
@@ -297,3 +294,4 @@ public class CreateSalonCommandTests
             null);           // TxCtcss - sera remplacée par la Command
     }
 }
+

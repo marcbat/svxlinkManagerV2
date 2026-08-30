@@ -20,7 +20,7 @@ public class LogicTclDeploymentServiceTests : IDisposable
     {
         _logger = Substitute.For<ILogger<LogicTclDeploymentService>>();
         _testTargetDirectory = Path.Combine(Path.GetTempPath(), $"svxlink-logictcl-test-{Guid.NewGuid()}");
-        _service = new LogicTclDeploymentService(_logger, _testTargetDirectory);
+        _service = new LogicTclDeploymentService(_logger, new[] { _testTargetDirectory });
     }
 
     [Fact]

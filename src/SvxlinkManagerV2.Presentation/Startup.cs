@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -8,8 +9,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
+using SvxlinkManagerV2.Application.Features.SystemStatus;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
+using SvxlinkManagerV2.Infrastructure.Monitoring;
 using SvxlinkManagerV2.Infrastructure.Network;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
@@ -17,6 +20,7 @@ using SvxlinkManagerV2.Infrastructure.Reflector;
 using SvxlinkManagerV2.Infrastructure.Runtime;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
+using SvxlinkManagerV2.Infrastructure.SvxLink.Strategies;
 using SvxlinkManagerV2.Presentation.Services;
 
 namespace SvxlinkManagerV2.Presentation
@@ -37,40 +41,46 @@ namespace SvxlinkManagerV2.Presentation
             services.AddDbContext<SvxlinkDbContext>(options =>
                 options.UseSqlite(connectionString));
 
-            // ASP.NET Identity
+            // ASP.NET Identity - compte unique administrateur
             services.AddIdentity<IdentityUser, IdentityRole>(options =>
             {
                 options.Password.RequireDigit = false;
                 options.Password.RequireLowercase = false;
                 options.Password.RequireUppercase = false;
                 options.Password.RequireNonAlphanumeric = false;
-                options.Password.RequiredLength = 6;
+                options.Password.RequiredLength = 8;
                 options.SignIn.RequireConfirmedAccount = false;
+
+                // Verrouillage temporaire après échecs répétés (protection anti-force brute)
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.AllowedForNewUsers = true;
             })
             .AddEntityFrameworkStores<SvxlinkDbContext>()
             .AddDefaultTokenProviders();
 
-            // Cookie authentication options
+            // Options du cookie d'authentification
             services.ConfigureApplicationCookie(options =>
             {
                 options.LoginPath = "/login";
                 options.LogoutPath = "/account/logout";
+                options.AccessDeniedPath = "/login";
                 options.SlidingExpiration = true;
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
             });
 
-            // Authorization - fallback policy : toutes les routes requièrent une authentification
+            // Fallback policy : toutes les routes requièrent une authentification par défaut
             services.AddAuthorization(options =>
             {
-                options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
                     .Build();
             });
 
-            // Authentication state pour Blazor Server
+            // État d'authentification pour Blazor Server
             services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 
-            // User account service
+            // Gestion du compte utilisateur
             services.AddScoped<IUserAccountService, UserAccountService>();
             services.AddSingleton<IPendingSetupLoginService, PendingSetupLoginService>();
 
@@ -96,6 +106,9 @@ namespace SvxlinkManagerV2.Presentation
             // Seeding des salons originaux
             services.AddHostedService<SalonSeederHostedService>();
 
+            // Seeding du réflecteur local par défaut
+            services.AddHostedService<ReflectorSeederHostedService>();
+
             // Activation automatique au démarrage
             services.AddHostedService<StartupActivationHostedService>();
 
@@ -117,6 +130,11 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHttpClient<IApplicationUpdateService, GitHubReleaseUpdateService>();
             services.AddSingleton<IApplicationUpdateWorkflowService, ApplicationUpdateWorkflowService>();
 
+            // SVXLink version strategies (dual install: 19.09.2 legacy + 25.05 modern)
+            services.AddSingleton<ISvxLinkVersionStrategy, SvxLinkLegacyStrategy>();
+            services.AddSingleton<ISvxLinkVersionStrategy, SvxLinkModernStrategy>();
+            services.AddSingleton<ISvxLinkStrategyResolver, SvxLinkStrategyResolver>();
+
             // SVXLink services
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
@@ -128,17 +146,37 @@ namespace SvxlinkManagerV2.Presentation
             services.AddHostedService<LogicTclInitializerHostedService>();
             services.AddHostedService<DtmfSalonSwitchService>();
             services.AddHostedService<DtmfAnnounceService>();
+            services.AddHostedService<DtmfSystemCommandService>();
             services.AddHostedService<ReflectorConnectionAnnouncementService>();
+
+            // Supervision système (page Système + annonces DTMF)
+            services.Configure<SystemMonitoringOptions>(Configuration.GetSection(SystemMonitoringOptions.SectionName));
+            services.AddSingleton<ISystemMetricsService, LinuxSystemMetricsService>();
 
             // TTS et providers d'information pour les commandes DTMF 301-398
             services.AddSingleton<ITtsService, PicoTtsService>();
             services.AddSingleton<IDtmfPtyWriter, DtmfPtyWriter>();
+            services.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
             services.AddSingleton<IInfoProvider, CpuTemperatureInfoProvider>();
+            services.AddSingleton<IInfoProvider, IpAddressInfoProvider>();
+            services.AddSingleton<IInfoProvider, NetworkStatusInfoProvider>();
+            services.AddSingleton<IInfoProvider, DiskSpaceInfoProvider>();
+            services.AddSingleton<IInfoProvider, UptimeInfoProvider>();
+            services.AddSingleton<IInfoProvider, CpuLoadInfoProvider>();
+            services.AddSingleton<IInfoProvider, MemoryInfoProvider>();
 
             // Reflector services
             services.AddSingleton<IReflectorLogService, ReflectorLogBuffer>();
             services.AddSingleton<IReflectorDaemonService, ReflectorDaemonService>();
             services.AddScoped<IReflectorConfigurationService, ReflectorConfigurationService>();
+
+            // Contrôle d'alimentation de la machine (redémarrage / arrêt)
+            services.Configure<SystemControlOptions>(Configuration.GetSection(SystemControlOptions.SectionName));
+            var useSystemControlMock = Configuration.GetValue<bool>($"{SystemControlOptions.SectionName}:UseMock", false);
+            if (useSystemControlMock)
+                services.AddSingleton<ISystemControlService, SystemControlMockService>();
+            else
+                services.AddSingleton<ISystemControlService, SystemControlService>();
 
             // Diagnostics
             services.AddHostedService<SvxLinkDiagnosticsHostedService>();
@@ -170,7 +208,7 @@ namespace SvxlinkManagerV2.Presentation
 
             app.UseEndpoints(endpoints =>
             {
-                // Le hub Blazor et la page fallback doivent être accessibles anonymement :
+                // Le hub Blazor et la page fallback doivent rester accessibles anonymement :
                 // la FallbackPolicy protège les Razor Pages explicites, tandis que
                 // l'autorisation des routes Blazor est gérée par AuthorizeRouteView dans App.razor.
                 endpoints.MapBlazorHub().AllowAnonymous();

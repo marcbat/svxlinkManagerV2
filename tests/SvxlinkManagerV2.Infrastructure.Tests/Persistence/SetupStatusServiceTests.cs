@@ -139,7 +139,6 @@ public class SetupStatusServiceTests
             id: Guid.NewGuid(),
             name: "Salon Test",
             isDefault: false,
-            isTemporized: false,
             configuration: new Domain.Aggregates.Salon.Entities.SvxLinkConfiguration(
                 Id: Guid.NewGuid(),
                 Logics: "SimplexLogic,ReflectorLogic",
@@ -151,6 +150,8 @@ public class SetupStatusServiceTests
                 Callsign: "F5ABC",
                 AuthKey: "TestKey",
                 JitterBufferDelay: 0,
+                ReflectorProtocol: Domain.Aggregates.Salon.Enums.ReflectorProtocol.V2,
+                CertEmail: null,
                 SimplexCallsign: "F5ABC-L",
                 Modules: "ModuleHelp",
                 ShortIdentInterval: 600,

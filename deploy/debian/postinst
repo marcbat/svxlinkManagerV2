@@ -1,16 +1,217 @@
 #!/bin/sh
-set -e
+# postinst — script exécuté après l'installation/mise à jour du paquet .deb
+# Toutes les étapes sont logguées dans $LOG_FILE pour diagnostic post-mortem.
 
 APP_DIR="/opt/svxlinkmanagerv2"
 SERVICE_NAME="svxlinkmanagerv2"
+PACKAGE_NAME="svxlinkmanagerv2"
+LOG_DIR="$APP_DIR/logs"
+LOG_FILE="$LOG_DIR/postinst.log"
+SYSTEMD_DROPIN_DIR="/etc/systemd/system/${SERVICE_NAME}.service.d"
+SYSTEMD_DROPIN_FILE="$SYSTEMD_DROPIN_DIR/10-secrets.conf"
+
+mkdir -p "$LOG_DIR"
+
+log() {
+  printf '%s [postinst] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$LOG_FILE"
+}
+
+log_and_echo() {
+  log "$1"
+  echo "$1"
+}
+
+fail() {
+  log "ERREUR FATALE: $1"
+  echo "ERREUR: $1" >&2
+  exit 1
+}
+
+get_installed_package_version() {
+  if command -v dpkg-query >/dev/null 2>&1; then
+    version="$(dpkg-query -W -f='${Version}' "$PACKAGE_NAME" 2>>"$LOG_FILE" || true)"
+    if [ -n "$version" ]; then
+      printf '%s' "$version"
+      return
+    fi
+  fi
+
+  if [ -f "$APP_DIR/version.txt" ]; then
+    version="$(cat "$APP_DIR/version.txt" 2>>"$LOG_FILE" || true)"
+    if [ -n "$version" ]; then
+      printf '%s' "$version"
+      return
+    fi
+  fi
+
+  printf ''
+}
+
+should_reset_database() {
+  package_version="$1"
+
+  case "$package_version" in
+    *~alpha.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Créer un répertoire de manière robuste : si le chemin existe en tant que fichier,
+# le supprimer avant de créer le répertoire.
+ensure_directory() {
+  target="$1"
+  if [ -e "$target" ] && [ ! -d "$target" ]; then
+    log "ATTENTION: $target existe mais n'est pas un répertoire, suppression"
+    rm -f "$target"
+  fi
+  mkdir -p "$target" 2>>"$LOG_FILE"
+}
+
+ensure_systemd_secrets_dropin() {
+  mkdir -p "$SYSTEMD_DROPIN_DIR"
+  cat > "$SYSTEMD_DROPIN_FILE" <<'EOF'
+[Service]
+EnvironmentFile=-/etc/svxlinkmanagerv2/secrets.env
+EOF
+  chmod 644 "$SYSTEMD_DROPIN_FILE"
+  chown root:root "$SYSTEMD_DROPIN_FILE"
+  log "Drop-in systemd secrets forcé: $SYSTEMD_DROPIN_FILE"
+}
+
+sanitize_runtime_github_tokens() {
+  for settings_file in \
+    "$APP_DIR/appsettings.json" \
+    "$APP_DIR/appsettings.Production.json" \
+    "$APP_DIR/appsettings.json.bak"; do
+    if [ -f "$settings_file" ]; then
+      if grep -q '"GitHubToken"' "$settings_file"; then
+        sed -i 's|"GitHubToken"[[:space:]]*:[[:space:]]*"[^"]*"|"GitHubToken": ""|g' "$settings_file"
+        log "Token runtime neutralisé dans $settings_file"
+      fi
+    fi
+  done
+}
+
+validate_systemd_environmentfile() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return
+  fi
+
+  env_files="$(systemctl show "$SERVICE_NAME" -p EnvironmentFiles 2>>"$LOG_FILE" || true)"
+  if ! printf '%s' "$env_files" | grep -q '/etc/svxlinkmanagerv2/secrets.env'; then
+    fail "Le service $SERVICE_NAME ne charge pas /etc/svxlinkmanagerv2/secrets.env (EnvironmentFiles manquant)."
+  fi
+
+  log "Validation systemd OK: EnvironmentFiles contient /etc/svxlinkmanagerv2/secrets.env"
+}
+
+package_version="$(get_installed_package_version)"
+if [ -n "$package_version" ]; then
+  log "========== Début postinst version $package_version =========="
+else
+  log "========== Début postinst version inconnue =========="
+fi
 
 mkdir -p "$APP_DIR/data"
+log "Répertoire data créé/vérifié"
 
-# Suppression de la base SQLite à chaque mise à jour pour repartir d'un schéma propre.
-# Le seed automatique au démarrage recrée les données par défaut.
-rm -f "$APP_DIR/data/svxlinkmanager.db"
+# --- Fichier de secrets pour les variables d'environnement sensibles ---
+# Créé uniquement s'il n'existe pas (préserve le token GitHub déjà configuré par l'utilisateur).
+SECRETS_DIR="/etc/svxlinkmanagerv2"
+SECRETS_FILE="$SECRETS_DIR/secrets.env"
+if [ ! -f "$SECRETS_FILE" ]; then
+  mkdir -p "$SECRETS_DIR"
+  cat > "$SECRETS_FILE" <<'EOF'
+# Secrets chargés par systemd (EnvironmentFile dans svxlinkmanagerv2.service).
+# Une variable par ligne, sans guillemets.
+#
+# Token GitHub pour les mises à jour OTA depuis un dépôt privé.
+# Générer un fine-grained PAT avec : Contents=Read + Metadata=Read.
+# Laisser commenté (ou vide) si le dépôt est public.
+#ApplicationUpdate__GitHubToken=github_pat_XXXXXXXXXXXXXXXXXXXX
+EOF
+  chmod 600 "$SECRETS_FILE"
+  chown root:root "$SECRETS_FILE"
+  log "Fichier de secrets créé : $SECRETS_FILE (mode 600)"
+else
+  log "Fichier de secrets déjà présent : $SECRETS_FILE (préservé)"
+fi
 
-# dpkg s'exécute avec un PATH restreint — chercher dotnet dans les emplacements connus
+# Nettoyage volontairement destructif (environnement de dev):
+# impose la source de vérité du token via /etc/svxlinkmanagerv2/secrets.env.
+sanitize_runtime_github_tokens
+
+# Forcer le chargement des secrets via un drop-in systemd, indépendant
+# d'un éventuel remplacement du fichier unité principal lors des upgrades.
+ensure_systemd_secrets_dropin
+
+# Suppression de la base SQLite uniquement pour les builds alpha (branche develop).
+# En beta/stable (ou version indétectable), la base est préservée pour garder les données utilisateur.
+if should_reset_database "$package_version"; then
+  rm -f "$APP_DIR/data/svxlinkmanager.db"
+  log "Base SQLite supprimée (build alpha détecté: $package_version)"
+else
+  if [ -n "$package_version" ]; then
+    log "Base SQLite préservée (build non-alpha: $package_version)"
+  else
+    log "Base SQLite préservée (version indétectable, mode sécurisé non destructif)"
+  fi
+fi
+
+# --- Répertoires SVXLink requis par les deux versions ---
+log "Création des répertoires SVXLink..."
+ensure_directory /var/spool/svxlink
+ensure_directory /var/log/svxlink
+ensure_directory /var/lib/svxlink/pki/pending_csrs
+ensure_directory /var/lib/svxlink/pki/csrs
+ensure_directory /var/lib/svxlink/pki/certs
+ensure_directory /var/lib/svxlink/pki/ca
+ensure_directory /etc/svxlink
+ensure_directory /etc/svxlink/svxlink.d
+
+# Template de configuration SVXLink (requis par SvxLinkConfigurationService)
+if [ -f "$APP_DIR/svxlink-config/svxlink.conf" ] && [ ! -f /etc/svxlink/svxlink.conf ]; then
+  cp "$APP_DIR/svxlink-config/svxlink.conf" /etc/svxlink/svxlink.conf
+  log "Template svxlink.conf copié vers /etc/svxlink/"
+fi
+
+# Répertoires sons pour les deux versions SVXLink
+ensure_directory /opt/svxlink-legacy/share/svxlink/sounds/fr_FR/svxlinkmanager
+ensure_directory /opt/svxlink-modern/share/svxlink/sounds/fr_FR/svxlinkmanager
+ensure_directory /opt/svxlink-legacy/share/svxlink/events.d/local
+ensure_directory /opt/svxlink-modern/share/svxlink/events.d/local
+log "Répertoires sons et events créés"
+
+# --- Enregistrement des bibliothèques partagées SVXLink ---
+if [ -d /opt/svxlink-legacy/lib ]; then
+  echo "/opt/svxlink-legacy/lib" > /etc/ld.so.conf.d/svxlink-legacy.conf
+fi
+if [ -d /opt/svxlink-modern/lib ]; then
+  echo "/opt/svxlink-modern/lib" > /etc/ld.so.conf.d/svxlink-modern.conf
+fi
+ldconfig 2>/dev/null || true
+log "ldconfig exécuté"
+
+# --- Hook de signature automatique des certificats X.509 (SVXLink 25.05 / protocole V3) ---
+HOOK_SRC="$APP_DIR/dev-ca-hook.sh"
+HOOK_DST="/usr/local/bin/dev-ca-hook.sh"
+if [ -f "$HOOK_SRC" ]; then
+  cp "$HOOK_SRC" "$HOOK_DST"
+  chmod +x "$HOOK_DST"
+  log "Hook X.509 installé"
+fi
+
+# --- Vérification des installations SVXLink ---
+if [ ! -f /opt/svxlink-legacy/bin/svxlink ]; then
+  log_and_echo "ATTENTION: SVXLink 19.09.2 (legacy) introuvable dans /opt/svxlink-legacy."
+  log_and_echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+fi
+if [ ! -f /opt/svxlink-modern/bin/svxlink ]; then
+  log_and_echo "ATTENTION: SVXLink 25.05 (moderne) introuvable dans /opt/svxlink-modern."
+  log_and_echo "  Exécutez le script de setup: $APP_DIR/setup-svxlink.sh"
+fi
+
+# --- Vérification .NET runtime ---
 DOTNET_BIN=""
 for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/dotnet; do
   if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
@@ -20,20 +221,27 @@ for candidate in dotnet /usr/local/bin/dotnet /usr/bin/dotnet /usr/share/dotnet/
 done
 
 if [ -z "$DOTNET_BIN" ]; then
-  echo "Erreur: dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
-  exit 1
+  fail "dotnet runtime est introuvable. Installe .NET 8 runtime (linux-arm) avant de lancer le service."
 fi
 
 if ! "$DOTNET_BIN" --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 8\.'; then
-  echo "Erreur: .NET 8 runtime est requis. Runtimes detectes:"
-  "$DOTNET_BIN" --list-runtimes 2>/dev/null || true
-  exit 1
+  log "Runtimes .NET détectés:"
+  "$DOTNET_BIN" --list-runtimes 2>>"$LOG_FILE" >> "$LOG_FILE" || true
+  fail ".NET 8 runtime est requis mais absent."
 fi
+log ".NET 8 runtime détecté: $DOTNET_BIN"
 
 chmod +x "$APP_DIR/SvxlinkManagerV2.Presentation" 2>/dev/null || true
 
 if command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload || true
-  systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
-  systemctl restart "$SERVICE_NAME" || true
+  log "Activation et redémarrage du service $SERVICE_NAME..."
+  systemctl daemon-reload >> "$LOG_FILE" 2>&1 || true
+  validate_systemd_environmentfile
+  systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+  systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+  log "Service $SERVICE_NAME redémarré"
+else
+  log "ATTENTION: systemctl indisponible, le service n'a pas été redémarré"
 fi
+
+log "========== Fin postinst (succès) =========="

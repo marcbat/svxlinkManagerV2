@@ -9,6 +9,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
 
@@ -29,6 +30,7 @@ public class ActivateSalonCommandTests
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly ISalonAnnouncementService _announcementService;
+    private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandTests()
@@ -41,6 +43,7 @@ public class ActivateSalonCommandTests
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
         _announcementService = Substitute.For<ISalonAnnouncementService>();
+        _dtmfPtyWriter = Substitute.For<IDtmfPtyWriter>();
         _logger = Substitute.For<ILogger<ActivateSalonCommandHandler>>();
     }
 
@@ -64,7 +67,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -97,9 +100,9 @@ public class ActivateSalonCommandTests
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
         _connectedNodesService.When(s => s.Reset()).Do(_ => callOrder.Add("Reset"));
-        _daemonService.When(s => s.RestartAsync(Arg.Any<CancellationToken>()))
+        _daemonService.When(s => s.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>()))
             .Do(_ => callOrder.Add("Restart"));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -131,7 +134,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -170,7 +173,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -204,7 +207,7 @@ public class ActivateSalonCommandTests
                 Error.Validation("TTS_FAILED", "pico2wave introuvable").ToFailure<Unit>()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -264,7 +267,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
 
         // Act
@@ -323,7 +326,7 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
         _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
-        _daemonService.RestartAsync(Arg.Any<CancellationToken>())
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(global::LanguageExt.Common.Error.New("SVXLINK_RESTART_ERROR")));
 
         // Act
@@ -342,7 +345,7 @@ public class ActivateSalonCommandTests
         var handler = new ActivateSalonCommandHandler(
             _repository, _tracker, _sa818Repository, _sa818Service,
             _configurationService, _daemonService, _connectedNodesService,
-            _announcementService, _logger);
+            _announcementService, _dtmfPtyWriter, _logger);
         return handler.Handle(command, CancellationToken.None);
     }
 
@@ -359,6 +362,8 @@ public class ActivateSalonCommandTests
             "F5ABC-L",
             "test-auth-key",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp",
             60,
@@ -370,7 +375,7 @@ public class ActivateSalonCommandTests
             145.550m,
             136.5m,
             136.5m);
-        var result = SalonAggregate.Create(id, "Salon Test", false, false, config);
+        var result = SalonAggregate.Create(id, "Salon Test", false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));

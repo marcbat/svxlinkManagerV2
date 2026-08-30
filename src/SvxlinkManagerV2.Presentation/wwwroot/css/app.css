@@ -141,11 +141,92 @@ a { color: inherit; text-decoration: none; }
     font-size: 22px;
 }
 
+.sidebar-nav .nav-item .menu-icon-live {
+    color: var(--success);
+    text-shadow: 0 0 8px rgba(0, 184, 148, 0.55);
+}
+
+.sidebar-nav .nav-item.active .menu-icon-live {
+    color: #7fffe0;
+}
+
 .sidebar-version {
     font-size: 12px;
     color: var(--text-muted);
     padding: 8px;
     text-align: center;
+}
+
+/* ── Sidebar Compte utilisateur ─────────────────────────────── */
+.sidebar-account {
+    border-top: 1px solid var(--border-card);
+    padding-top: 10px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-account-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 14px 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sidebar-account-info .material-symbols-outlined {
+    font-size: 22px;
+    color: var(--accent);
+}
+
+.sidebar-account-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-account-links form {
+    margin: 0;
+}
+
+.sidebar-account .nav-item-account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 14px;
+    border: none;
+    background: none;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+}
+
+.sidebar-account .nav-item-account:hover {
+    background: var(--accent-light);
+    color: var(--text);
+}
+
+.sidebar-account .nav-item-account.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.sidebar-account .nav-item-account .material-symbols-outlined {
+    font-size: 22px;
+}
+
+.sidebar-account .nav-item-logout:hover {
+    background: var(--danger-light);
+    color: var(--danger);
 }
 
 /* ── Sidebar Collapsed State ────────────────────────────────── */
@@ -158,6 +239,8 @@ a { color: inherit; text-decoration: none; }
 
 .app-layout.sidebar-collapsed .logo-text,
 .app-layout.sidebar-collapsed .sidebar-version,
+.app-layout.sidebar-collapsed .account-username,
+.app-layout.sidebar-collapsed .sidebar-account .nav-item-account span:not(.material-symbols-outlined),
 .app-layout.sidebar-collapsed .sidebar-nav .nav-item span:not(.material-symbols-outlined) {
     display: none;
 }
@@ -170,6 +253,13 @@ a { color: inherit; text-decoration: none; }
 }
 
 .app-layout.sidebar-collapsed .sidebar-nav .nav-item {
+    justify-content: center;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.app-layout.sidebar-collapsed .sidebar-account-info,
+.app-layout.sidebar-collapsed .sidebar-account .nav-item-account {
     justify-content: center;
     padding-left: 8px;
     padding-right: 8px;
@@ -294,10 +384,10 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Dashboard Bottom Grid ───────────────────────────────────── */
 .dashboard-grid {
-    display: grid;
-    grid-template-columns: 380px 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 18px;
-    align-items: start;
+    align-items: stretch;
 }
 
 @media (max-width: 1100px) {
@@ -448,7 +538,9 @@ a { color: inherit; text-decoration: none; }
 
 .actions-stack {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
 }
 
@@ -566,6 +658,13 @@ a { color: inherit; text-decoration: none; }
 .signal-bars .bar-3 { height: 11px; }
 .signal-bars .bar-4 { height: 16px; }
 .signal-bars .bar.active { background: var(--accent); }
+/* Code couleur du signal WiFi */
+.signal-bars.signal-high .bar.active { background: #4ade80; }
+.signal-bars.signal-medium .bar.active { background: #fb923c; }
+.signal-bars.signal-low .bar.active { background: #f87171; }
+.signal-text--high { color: #4ade80; font-weight: 500; }
+.signal-text--medium { color: #fb923c; font-weight: 500; }
+.signal-text--low { color: #f87171; font-weight: 500; }
 
 /* WiFi row list */
 .wifi-network-list { display: flex; flex-direction: column; }
@@ -594,6 +693,25 @@ a { color: inherit; text-decoration: none; }
 .wifi-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
 .wifi-badge--connected { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
 .wifi-badge--saved { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+
+/* WiFi section labels & divider */
+.wifi-section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 10px 0 4px 0;
+}
+.wifi-section-label .material-symbols-outlined { font-size: 15px; }
+.wifi-section-divider {
+    border: none;
+    border-top: 1px dashed var(--border-card);
+    margin: 6px 0 2px 0;
+}
 
 /* WiFi password form (inline expansion below a row) */
 .wifi-row-password {
@@ -674,6 +792,8 @@ a { color: inherit; text-decoration: none; }
 
     .logo-text,
     .sidebar-version,
+    .account-username,
+    .sidebar-account .nav-item-account span:not(.material-symbols-outlined),
     .sidebar-nav .nav-item span:not(.material-symbols-outlined) {
         display: none;
     }
@@ -686,6 +806,13 @@ a { color: inherit; text-decoration: none; }
     }
 
     .sidebar-nav .nav-item {
+        justify-content: center;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .sidebar-account-info,
+    .sidebar-account .nav-item-account {
         justify-content: center;
         padding-left: 8px;
         padding-right: 8px;

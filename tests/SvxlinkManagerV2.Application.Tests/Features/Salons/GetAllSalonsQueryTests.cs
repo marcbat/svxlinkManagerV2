@@ -4,6 +4,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Application.Tests.Features.Salons;
 
@@ -72,6 +73,8 @@ public class GetAllSalonsQueryTests
             "F5ABC-L",
             "test-key",
             0,
+            ReflectorProtocol.V2,
+            null,
             "F5ABC",
             "ModuleHelp",
             60,
@@ -84,7 +87,7 @@ public class GetAllSalonsQueryTests
             136.5m,   // RxCtcss
             136.5m);  // TxCtcss
 
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));

@@ -72,7 +72,7 @@ public class SA818InitializerHostedServiceIntegrationTests : IAsyncLifetime
         config!.Id.Should().Be(SA818Aggregate.FixedId);
         config.Volume.Should().Be(4);
         config.Squelch.Should().Be(4);
-        config.Bandwidth.Should().Be(SA818Bandwidth.Wide25kHz);
+        config.Bandwidth.Should().Be(SA818Bandwidth.Narrow12_5kHz);
         config.PreEmph.Should().BeFalse();
         config.HighPass.Should().BeFalse();
         config.LowPass.Should().BeFalse();

@@ -1,10 +1,13 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Common;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
+using SvxlinkManagerV2.Infrastructure.SvxLink.Strategies;
 
 namespace SvxlinkManagerV2.Infrastructure.Tests.SvxLink;
 
@@ -16,6 +19,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
 {
     private readonly SvxLinkConfigurationService _service;
     private readonly ILogger<SvxLinkConfigurationService> _logger;
+    private readonly ISvxLinkStrategyResolver _strategyResolver;
     private readonly string _testOutputDirectory;
     private readonly List<string> _filesToCleanup;
     private readonly string _templatePath;
@@ -26,7 +30,15 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         
         // Trouver le chemin du template depuis le répertoire des tests
         _templatePath = FindTemplatePath();
-        _service = new SvxLinkConfigurationService(_logger, _templatePath);
+
+        // Créer un resolver avec les vraies stratégies
+        _strategyResolver = new SvxLinkStrategyResolver(new ISvxLinkVersionStrategy[]
+        {
+            new SvxLinkLegacyStrategy(),
+            new SvxLinkModernStrategy()
+        });
+
+        _service = new SvxLinkConfigurationService(_logger, _strategyResolver, _templatePath);
         
         // Créer un répertoire temporaire pour les tests
         _testOutputDirectory = Path.Combine(Path.GetTempPath(), $"svxlink-test-{Guid.NewGuid()}");
@@ -138,7 +150,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         // Assert
         var iniData = IniFile.Parse(outputPath);
 
-        iniData["ReflectorLogic"]["TYPE"].Should().Be("Reflector");
+        iniData["ReflectorLogic"]["TYPE"].Should().Be("Reflector"); // V2 protocol uses simple "Reflector" type
         iniData["ReflectorLogic"]["HOST"].Should().Be("ref.example.com");
         iniData["ReflectorLogic"]["PORT"].Should().Be("5300");
         iniData["ReflectorLogic"]["CALLSIGN"].Should().Be("F5TEST-L");
@@ -146,6 +158,94 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["ReflectorLogic"]["AUDIO_CODEC"].Should().Be("OPUS");
         iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"].Should().Be("0");
         iniData["ReflectorLogic"]["DEFAULT_LANG"].Should().Be("fr_FR");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldUpdateReflectorLogicSectionForV3Protocol()
+    {
+        // Arrange
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_reflector_v3.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["ReflectorLogic"]["TYPE"].Should().Be("Reflector"); // V3 protocol uses "Reflector" type (same as V2, but different config)
+        iniData["ReflectorLogic"]["HOSTS"].Should().Be("ref.example.com:5300");
+        iniData["ReflectorLogic"]["CALLSIGN"].Should().Be("F5TEST-L");
+        iniData["ReflectorLogic"]["AUDIO_CODEC"].Should().Be("OPUS");
+        iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"].Should().Be("0");
+        iniData["ReflectorLogic"]["DEFAULT_LANG"].Should().Be("fr_FR");
+        iniData["ReflectorLogic"]["CERT_PKI_DIR"].Should().Be("/var/lib/svxlink/pki");
+        iniData["ReflectorLogic"]["CERT_EMAIL"].Should().Be("test@example.com");
+        
+        // V3 should not have V2-specific keys
+        iniData["ReflectorLogic"].ContainsKey("AUTH_KEY").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("HOST").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("PORT").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_V3_ShouldSetTalkGroupParameters()
+    {
+        // Arrange
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_reflector_v3_tg.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"]["DEFAULT_TG"].Should().Be("0");
+        iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"].Should().Be("30");
+        iniData["ReflectorLogic"]["MUTE_FIRST_TX_LOC"].Should().Be("1");
+        iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"].Should().Be("0");
+        iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"].Should().Be("3600");
+        iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"].Should().Be("-1");
+        iniData["ReflectorLogic"].ContainsKey("MONITOR_TGS").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_INHIBIT_TIMEOUT").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_V2_ShouldNotSetTalkGroupParameters()
+    {
+        // Arrange
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_reflector_v2_tg.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"].ContainsKey("DEFAULT_TG").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MONITOR_TGS").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TG_SELECT_INHIBIT_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MUTE_FIRST_TX_LOC").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("MUTE_FIRST_TX_REM").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("TMP_MONITOR_TIMEOUT").Should().BeFalse();
+        iniData["ReflectorLogic"].ContainsKey("QSY_PENDING_TIMEOUT").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_V3_WithMonitorTgs_ShouldSetMonitorTgs()
+    {
+        // Arrange
+        var salon = CreateTestSalonV3WithTalkGroups("91,208,226+", 15);
+        var outputPath = GetTestOutputPath("svxlink_reflector_v3_monitor_tgs.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ReflectorLogic"]["MONITOR_TGS"].Should().Be("91,208,226+");
+        iniData["ReflectorLogic"]["TG_SELECT_INHIBIT_TIMEOUT"].Should().Be("15");
     }
 
     [Fact]
@@ -168,7 +268,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["SimplexLogic"]["MODULES"].Should().Be("ModuleHelp,ModuleParrot,ModuleTclVoiceMail");
         iniData["SimplexLogic"]["SHORT_IDENT_INTERVAL"].Should().Be("60");
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"].Should().Be("60");
-        iniData["SimplexLogic"]["EVENT_HANDLER"].Should().Be("/usr/share/svxlink/events.tcl");
+        iniData["SimplexLogic"]["EVENT_HANDLER"].Should().Be("/opt/svxlink-legacy/share/svxlink/events.tcl");
         iniData["SimplexLogic"]["DEFAULT_LANG"].Should().Be("fr_FR");
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"].Should().Be("0");
     }
@@ -306,6 +406,59 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         File.Exists(tempPath).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldSetLogicsToSimplexLogicOnly()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["GLOBAL"]["LOGICS"].Should().Be("SimplexLogic");
+        iniData["GLOBAL"].ContainsKey("LINKS").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldGenerateModuleParrotSection()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot_module.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var iniData = IniFile.Parse(outputPath);
+        iniData["ModuleParrot"]["NAME"].Should().Be("Parrot");
+        iniData["ModuleParrot"]["ID"].Should().Be("2");
+        iniData["ModuleParrot"]["TIMEOUT"].Should().Be("180");
+        iniData["ModuleParrot"]["FIFO_LEN"].Should().Be("60");
+        iniData["ModuleParrot"]["REPEAT_DELAY"].Should().Be("1000");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithParrotSalon_ShouldNotContainReflectorLogicSection()
+    {
+        // Arrange
+        var salon = CreateTestParrotSalon();
+        var outputPath = GetTestOutputPath("svxlink_parrot_no_reflector.conf");
+
+        // Act
+        var result = await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var content = await File.ReadAllTextAsync(outputPath);
+        content.Should().NotContain("[ReflectorLogic]");
+    }
+
     // Helper methods
 
     private SalonAggregate CreateTestSalon()
@@ -321,6 +474,8 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             Callsign: "F5TEST-L",
             AuthKey: "TestAuthKey123",
             JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V2,
+            CertEmail: null,
             SimplexCallsign: "F5TEST",
             Modules: "ModuleHelp,ModuleParrot,ModuleTclVoiceMail",
             ShortIdentInterval: 60,
@@ -338,13 +493,75 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
         return result.Match(
             Succ: salon => salon,
             Fail: errors => throw new Exception($"Impossible de créer le Salon de test: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestSalonV3()
+    {
+        var configuration = new SvxLinkConfiguration(
+            Id: Guid.NewGuid(),
+            Logics: "SimplexLogic,ReflectorLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "ref.example.com",
+            Port: 5300,
+            Callsign: "F5TEST-L",
+            AuthKey: null, // V3 uses certificates, not AUTH_KEY
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: "test@example.com",
+            SimplexCallsign: "F5TEST",
+            Modules: "ModuleHelp,ModuleParrot,ModuleTclVoiceMail",
+            ShortIdentInterval: 60,
+            LongIdentInterval: 60,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: 136.5m,
+            TxCtcss: 136.5m
+        );
+
+        var result = SalonAggregate.Create(
+            id: Guid.NewGuid(),
+            name: "Salon Test V3",
+            isDefault: false,
+            configuration: configuration
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon de test V3: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestSalonV3WithTalkGroups(string monitorTgs, int? tgSelectInhibitTimeout)
+    {
+        var baseConfig = CreateTestSalonV3().Configuration;
+        var configuration = baseConfig with
+        {
+            MonitorTgs = monitorTgs,
+            TgSelectInhibitTimeout = tgSelectInhibitTimeout
+        };
+
+        var result = SalonAggregate.Create(
+            id: Guid.NewGuid(),
+            name: "Salon Test V3 TG",
+            isDefault: false,
+            configuration: configuration
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon de test V3 TG: {errors}")
         );
     }
 
@@ -361,6 +578,8 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             Callsign: "F5TEST-L",
             AuthKey: "TestAuthKey123",
             JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V2,
+            CertEmail: null,
             SimplexCallsign: "F5TEST",
             Modules: "ModuleHelp,ModuleParrot,ModuleTclVoiceMail",
             ShortIdentInterval: 60,
@@ -378,7 +597,6 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Test avec CTCSS",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
@@ -401,6 +619,8 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             Callsign: "F5TEST-L",
             AuthKey: "TestAuthKey123",
             JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V2,
+            CertEmail: null,
             SimplexCallsign: "F5TEST",
             Modules: "ModuleHelp",
             ShortIdentInterval: 60,
@@ -418,13 +638,57 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             id: Guid.NewGuid(),
             name: "Salon Sans CTCSS",
             isDefault: false,
-            isTemporized: false,
             configuration: configuration
         );
 
         return result.Match(
             Succ: salon => salon,
             Fail: errors => throw new Exception($"Impossible de créer le Salon de test sans CTCSS: {errors}")
+        );
+    }
+
+    private SalonAggregate CreateTestParrotSalon()
+    {
+        var configuration = new SvxLinkConfiguration(
+            Id: Guid.NewGuid(),
+            Logics: "SimplexLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "",
+            Port: 0,
+            Callsign: "",
+            AuthKey: null,
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: null,
+            SimplexCallsign: "F0ABC",
+            Modules: "ModuleParrot",
+            ShortIdentInterval: 600,
+            LongIdentInterval: 3600,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            ParrotFifoLen: 60,
+            ParrotRepeatDelay: 1000,
+            ParrotTimeout: 180
+        );
+
+        var result = SalonAggregate.Create(
+            id: SalonAggregate.FixedParrotId,
+            name: "Perroquet",
+            isDefault: false,
+            configuration: configuration,
+            salonType: SalonType.Parrot
+        );
+
+        return result.Match(
+            Succ: salon => salon,
+            Fail: errors => throw new Exception($"Impossible de créer le Salon Perroquet de test: {errors}")
         );
     }
 

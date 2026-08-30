@@ -3,6 +3,7 @@ using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Common;
 using static LanguageExt.Prelude;
 
@@ -10,25 +11,31 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
 /// <summary>
 /// Service de génération du fichier de configuration SVXLink (svxlink.conf).
-/// Compatible avec SVXLink 19.09.2.
+/// Supporte SVXLink 25.05 (protocole V3) et SVXLink 19.09.2 (protocole V2 legacy).
+/// Supporte le mode Perroquet (ModuleParrot simplex).
 /// </summary>
 public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
     private readonly ILogger<SvxLinkConfigurationService> _logger;
+    private readonly ISvxLinkStrategyResolver _strategyResolver;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
     private const string SvxLinkConfigDir = "/etc/svxlink";
 
-    // Constructeur pour l'injection de dépendances (Wolverine/DI ne peut pas résoudre string? depuis le conteneur)
-    public SvxLinkConfigurationService(ILogger<SvxLinkConfigurationService> logger)
-        : this(logger, null) { }
+    // Constructeur pour l'injection de dépendances
+    public SvxLinkConfigurationService(
+        ILogger<SvxLinkConfigurationService> logger,
+        ISvxLinkStrategyResolver strategyResolver)
+        : this(logger, strategyResolver, null) { }
 
     // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
+        ISvxLinkStrategyResolver strategyResolver,
         string? templatePath)
     {
         _logger = logger;
+        _strategyResolver = strategyResolver;
         _templatePath = templatePath;
     }
 
@@ -56,10 +63,21 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             var iniData = await Task.Run(() => IniFile.Parse(templatePath), cancellationToken);
 
             // 3. Mettre à jour les sections avec les données du Salon
-            UpdateGlobalSection(iniData, salon);
-            UpdateLinkSection(iniData);
-            UpdateReflectorLogicSection(iniData, salon);
-            UpdateSimplexLogicSection(iniData, salon);
+            if (salon.SalonType == SalonType.Parrot)
+            {
+                // Mode Perroquet : SimplexLogic uniquement avec ModuleParrot
+                UpdateGlobalSectionParrot(iniData, salon);
+                UpdateSimplexLogicSection(iniData, salon);
+                UpdateModuleParrotSection(iniData, salon);
+            }
+            else
+            {
+                // Mode Reflector : SimplexLogic + ReflectorLogic
+                UpdateGlobalSection(iniData, salon);
+                UpdateLinkSection(iniData);
+                UpdateReflectorLogicSection(iniData, salon);
+                UpdateSimplexLogicSection(iniData, salon);
+            }
             UpdateReceiverSection(iniData, salon);
             UpdateTransmitterSection(iniData, salon);
 
@@ -204,6 +222,29 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     }
 
     /// <summary>
+    /// Met à jour la section [GLOBAL] pour le mode Perroquet (simplex avec ModuleParrot).
+    /// </summary>
+    private void UpdateGlobalSectionParrot(IniFile iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["GLOBAL"]["LOGICS"] = "SimplexLogic";
+        iniData["GLOBAL"]["CFG_DIR"] = config.CfgDir;
+        iniData["GLOBAL"]["CARD_SAMPLE_RATE"] = config.CardSampleRate.ToString();
+        iniData["GLOBAL"]["CARD_CHANNELS"] = config.CardChannels.ToString();
+
+        // Supprimer la clé LINKS (pas de réflecteur en mode perroquet)
+        if (iniData["GLOBAL"].ContainsKey("LINKS"))
+            iniData["GLOBAL"].Remove("LINKS");
+
+        // Supprimer les sections réflecteur (héritées du template)
+        iniData.RemoveSection("ReflectorLogic");
+        iniData.RemoveSection("LinkToReflector");
+
+        _logger.LogDebug("Section [GLOBAL] mise à jour (mode perroquet)");
+    }
+
+    /// <summary>
     /// Met à jour la section [LinkToReflector] qui relie SimplexLogic et ReflectorLogic.
     /// Cette section est constante : SVXLink requiert ce pont pour router l'audio
     /// entre le hardware local (SimplexLogic) et le reflector (ReflectorLogic).
@@ -219,22 +260,107 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
+    /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
     private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
+        var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
+        var eventHandlerPath = $"{strategy.EventsDirectory}/Logic.tcl";
 
-        iniData["ReflectorLogic"]["TYPE"] = "Reflector";
-        iniData["ReflectorLogic"]["HOST"] = config.Host;
-        iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
-        iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
-        iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey;
-        iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
-        iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
-        iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+        if (config.ReflectorProtocol == ReflectorProtocol.V2)
+        {
+            // V2 protocol — AUTH_KEY authentication
+            // SVXLink 19.09.2 (legacy): TYPE=Reflector uses ReflectorLogic.so (v1.0 protocol with AUTH_KEY)
+            iniData["ReflectorLogic"]["TYPE"] = "Reflector";
+            iniData["ReflectorLogic"]["HOST"] = config.Host;
+            iniData["ReflectorLogic"]["PORT"] = config.Port.ToString();
+            iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
+            iniData["ReflectorLogic"]["AUTH_KEY"] = config.AuthKey!;
+            iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
+            iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
+            iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+            iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
 
-        _logger.LogDebug("Section [ReflectorLogic] mise à jour (Host: {Host}, Callsign: {Callsign})", 
-            config.Host, config.Callsign);
+            // Remove V3-specific keys that may exist in template
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "DEFAULT_TG");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_INHIBIT_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_LOC");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_REM");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "TMP_MONITOR_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "QSY_PENDING_TIMEOUT");
+
+            _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
+                config.Host, config.Callsign);
+        }
+        else
+        {
+            // V3 protocol (SVXLink 25.05) — X.509 certificates, TYPE=Reflector
+            // ReflectorLogic.so handles v3.0 protocol with PKI
+            iniData["ReflectorLogic"]["TYPE"] = "Reflector";
+            iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
+            iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
+            iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
+            iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
+            iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
+            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = "/var/lib/svxlink/pki";
+            iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
+            iniData["ReflectorLogic"]["DEFAULT_TG"] = config.DefaultTg.ToString();
+            iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"] = config.TgSelectTimeout.ToString();
+            iniData["ReflectorLogic"]["MUTE_FIRST_TX_LOC"] = config.MuteFirstTxLoc ? "1" : "0";
+            iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"] = config.MuteFirstTxRem ? "1" : "0";
+            iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"] = config.TmpMonitorTimeout.ToString();
+            iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"] = config.QsyPendingTimeout.ToString();
+
+            if (!string.IsNullOrWhiteSpace(config.CertEmail))
+            {
+                iniData["ReflectorLogic"]["CERT_EMAIL"] = config.CertEmail;
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.MonitorTgs))
+            {
+                iniData["ReflectorLogic"]["MONITOR_TGS"] = config.MonitorTgs;
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
+            }
+
+            if (config.TgSelectInhibitTimeout.HasValue)
+            {
+                iniData["ReflectorLogic"]["TG_SELECT_INHIBIT_TIMEOUT"] = config.TgSelectInhibitTimeout.Value.ToString();
+            }
+            else
+            {
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_INHIBIT_TIMEOUT");
+            }
+
+            // Remove V2-specific keys that may exist in template
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "AUTH_KEY");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOST");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "PORT");
+
+            _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V3 (Hosts: {Host}:{Port}, Callsign: {Callsign})",
+                config.Host, config.Port, config.Callsign);
+        }
+    }
+
+    /// <summary>
+    /// Supprime une clé d'une section INI si elle existe.
+    /// </summary>
+    private static void RemoveKeyIfPresent(IniFile iniData, string section, string key)
+    {
+        if (iniData[section].ContainsKey(key))
+            iniData[section].Remove(key);
     }
 
     /// <summary>
@@ -245,6 +371,12 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     private void UpdateSimplexLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
+        var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
+        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
+        var eventsTclPath = $"{eventsBasePath}/events.tcl";
 
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";
@@ -255,9 +387,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = config.LongIdentInterval.ToString();
         iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
         iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
-        // Chemin absolu requis — SVXLink résout le handler relatif au répertoire de travail, pas au SHARE_DIR
-        // events.tcl est le point d'entrée principal qui source tous les handlers de events.d/ (dont SimplexLogic.tcl)
-        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = eventsTclPath;
         iniData["SimplexLogic"]["DEFAULT_LANG"] = config.DefaultLang;
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = config.RgrSoundDelay.ToString();
 
@@ -280,6 +410,14 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// </summary>
     private void UpdateSimplexLogicSectionStandalone(IniFile iniData)
     {
+        // Standalone = version moderne (V3)
+        var strategy = _strategyResolver.Resolve(ReflectorProtocol.V3);
+        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
+        var eventsTclPath = $"{eventsBasePath}/events.tcl";
+
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";
         iniData["SimplexLogic"]["TX"] = "Tx1";
@@ -289,7 +427,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         iniData["SimplexLogic"]["LONG_IDENT_INTERVAL"] = "3600";
         iniData["SimplexLogic"]["IDENT_ONLY_AFTER_TX"] = "1";
         iniData["SimplexLogic"]["EXEC_CMD_ON_SQL_CLOSE"] = "1";
-        iniData["SimplexLogic"]["EVENT_HANDLER"] = "/usr/share/svxlink/events.tcl";
+        iniData["SimplexLogic"]["EVENT_HANDLER"] = eventsTclPath;
         iniData["SimplexLogic"]["DEFAULT_LANG"] = "fr_FR";
         iniData["SimplexLogic"]["RGR_SOUND_DELAY"] = "0";
         iniData["SimplexLogic"]["DTMF_CTRL_PTY"] = DtmfPtyWriter.DefaultPtyPath;
@@ -329,6 +467,24 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             config.TxFrequency, config.TxCtcss?.ToString() ?? "aucun");
 
         // Les paramètres Tx1 restent ceux du template (AUDIO_DEV, PTT_TYPE, GPIO, TIMEOUT, TX_DELAY, etc.)
+    }
+
+    /// <summary>
+    /// Met à jour la section [ModuleParrot] pour le mode Perroquet.
+    /// Configuré dans svxlink.d/ModuleParrot.conf habituellement, mais ici inline dans svxlink.conf.
+    /// </summary>
+    private void UpdateModuleParrotSection(IniFile iniData, SalonAggregate salon)
+    {
+        var config = salon.Configuration;
+
+        iniData["ModuleParrot"]["NAME"] = "Parrot";
+        iniData["ModuleParrot"]["ID"] = "2";
+        iniData["ModuleParrot"]["TIMEOUT"] = config.ParrotTimeout.ToString();
+        iniData["ModuleParrot"]["FIFO_LEN"] = config.ParrotFifoLen.ToString();
+        iniData["ModuleParrot"]["REPEAT_DELAY"] = config.ParrotRepeatDelay.ToString();
+
+        _logger.LogDebug("Section [ModuleParrot] mise à jour (FIFO_LEN: {FifoLen}s, REPEAT_DELAY: {RepeatDelay}ms, TIMEOUT: {Timeout}s)",
+            config.ParrotFifoLen, config.ParrotRepeatDelay, config.ParrotTimeout);
     }
 
     /// <summary>

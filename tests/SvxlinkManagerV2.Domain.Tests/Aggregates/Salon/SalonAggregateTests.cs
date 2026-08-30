@@ -2,6 +2,7 @@ using FluentAssertions;
 using LanguageExt.UnitTesting;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
+using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
 
 namespace SvxlinkManagerV2.Domain.Tests.Aggregates.Salon;
@@ -22,7 +23,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, isDefault: true, isTemporized: false, config);
+        var result = SalonAggregate.Create(id, name, isDefault: true, config);
 
         // Assert
         result.ShouldBeSuccess(aggregate =>
@@ -30,7 +31,6 @@ public class SalonAggregateTests
             aggregate.Id.Should().Be(id);
             aggregate.Name.Should().Be(name);
             aggregate.IsDefault.Should().BeTrue();
-            aggregate.IsTemporized.Should().BeFalse();
             aggregate.IsDeleted.Should().BeFalse();
             aggregate.Configuration.Should().Be(config);
             aggregate.DomainEvents.Should().ContainSingle()
@@ -47,7 +47,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -65,7 +65,7 @@ public class SalonAggregateTests
         var config = CreateValidConfiguration();
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, config);
+        var result = SalonAggregate.Create(id, name, false, config);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -92,6 +92,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -105,7 +107,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -132,6 +134,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -145,7 +149,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -176,6 +180,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -189,7 +195,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -218,6 +224,8 @@ public class SalonAggregateTests
             invalidCallsign, // Callsign vide
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -231,7 +239,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -258,6 +266,8 @@ public class SalonAggregateTests
             config.Callsign,
             "", // AuthKey vide
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -271,13 +281,108 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
         {
             errors.Should().Contain(e => e.Code == "SALON_AUTHKEY_REQUIRED");
         });
+    }
+
+    [Fact]
+    public void Create_WithV3TalkGroupConfiguration_ShouldSucceed()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            DefaultTg = 208,
+            MonitorTgs = "91,208,226+,228+",
+            TgSelectTimeout = 45,
+            TgSelectInhibitTimeout = 10,
+            TmpMonitorTimeout = 1200,
+            QsyPendingTimeout = -1
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, config);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Create_WithInvalidV3MonitorTgs_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            MonitorTgs = "91,abc"
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_MONITOR_TGS_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidV3TgSelectTimeout_ShouldFail()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V3";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            TgSelectTimeout = 0
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, config);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_TG_SELECT_TIMEOUT_INVALID");
+        });
+    }
+
+    [Fact]
+    public void Create_WithInvalidTalkGroupValuesInV2_ShouldIgnoreTalkGroupValidation()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var name = "Salon V2";
+        var config = CreateValidConfiguration() with
+        {
+            ReflectorProtocol = ReflectorProtocol.V2,
+            DefaultTg = -1,
+            MonitorTgs = "bad-value",
+            TgSelectTimeout = 0,
+            TgSelectInhibitTimeout = -1,
+            TmpMonitorTimeout = -1,
+            QsyPendingTimeout = -2
+        };
+
+        // Act
+        var result = SalonAggregate.Create(id, name, false, config);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
     }
 
         [Fact]
@@ -298,6 +403,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -311,7 +418,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -338,6 +445,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -351,7 +460,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -378,6 +487,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -391,7 +502,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -418,6 +529,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -431,7 +544,7 @@ public class SalonAggregateTests
             50m); // TxCtcss invalide (hors plage 67.0-250.3 Hz)
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -461,6 +574,8 @@ public class SalonAggregateTests
             config.Callsign,
             config.AuthKey,
             config.JitterBufferDelay,
+            config.ReflectorProtocol,
+            config.CertEmail,
             config.SimplexCallsign,
             config.Modules,
             config.ShortIdentInterval,
@@ -474,7 +589,7 @@ public class SalonAggregateTests
             config.TxCtcss);
 
         // Act
-        var result = SalonAggregate.Create(id, name, false, false, invalidConfig);
+        var result = SalonAggregate.Create(id, name, false, invalidConfig);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -581,6 +696,79 @@ public class SalonAggregateTests
 
     #endregion
 
+    #region Parrot Salon Tests
+
+    [Fact]
+    public void Create_WithParrotType_ShouldSucceed()
+    {
+        // Arrange
+        var id = SalonAggregate.FixedParrotId;
+        var config = CreateParrotConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(id, "Perroquet", isDefault: false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            aggregate.Id.Should().Be(SalonAggregate.FixedParrotId);
+            aggregate.SalonType.Should().Be(SalonType.Parrot);
+            aggregate.Name.Should().Be("Perroquet");
+        });
+    }
+
+    [Fact]
+    public void Create_WithParrotType_ShouldEmitSalonCreatedWithParrotType()
+    {
+        // Arrange
+        var config = CreateParrotConfiguration();
+
+        // Act
+        var result = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess(aggregate =>
+        {
+            var createdEvent = aggregate.DomainEvents.OfType<SalonCreated>().Single();
+            createdEvent.SalonType.Should().Be(SalonType.Parrot);
+        });
+    }
+
+    [Fact]
+    public void Create_WithParrotType_ShouldNotValidateReflectorFields()
+    {
+        // Arrange — Host/Callsign vides, ce qui échouerait pour un Reflector
+        var config = CreateParrotConfiguration();
+        config.Host.Should().BeEmpty();
+        config.Callsign.Should().BeEmpty();
+
+        // Act
+        var result = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot);
+
+        // Assert
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public void Delete_WhenParrotType_ShouldFail()
+    {
+        // Arrange
+        var config = CreateParrotConfiguration();
+        var aggregate = SalonAggregate.Create(SalonAggregate.FixedParrotId, "Perroquet", false, config, SalonType.Parrot)
+            .Match(a => a, errors => throw new Exception("Setup failed"));
+
+        // Act
+        var result = aggregate.Delete();
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "SALON_PARROT_CANNOT_DELETE");
+        });
+    }
+
+    #endregion
+
     #region Event Sourcing Tests
 
     [Fact]
@@ -590,7 +778,7 @@ public class SalonAggregateTests
         var aggregate = new SalonAggregate();
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        var @event = new SalonCreated(id, "Salon Test", true, false, config);
+        var @event = new SalonCreated(id, "Salon Test", true, config);
 
         // Act
         aggregate.Apply(@event);
@@ -599,7 +787,6 @@ public class SalonAggregateTests
         aggregate.Id.Should().Be(id);
         aggregate.Name.Should().Be("Salon Test");
         aggregate.IsDefault.Should().BeTrue();
-        aggregate.IsTemporized.Should().BeFalse();
         aggregate.IsDeleted.Should().BeFalse();
         aggregate.Configuration.Should().Be(config);
     }
@@ -641,7 +828,7 @@ public class SalonAggregateTests
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
 
-        var createdEvent = new SalonCreated(id, "Salon Initial", true, false, config);
+        var createdEvent = new SalonCreated(id, "Salon Initial", true, config);
         var updatedEvent = new SalonConfigurationUpdated(id, CreateValidConfiguration());
 
         // Act - Rejouer les événements
@@ -783,7 +970,7 @@ public class SalonAggregateTests
         var aggregate = new SalonAggregate();
         var id = Guid.NewGuid();
         var config = CreateValidConfiguration();
-        aggregate.Apply(new SalonCreated(id, "Salon Test", isDefault: true, isTemporized: false, config));
+        aggregate.Apply(new SalonCreated(id, "Salon Test", isDefault: true, config));
 
         var @event = new SalonUnsetDefault(id);
 
@@ -839,12 +1026,12 @@ public class SalonAggregateTests
         var aggregate = CreateValidAggregate();
 
         // Act
-        var result = aggregate.UpdateDtmfCode(1);
+        var result = aggregate.UpdateDtmfCode(20);
 
         // Assert
         result.ShouldBeSuccess(_ =>
         {
-            aggregate.DtmfCode.Should().Be(1);
+            aggregate.DtmfCode.Should().Be(20);
         });
     }
 
@@ -904,6 +1091,44 @@ public class SalonAggregateTests
 
         // Act
         var result = aggregate.UpdateDtmfCode(10000);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    [InlineData(19)]
+    public void UpdateDtmfCode_WithModuleRangeCode_ShouldFail(int code)
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(code);
+
+        // Assert
+        result.ShouldBeFail(errors =>
+        {
+            errors.Should().Contain(e => e.Code == "DTMF_CODE_INVALID");
+        });
+    }
+
+    [Theory]
+    [InlineData(300)]
+    [InlineData(350)]
+    [InlineData(399)]
+    public void UpdateDtmfCode_WithAnnounceRangeCode_ShouldFail(int code)
+    {
+        // Arrange
+        var aggregate = CreateValidAggregate();
+
+        // Act
+        var result = aggregate.UpdateDtmfCode(code);
 
         // Assert
         result.ShouldBeFail(errors =>
@@ -988,6 +1213,8 @@ public class SalonAggregateTests
             Callsign: "F5ABC-L",
             AuthKey: "test-auth-key-123",
             JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V2,
+            CertEmail: null,
             // Section SimplexLogic
             SimplexCallsign: "F5ABC",
             Modules: "ModuleHelp,ModuleParrot",
@@ -1010,7 +1237,6 @@ public class SalonAggregateTests
             Guid.NewGuid(),
             "Salon Test",
             isDefault: false,
-            isTemporized: false,
             CreateValidConfiguration());
 
         return result.Match(
@@ -1019,5 +1245,39 @@ public class SalonAggregateTests
         );
     }
 
+    private static SvxLinkConfiguration CreateParrotConfiguration()
+    {
+        return new SvxLinkConfiguration(
+            Guid.NewGuid(),
+            Logics: "SimplexLogic",
+            CfgDir: "svxlink.d",
+            CardSampleRate: 16000,
+            CardChannels: 1,
+            Host: "",
+            Port: 0,
+            Callsign: "",
+            AuthKey: null,
+            JitterBufferDelay: 0,
+            ReflectorProtocol: ReflectorProtocol.V3,
+            CertEmail: null,
+            SimplexCallsign: "F0ABC",
+            Modules: "ModuleParrot",
+            ShortIdentInterval: 600,
+            LongIdentInterval: 3600,
+            ReportCtcss: null,
+            DefaultLang: "fr_FR",
+            RgrSoundDelay: 0,
+            RxFrequency: 145.550m,
+            TxFrequency: 145.550m,
+            RxCtcss: null,
+            TxCtcss: null,
+            ParrotFifoLen: 60,
+            ParrotRepeatDelay: 1000,
+            ParrotTimeout: 180);
+    }
+
     #endregion
 }
+
+
+
