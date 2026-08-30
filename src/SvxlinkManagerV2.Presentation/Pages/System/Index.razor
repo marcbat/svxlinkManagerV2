@@ -259,11 +259,14 @@ else
 }
 
 <style>
+    /*
+        Pas d'align-items: start — les cartes s'étirent (stretch, valeur par défaut)
+        pour que toute une ligne adopte la hauteur de sa carte la plus haute.
+    */
     .system-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
         gap: 16px;
-        align-items: start;
     }
 
     .metric-value {
