@@ -164,6 +164,15 @@ Trois briques distinctes, réunies par la page `/audio` et l'étape 5 de l'assis
   en exclusivité par SVXLink** dès qu'un salon tourne : l'application ne peut pas mesurer le niveau
   d'entrée elle-même, et c'est le `PEAK_METER=1` du récepteur qui joue ce rôle.
 
+Le test PTT ne porte que la **porteuse**, et une porteuse FM non modulée est inaudible : il ne
+prouve rien du niveau de sortie. C'est le rôle de `StartModulationTestCommand`, qui diffuse une
+annonce vocale via `IVoiceAnnouncementService` (TTS → `/tmp/svxlink_tts.wav` → DTMF interne 399 →
+`playFile` dans `Logic.tcl`). L'audio traverse alors le contrôle ALSA de restitution, et **c'est
+SVXLink qui commande le PTT** : les deux tests sont donc mutuellement exclusifs, forcer le GPIO
+pendant une annonce ferait couper celle-ci par le minuteur de relâchement. Ils partagent en
+revanche les mêmes préconditions (`PttTestAvailability`), et l'interface s'inhibe le temps de la
+lecture — régénérer le WAV pendant que SVXLink le lit tronquerait l'annonce.
+
 `AudioConfigurationAggregate` (singleton, ID fixe `...0004`) mémorise les niveaux **avec le nom du
 contrôle dont ils proviennent** : une valeur n'est pas transposable d'un contrôle à l'autre, les
 plages différant (0-31 pour `Line Out`, 0-7 pour `ADC Gain`). `AudioInitializerHostedService` les
