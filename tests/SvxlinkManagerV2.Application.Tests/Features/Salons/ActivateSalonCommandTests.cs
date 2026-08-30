@@ -29,6 +29,7 @@ public class ActivateSalonCommandTests
     private readonly ISvxLinkConfigurationService _configurationService;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ISalonAnnouncementService _announcementService;
     private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
@@ -42,6 +43,7 @@ public class ActivateSalonCommandTests
         _configurationService = Substitute.For<ISvxLinkConfigurationService>();
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
+        _linkStateService = Substitute.For<IReflectorLinkStateService>();
         _announcementService = Substitute.For<ISalonAnnouncementService>();
         _dtmfPtyWriter = Substitute.For<IDtmfPtyWriter>();
         _logger = Substitute.For<ILogger<ActivateSalonCommandHandler>>();
@@ -340,16 +342,77 @@ public class ActivateSalonCommandTests
         _tracker.DidNotReceive().SetActiveSalon(Arg.Any<Guid>());
     }
 
+    [Fact]
+    public async Task Handle_WithReflectorSalon_ShouldBeginConnectingBeforeRestart()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId);
+        var callOrder = new List<string>();
+        GivenActivationSucceeds(salonId, salon);
+        _linkStateService.When(s => s.BeginConnecting()).Do(_ => callOrder.Add("BeginConnecting"));
+        _daemonService.When(s => s.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("Restart"));
+
+        // Act
+        var result = await CallHandle(new ActivateSalonCommand(salonId));
+
+        // Assert
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).BeginConnecting();
+        _linkStateService.DidNotReceive().MarkNotApplicable();
+        callOrder.Should().Equal("BeginConnecting", "Restart");
+    }
+
+    [Fact]
+    public async Task Handle_WithParrotSalon_ShouldMarkLinkNotApplicable()
+    {
+        // Arrange
+        var salonId = Guid.NewGuid();
+        var salon = CreateValidAggregate(salonId, SalonType.Parrot);
+        GivenActivationSucceeds(salonId, salon);
+        _dtmfPtyWriter.SendCommandAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+
+        // Act
+        var result = await CallHandle(new ActivateSalonCommand(salonId));
+
+        // Assert
+        result.ShouldBeSuccess();
+        _linkStateService.Received(1).MarkNotApplicable();
+        _linkStateService.DidNotReceive().BeginConnecting();
+    }
+
+    /// <summary>
+    /// Configure les substituts pour qu'une activation complète réussisse.
+    /// </summary>
+    private void GivenActivationSucceeds(Guid salonId, SalonAggregate salon)
+    {
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(salon.ToSuccess());
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(CreateValidSA818Config());
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _announcementService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+    }
+
     private Task<Validation<Error, Unit>> CallHandle(ActivateSalonCommand command)
     {
         var handler = new ActivateSalonCommandHandler(
             _repository, _tracker, _sa818Repository, _sa818Service,
             _configurationService, _daemonService, _connectedNodesService,
-            _announcementService, _dtmfPtyWriter, _logger);
+            _linkStateService, _announcementService, _dtmfPtyWriter, _logger);
         return handler.Handle(command, CancellationToken.None);
     }
 
-    private static SalonAggregate CreateValidAggregate(Guid id)
+    private static SalonAggregate CreateValidAggregate(Guid id, SalonType salonType = SalonType.Reflector)
     {
         var config = new SvxLinkConfiguration(
             Guid.NewGuid(),
@@ -375,7 +438,7 @@ public class ActivateSalonCommandTests
             145.550m,
             136.5m,
             136.5m);
-        var result = SalonAggregate.Create(id, "Salon Test", false, config);
+        var result = SalonAggregate.Create(id, "Salon Test", false, config, salonType);
         return result.Match(
             Succ: a => a,
             Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));

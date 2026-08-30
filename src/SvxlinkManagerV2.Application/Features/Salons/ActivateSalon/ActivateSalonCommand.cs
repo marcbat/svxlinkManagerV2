@@ -32,6 +32,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
     private readonly ISvxLinkConfigurationService _configurationService;
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
+    private readonly IReflectorLinkStateService _linkStateService;
     private readonly ISalonAnnouncementService _announcementService;
     private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
@@ -44,6 +45,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         ISvxLinkConfigurationService configurationService,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
+        IReflectorLinkStateService linkStateService,
         ISalonAnnouncementService announcementService,
         IDtmfPtyWriter dtmfPtyWriter,
         ILogger<ActivateSalonCommandHandler> logger)
@@ -55,6 +57,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         _configurationService = configurationService;
         _daemonService = daemonService;
         _connectedNodesService = connectedNodesService;
+        _linkStateService = linkStateService;
         _announcementService = announcementService;
         _dtmfPtyWriter = dtmfPtyWriter;
         _logger = logger;
@@ -123,6 +126,13 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
 
         // Réinitialisation des nœuds connectés et armement du service d'annonce de connexion
         _connectedNodesService.Reset();
+
+        // Un salon perroquet est autonome : sa configuration ne comporte pas de ReflectorLogic,
+        // aucune liaison n'est donc à surveiller.
+        if (aggregate.SalonType == SalonType.Parrot)
+            _linkStateService.MarkNotApplicable();
+        else
+            _linkStateService.BeginConnecting();
 
         _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol})", aggregate.Configuration.ReflectorProtocol);
         var daemonResult = await _daemonService.RestartAsync(aggregate.Configuration.ReflectorProtocol, cancellationToken);

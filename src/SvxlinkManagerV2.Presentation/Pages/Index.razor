@@ -16,6 +16,7 @@
 @inject ISvxLinkDaemonService DaemonService
 @inject IReflectorDaemonService ReflectorDaemonService
 @inject IConnectedNodesService ConnectedNodesService
+@inject IReflectorLinkStateService LinkStateService
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -58,16 +59,39 @@
     </div>
     }
 
+    @if (IsLinkFaulted)
+    {
+    <div class="card link-alert">
+        <span class="material-symbols-outlined">link_off</span>
+        <div>
+            <div class="link-alert-title">@LinkStatusLabel : @LinkFailureLabel</div>
+            <div class="link-alert-detail">
+                Le daemon SVXLink tourne, mais le nœud n'est pas relié au réflecteur.
+                @if (!string.IsNullOrWhiteSpace(_linkState.Detail))
+                {
+                    <code class="link-alert-log">@_linkState.Detail</code>
+                }
+            </div>
+        </div>
+    </div>
+    }
+
     <div class="card dashboard-service-strip">
         <div class="compact-item">
             <span class="material-symbols-outlined">settings_input_component</span>
-            <span class="compact-item-label">SVXLink</span>
+            <span class="compact-item-label">Daemon SVXLink</span>
             <span class="badge @(_daemonRunning ? "badge-success" : "badge-danger")">@(_daemonRunning ? "Actif" : "Arrêté")</span>
+        </div>
+
+        <div class="compact-item" title="@LinkTooltip">
+            <span class="material-symbols-outlined">@LinkIcon</span>
+            <span class="compact-item-label">Liaison réflecteur</span>
+            <span class="badge @LinkBadgeCss">@LinkStatusLabel</span>
         </div>
 
         <div class="compact-item">
             <span class="material-symbols-outlined">hub</span>
-            <span class="compact-item-label">Réflecteur</span>
+            <span class="compact-item-label">Réflecteur local</span>
             <span class="badge @(_reflectorRunning ? "badge-success" : "badge-danger")">@(_reflectorRunning ? "Actif" : "Arrêté")</span>
         </div>
 
@@ -245,10 +269,42 @@
 
     .dashboard-service-strip {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 10px;
         padding-top: 14px;
         padding-bottom: 14px;
+    }
+
+    .link-alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        border-left: 3px solid var(--danger);
+    }
+
+    .link-alert .material-symbols-outlined {
+        color: var(--danger);
+        font-size: 22px;
+    }
+
+    .link-alert-title {
+        font-weight: 700;
+        color: var(--danger);
+        font-size: 14px;
+    }
+
+    .link-alert-detail {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .link-alert-log {
+        display: block;
+        margin-top: 6px;
+        font-family: monospace;
+        font-size: 11px;
+        word-break: break-word;
     }
 
     .compact-item {
@@ -375,6 +431,7 @@
     private List<ConnectedNodeInfo>      _connectedNodes = new();
     private bool _daemonRunning;
     private bool _reflectorRunning;
+    private ReflectorLinkState _linkState = ReflectorLinkState.Inactive;
     private bool _isLoading = true;
     private Guid? _selectedSalonId;
     private bool _isActivating;
@@ -395,6 +452,19 @@
         ConnectedNodesService.OnNodesInitialized += OnNodesInitialized;
         ConnectedNodesService.OnNodeTxStarted += OnNodeTxStarted;
         ConnectedNodesService.OnNodeTxStopped += OnNodeTxStopped;
+
+        // L'état de la liaison est poussé par les logs SVXLink : aucun rafraîchissement manuel.
+        _linkState = LinkStateService.State;
+        LinkStateService.OnStateChanged += OnLinkStateChanged;
+    }
+
+    private void OnLinkStateChanged(ReflectorLinkState state)
+    {
+        InvokeAsync(() =>
+        {
+            _linkState = state;
+            StateHasChanged();
+        });
     }
 
     private void StartDaemonPolling()
@@ -493,7 +563,8 @@
         ConnectedNodesService.OnNodesInitialized -= OnNodesInitialized;
         ConnectedNodesService.OnNodeTxStarted -= OnNodeTxStarted;
         ConnectedNodesService.OnNodeTxStopped -= OnNodeTxStopped;
-        
+        LinkStateService.OnStateChanged -= OnLinkStateChanged;
+
         _cts?.Cancel();
         _cts?.Dispose();
         _statusTimer?.Dispose();
@@ -558,6 +629,8 @@
                 _reflectorRunning = false;
                 loadErrors.Add($"état du daemon réflecteur: {ex.Message}");
             }
+
+            _linkState = LinkStateService.State;
         }
         finally
         {
@@ -632,6 +705,62 @@
             _isDeactivating = false;
         }
     }
+
+    /// <summary>
+    /// Sans daemon, aucune liaison n'a de sens : l'état issu des logs est alors ignoré.
+    /// </summary>
+    private ReflectorLinkStatus EffectiveLinkStatus =>
+        _daemonRunning ? _linkState.Status : ReflectorLinkStatus.Inactive;
+
+    private bool IsLinkFaulted =>
+        EffectiveLinkStatus is ReflectorLinkStatus.Failed or ReflectorLinkStatus.Disconnected;
+
+    private string LinkStatusLabel => EffectiveLinkStatus switch
+    {
+        ReflectorLinkStatus.NotApplicable => "Mode autonome",
+        ReflectorLinkStatus.Connecting    => "Connexion…",
+        ReflectorLinkStatus.Connected     => "Connectée",
+        ReflectorLinkStatus.Disconnected  => "Liaison perdue",
+        ReflectorLinkStatus.Failed        => "Échec",
+        _                                 => "Inactive"
+    };
+
+    private string LinkBadgeCss => EffectiveLinkStatus switch
+    {
+        ReflectorLinkStatus.Connected                                    => "badge-success",
+        ReflectorLinkStatus.Connecting                                   => "badge-warning",
+        ReflectorLinkStatus.Failed or ReflectorLinkStatus.Disconnected   => "badge-danger",
+        _                                                                => "badge-muted"
+    };
+
+    private string LinkIcon => EffectiveLinkStatus switch
+    {
+        ReflectorLinkStatus.Connected                                    => "link",
+        ReflectorLinkStatus.Failed or ReflectorLinkStatus.Disconnected   => "link_off",
+        _                                                                => "sync_alt"
+    };
+
+    private string LinkFailureLabel => _linkState.Reason switch
+    {
+        ReflectorLinkFailureReason.AuthenticationRejected => "authentification refusée",
+        ReflectorLinkFailureReason.HostUnreachable        => "hôte injoignable",
+        ReflectorLinkFailureReason.CertificateRejected    => "certificat rejeté",
+        ReflectorLinkFailureReason.ProtocolError          => "erreur de protocole",
+        ReflectorLinkFailureReason.RemoteDisconnected     => "connexion fermée par le réflecteur",
+        ReflectorLinkFailureReason.HeartbeatTimeout       => "plus de réponse du réflecteur",
+        ReflectorLinkFailureReason.ConfigurationInvalid   => "configuration réflecteur incomplète",
+        _                                                 => "cause non identifiée"
+    };
+
+    private string LinkTooltip => EffectiveLinkStatus switch
+    {
+        ReflectorLinkStatus.Inactive      => "Le daemon SVXLink n'est pas démarré.",
+        ReflectorLinkStatus.NotApplicable => "Salon autonome : aucune liaison réflecteur n'est configurée.",
+        ReflectorLinkStatus.Connected     => "Le nœud est relié au réflecteur.",
+        _ when _linkState.Reason != ReflectorLinkFailureReason.None
+                                          => $"Dernière cause détectée : {LinkFailureLabel}.",
+        _                                 => "Tentative de connexion au réflecteur en cours."
+    };
 
     private bool IsCurrentNode(ConnectedNodeInfo node)
     {
