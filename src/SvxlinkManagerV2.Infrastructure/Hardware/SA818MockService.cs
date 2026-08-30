@@ -34,6 +34,17 @@ public class SA818MockService : ISA818Service
             }, cancellationToken);
     }
 
+    public Task<Validation<Error, int>> ReadRssiAsync(CancellationToken cancellationToken = default)
+    {
+        // Le module réel rend une valeur brute 0-255 ; on simule un plancher de bruit qui respire,
+        // pour que l'indicateur de la page audio ne paraisse pas figé en développement.
+        var rssi = 18 + Random.Shared.Next(0, 12);
+
+        _logger.LogDebug("MOCK: RSSI simulé du module SA818 : {Rssi}", rssi);
+
+        return Task.FromResult(Validation<Error, int>.Success(rssi));
+    }
+
     public Task<Validation<Error, bool>> IsConnectedAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("MOCK: Vérification de la connexion du module SA818");

@@ -22,6 +22,14 @@ public interface ISA818Service
     /// <param name="cancellationToken">Token d'annulation</param>
     /// <returns>Validation indiquant si le module est connecté</returns>
     Task<Validation<Error, bool>> IsConnectedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lit le RSSI courant du module, c'est-à-dire le niveau du signal présent sur la fréquence
+    /// de réception configurée.
+    /// </summary>
+    /// <param name="cancellationToken">Token d'annulation</param>
+    /// <returns>Le RSSI brut rapporté par le module (0-255), ou une erreur si le module ne répond pas</returns>
+    Task<Validation<Error, int>> ReadRssiAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>

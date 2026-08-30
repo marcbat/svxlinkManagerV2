@@ -145,6 +145,36 @@ Ajouter une métrique = une méthode sur `ISystemMetricsService`, puis un provid
 
 Le feature Application s'appelle `Features/SystemStatus` (et non `System`) et `Pages/System/Index.razor` déclare un `@namespace` explicite : un namespace nommé `System` masquerait celui du framework dans tous les fichiers voisins.
 
+### Chaîne audio de la machine
+
+Trois briques distinctes, réunies par la page `/audio` et l'étape 5 de l'assistant d'installation :
+
+- **`IAudioService`** (`AlsaAudioService`, ou `AudioMockService` si `Audio:UseMock`) lit et écrit
+  **deux** contrôles `amixer` seulement, désignés par la section `Audio` des appsettings :
+  `CaptureControl` (défaut `ADC Gain`) et `PlaybackControl` (défaut `Line Out`). Le reste du routage
+  de la carte n'est jamais touché — les commutateurs de capture d'un nœud radio sont un réglage
+  matériel délicat, cf. [docs/svxlink-hb9gxp-configuration-validee.md](docs/svxlink-hb9gxp-configuration-validee.md).
+- **`IPttTestService`** (`GpioPttTestService`, ou `PttTestMockService`) maintient le PTT une durée
+  bornée en écrivant dans `/sys/class/gpio/<PttPin>/value`. C'est **la broche que SVXLink exporte**
+  (`PTT_PIN` de la section Tx1) : le test exige donc un salon actif et un daemon en marche, condition
+  portée par `PttTestAvailability` côté Application. Le minuteur de relâchement vit dans le singleton,
+  jamais dans le circuit Blazor — fermer l'onglet ne doit pas laisser la station en émission.
+- **`IRxDistortionService`** (`RxDistortionTracker`) compte les écrêtages de l'audio entrant en
+  guettant `Distortion detected` dans le flux de logs. **Le périphérique de capture ALSA est ouvert
+  en exclusivité par SVXLink** dès qu'un salon tourne : l'application ne peut pas mesurer le niveau
+  d'entrée elle-même, et c'est le `PEAK_METER=1` du récepteur qui joue ce rôle.
+
+`AudioConfigurationAggregate` (singleton, ID fixe `...0004`) mémorise les niveaux **avec le nom du
+contrôle dont ils proviennent** : une valeur n'est pas transposable d'un contrôle à l'autre, les
+plages différant (0-31 pour `Line Out`, 0-7 pour `ADC Gain`). `AudioInitializerHostedService` les
+réapplique au démarrage — mais **au premier lancement il adopte les niveaux trouvés sur la carte**
+au lieu d'en imposer par défaut, et fait de même si la configuration désigne d'autres contrôles que
+ceux mémorisés. Écraser au démarrage les niveaux d'un nœud déjà réglé serait une régression.
+
+Le RSSI vient du module SA818 (`ISA818Service.ReadRssiAsync`, commande `RSSI?` → `RSSI=020`), pas de
+la carte son. Sa valeur est brute (0-255) et affichée telle quelle : aucune conversion en dBm n'est
+faite, le datasheet du module n'en garantissant pas la formule.
+
 ### Strategy Pattern — double version SVXLink
 
 L'application pilote deux installations SVXLink en parallèle, sélectionnées d'après le `ReflectorProtocol` du salon :
@@ -161,17 +191,18 @@ L'application pilote deux installations SVXLink en parallèle, sélectionnées d
 - **`SalonAggregate`** — une connexion réflecteur. `Name`, `IsDefault`, `IsDeleted` (soft delete), `DtmfCode` (1-9999), `Configuration` (owned). Les events `SalonActivated`/`SalonDeactivated` sont `[Obsolete]` : l'état actif est suivi au runtime par `IActiveSessionTracker` (singleton), pas en base.
 - **`SA818Aggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000001`. `Volume` (1-8), `Squelch` (0-8), `Bandwidth`, `PreEmph`, `HighPass`, `LowPass`.
 - **`GeneralConfigurationAggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000003`.
+- **`AudioConfigurationAggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000004`. Niveaux ALSA mémorisés, avec le nom du contrôle auquel ils s'appliquent.
 - **`ReflectorAggregate`** — config INI brute du démon `svxreflector` local.
 - **`TestAggregate`** — placeholder pour les tests.
 
 ### Services hébergés au démarrage
 
-`SA818InitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
+`SA818InitializerHostedService`, `AudioInitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
 
 ## Points de vigilance
 
 - **`svxlink-config/svxlink.conf` doit rester versionné** (exception dans `.gitignore`) : `SvxLinkConfigurationService` l'utilise comme template pour générer la config d'un salon. Le supprimer casse l'activation des salons.
-- **Mocks d'infrastructure activés par configuration** : `SA818:UseMock`, `Wifi:UseMock`, `SvxLink:UseMockDaemon`. Ce sont des implémentations de production destinées au développement sans matériel — **pas** des mocks de tests.
+- **Mocks d'infrastructure activés par configuration** : `SA818:UseMock`, `Wifi:UseMock`, `SvxLink:UseMockDaemon`, `Audio:UseMock`. Ce sont des implémentations de production destinées au développement sans matériel — **pas** des mocks de tests.
 - **Cible de production** : Orange Pi (ARM 32 bits, RID `linux-arm`, arch Debian `armhf`) sous Armbian, service systemd `svxlinkmanagerv2.service`. Le code d'infrastructure suppose un environnement Linux (`nmcli`, `pico2wave`, PTY, `/dev/ttyS2`).
 - **`src/SvxlinkManagerV2.Infrastructure/Class1.cs`** est un vestige de template vide, sans usage.
 
