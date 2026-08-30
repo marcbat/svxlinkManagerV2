@@ -3,6 +3,8 @@
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.DownloadApplicationUpdate
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateWorkflowStatus
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.RequestApplicationUpdateInstallation
+@using SvxlinkManagerV2.Application.Features.Diagnostics
+@using SvxlinkManagerV2.Application.Features.Diagnostics.CreateDiagnosticArchive
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
 @using SvxlinkManagerV2.Application.Features.SystemControl
@@ -14,6 +16,7 @@
 
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject IJSRuntime JS
 
 <div class="page-header">
     <div>
@@ -342,6 +345,36 @@ else
                         }
 
                     </div>
+                </div>
+
+                <!-- Diagnostic -->
+                <div class="card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">bug_report</span>
+                        Diagnostic
+                    </div>
+
+                    <p class="diagnostic-intro">
+                        L'archive de diagnostic regroupe les logs SVXLink et Reflector, la configuration
+                        SVXLink générée ainsi que les informations de version et d'état système.
+                        Les clés d'authentification et mots de passe en sont expurgés : elle peut être
+                        jointe telle quelle à un signalement.
+                    </p>
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            @onclick="DownloadDiagnosticArchiveAsync"
+                            disabled="@_isBuildingDiagnosticArchive">
+                        @if (_isBuildingDiagnosticArchive)
+                        {
+                            <span class="material-symbols-outlined spin">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">folder_zip</span>
+                        }
+                        Télécharger l'archive de diagnostic
+                    </button>
                 </div>
 
                 <!-- Zone sensible : alimentation de la machine -->
@@ -817,6 +850,13 @@ else
 
     .global-error-item .material-symbols-outlined { font-size: 16px; }
 
+    .diagnostic-intro {
+        margin: 0 0 16px;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        color: var(--text-muted);
+    }
+
     /* ── Zone sensible : alimentation ──────────────────────── */
     .danger-zone {
         border: 1px solid rgba(255,107,107,0.35);
@@ -935,6 +975,8 @@ else
     private bool CanInstallLatestVersion
         => _updateWorkflowStatus?.CanRequestInstall == true;
 
+    private bool _isBuildingDiagnosticArchive;
+
     private SystemControlAvailabilityDto? _systemControlAvailability;
     private SystemPowerAction? _pendingPowerAction;
     private SystemPowerAction? _triggeredPowerAction;
@@ -970,6 +1012,40 @@ else
             new GetSystemControlAvailabilityQuery());
 
         _isLoading = false;
+    }
+
+    /// <summary>
+    /// Constitue l'archive de diagnostic côté serveur puis la propose au téléchargement.
+    /// </summary>
+    private async Task DownloadDiagnosticArchiveAsync()
+    {
+        _isBuildingDiagnosticArchive = true;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, DiagnosticArchiveDto>>(
+                new CreateDiagnosticArchiveCommand());
+
+            var archive = result.Match(Succ: a => (DiagnosticArchiveDto?)a, Fail: _ => null);
+
+            if (archive is null)
+            {
+                ToastService.ShowError("Impossible de constituer l'archive de diagnostic.");
+                return;
+            }
+
+            await JS.InvokeVoidAsync(
+                "fileDownload.fromBase64",
+                archive.FileName,
+                "application/zip",
+                Convert.ToBase64String(archive.Content));
+
+            ToastService.ShowSuccess("Archive de diagnostic générée.");
+        }
+        finally
+        {
+            _isBuildingDiagnosticArchive = false;
+        }
     }
 
     private async Task SaveAsync()
