@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
@@ -113,7 +114,7 @@ public class StartupActivationHostedService : IHostedService
                 "StartupActivationHostedService: Activation automatique du salon par défaut {Id} ({Name})...",
                 defaultSalon.Id, defaultSalon.Name);
 
-            var result = await mediator.Send(new ActivateSalonCommand(defaultSalon.Id), cancellationToken);
+            var result = await mediator.Send(new ActivateSalonCommand(defaultSalon.Id, SalonActivationOrigin.Startup), cancellationToken);
 
             return result.Match(
                 _ =>
@@ -141,7 +142,7 @@ public class StartupActivationHostedService : IHostedService
     {
         try
         {
-            var result = await mediator.Send(new ActivateStandaloneModeCommand(), cancellationToken);
+            var result = await mediator.Send(new ActivateStandaloneModeCommand(SalonActivationOrigin.Startup), cancellationToken);
 
             result.Match(
                 _ => _logger.LogInformation(

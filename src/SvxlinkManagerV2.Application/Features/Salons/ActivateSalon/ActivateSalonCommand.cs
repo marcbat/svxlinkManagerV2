@@ -7,6 +7,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
+using SvxlinkManagerV2.Domain.Statistics;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
@@ -15,7 +16,12 @@ namespace SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 /// Commande pour activer un Salon (connexion au reflector).
 /// </summary>
 /// <param name="Id">Identifiant unique du salon à activer</param>
-public record ActivateSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
+/// <param name="Origin">
+/// Ce qui déclenche l'activation, conservé dans l'historique d'activité.
+/// La valeur par défaut vaut pour l'interface web, seul appelant qui ne la précise pas.
+/// </param>
+public record ActivateSalonCommand(Guid Id, SalonActivationOrigin Origin = SalonActivationOrigin.Web)
+    : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande ActivateSalonCommand.
@@ -35,6 +41,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
     private readonly IReflectorLinkStateService _linkStateService;
     private readonly ISalonAnnouncementService _announcementService;
     private readonly IDtmfPtyWriter _dtmfPtyWriter;
+    private readonly IActivityRecorder _activityRecorder;
     private readonly ILogger<ActivateSalonCommandHandler> _logger;
 
     public ActivateSalonCommandHandler(
@@ -48,6 +55,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         IReflectorLinkStateService linkStateService,
         ISalonAnnouncementService announcementService,
         IDtmfPtyWriter dtmfPtyWriter,
+        IActivityRecorder activityRecorder,
         ILogger<ActivateSalonCommandHandler> logger)
     {
         _repository = repository;
@@ -60,6 +68,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         _linkStateService = linkStateService;
         _announcementService = announcementService;
         _dtmfPtyWriter = dtmfPtyWriter;
+        _activityRecorder = activityRecorder;
         _logger = logger;
     }
 
@@ -152,6 +161,16 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         }
 
         _tracker.SetActiveSalon(command.Id);
+
+        // Ouvre la session d'historique : elle clôt d'elle-même celle du salon précédent.
+        // L'enregistrement ne peut pas faire échouer l'activation — un historique muet vaut
+        // mieux qu'un salon qui refuse de s'activer.
+        await _activityRecorder.RecordSessionStartAsync(
+            aggregate.Id,
+            aggregate.Name,
+            aggregate.SalonType == SalonType.Parrot ? SalonKind.Parrot : SalonKind.Reflector,
+            command.Origin,
+            cancellationToken);
 
         _logger.LogInformation("Salon {SalonName} ({SalonId}) activé avec succès", aggregate.Name, command.Id);
         return unit.ToSuccess();

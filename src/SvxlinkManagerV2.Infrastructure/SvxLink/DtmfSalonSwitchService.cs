@@ -6,6 +6,7 @@ using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon;
 using SvxlinkManagerV2.Application.Features.Salons.GetSalonByDtmfCode;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
@@ -87,7 +88,7 @@ public class DtmfSalonSwitchService : IHostedService
             _logger.LogInformation("Activation du salon {SalonName} via commande DTMF {DtmfCode}",
                 salon.Name, dtmfCode);
 
-            var result = await mediator.Send(new ActivateSalonCommand(salon.Id));
+            var result = await mediator.Send(new ActivateSalonCommand(salon.Id, SalonActivationOrigin.Dtmf));
             result.Match(
                 Succ: _ =>
                 {
