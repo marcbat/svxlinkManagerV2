@@ -2,6 +2,14 @@
 #
 # Generic Logic event handlers — SvxlinkManagerV2
 #
+# Copyright (C) 2026 Marc Battaglia
+# Dérivé des gestionnaires d'événements de SVXLink,
+# Copyright (C) 2003-2026 Tobias Blomberg / SM0SVX.
+#
+# Ce fichier est distribué sous les termes de la GNU General Public License,
+# version 2 ou ultérieure (licence de SVXLink amont). Le reste de
+# SvxlinkManagerV2 est distribué sous GPL v3 — voir le fichier LICENSE.
+#
 # Ce fichier gère les annonces sonores et les commandes DTMF pour SVXLink.
 # L'annonce de connexion au salon est déclenchée depuis .NET (via DTMF 398)
 # une fois que la connexion réelle au réflecteur est confirmée dans les logs.

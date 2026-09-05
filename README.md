@@ -186,3 +186,15 @@ SvxLink Manager V2 cible principalement :
 ## Resultat attendu en exploitation
 
 Avec ce logiciel, l'exploitation quotidienne est plus fiable et plus rapide : moins de manipulations manuelles, meilleure visibilite de l'etat de la station, changements de configuration plus sereins, et mises a jour sans intervention manuelle sur le systeme.
+
+## Licence
+
+SvxLink Manager V2 est distribue sous licence **GNU General Public License v3.0**
+(voir [LICENSE](LICENSE)).
+
+Copyright (C) 2026 Marc Battaglia
+
+Ce programme pilote [SVXLink](https://github.com/sm0svx/svxlink) (Tobias Blomberg
+/ SM0SVX), distribue sous GPL v2 ou ulterieure. Le fichier `Logic.tcl` embarque
+par l'application est un gestionnaire d'evenements derive de ceux de SVXLink et
+reste couvert par la licence amont.
