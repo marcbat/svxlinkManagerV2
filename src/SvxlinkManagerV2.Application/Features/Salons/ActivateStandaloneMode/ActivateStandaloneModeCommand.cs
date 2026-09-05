@@ -7,6 +7,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Common;
+using SvxlinkManagerV2.Domain.Statistics;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
@@ -16,7 +17,12 @@ namespace SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
 /// Ce mode est utilisé pour l'écoute DTMF sans connexion à un réflecteur.
 /// Utilise les fréquences RX/TX définies dans la configuration générale.
 /// </summary>
-public record ActivateStandaloneModeCommand() : IRequest<Validation<Error, Unit>>;
+/// <param name="Origin">
+/// Ce qui déclenche la bascule, conservé dans l'historique d'activité.
+/// La valeur par défaut vaut pour l'interface web, seul appelant qui ne la précise pas.
+/// </param>
+public record ActivateStandaloneModeCommand(SalonActivationOrigin Origin = SalonActivationOrigin.Web)
+    : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande ActivateStandaloneModeCommand.
@@ -34,6 +40,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly IActivityRecorder _activityRecorder;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
     public ActivateStandaloneModeCommandHandler(
@@ -45,6 +52,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         IActiveSessionTracker tracker,
         IConnectedNodesService connectedNodesService,
         IReflectorLinkStateService linkStateService,
+        IActivityRecorder activityRecorder,
         ILogger<ActivateStandaloneModeCommandHandler> logger)
     {
         _generalConfigRepository = generalConfigRepository;
@@ -55,6 +63,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         _tracker = tracker;
         _connectedNodesService = connectedNodesService;
         _linkStateService = linkStateService;
+        _activityRecorder = activityRecorder;
         _logger = logger;
     }
 
@@ -117,6 +126,15 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V3, cancellationToken);
         if (daemonResult.IsFail)
             return Error.Validation("SVXLINK_RESTART_ERROR", "Impossible de démarrer le daemon SVXLink en mode standalone").ToFailure<Unit>();
+
+        // Le mode autonome occupe du temps d'antenne comme un salon : sans cette session,
+        // le temps passé déconnecté serait un trou dans l'historique.
+        await _activityRecorder.RecordSessionStartAsync(
+            salonId: null,
+            salonName: ActivityLabels.StandaloneSalonName,
+            SalonKind.Standalone,
+            command.Origin,
+            cancellationToken);
 
         _logger.LogInformation(
             "Mode standalone activé avec succès (RX: {RxFreq} MHz, TX: {TxFreq} MHz)",

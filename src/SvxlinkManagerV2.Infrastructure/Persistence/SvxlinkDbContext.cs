@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SvxlinkManagerV2.Domain.Aggregates.AudioConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector;
 using SvxlinkManagerV2.Domain.Aggregates.SA818;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence;
 
@@ -18,6 +20,12 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
     public DbSet<ReflectorAggregate> Reflectors => Set<ReflectorAggregate>();
     public DbSet<GeneralConfigurationAggregate> GeneralConfigurations => Set<GeneralConfigurationAggregate>();
     public DbSet<AudioConfigurationAggregate> AudioConfigurations => Set<AudioConfigurationAggregate>();
+
+    /// <summary>Périodes passées sur un salon ou en mode autonome.</summary>
+    public DbSet<SalonSession> SalonSessions => Set<SalonSession>();
+
+    /// <summary>Événements ponctuels de l'historique d'activité (table en ajout seul).</summary>
+    public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,5 +83,49 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
             entity.Property(e => e.PlaybackControl);
             entity.Property(e => e.PlaybackLevel);
         });
+
+        modelBuilder.Entity<SalonSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SalonName).IsRequired();
+            entity.Property(e => e.StartedAt).HasConversion(UtcInstantConverter);
+            entity.Property(e => e.EndedAt).HasConversion(NullableUtcInstantConverter);
+
+            // Toutes les lectures partent d'une borne de temps ; la session encore ouverte
+            // est retrouvée par EndedAt null, que cet index couvre aussi.
+            entity.HasIndex(e => e.EndedAt);
+            entity.HasIndex(e => e.StartedAt);
+        });
+
+        modelBuilder.Entity<ActivityEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OccurredAt).HasConversion(UtcInstantConverter);
+
+            // Table la plus volumineuse de la base : chaque agrégation filtre sur la date
+            // puis regroupe par nature, d'où l'index composite.
+            entity.HasIndex(e => new { e.OccurredAt, e.Type });
+            entity.HasIndex(e => e.Callsign);
+        });
     }
+
+    /// <summary>
+    /// Stocke un <see cref="DateTimeOffset"/> sous forme de <see cref="DateTime"/> UTC.
+    ///
+    /// Le fournisseur SQLite refuse tout <c>ORDER BY</c>, <c>MAX</c> ou comparaison sur un
+    /// <see cref="DateTimeOffset"/> — « SQLite does not support expressions of type
+    /// 'DateTimeOffset' » — alors que l'historique d'activité ne fait que trier et borner par
+    /// date. La conversion règle le problème sans rien changer au modèle métier ; les
+    /// horodatages y sont déjà normalisés en UTC, l'offset perdu est toujours zéro.
+    /// </summary>
+    private static readonly ValueConverter<DateTimeOffset, DateTime> UtcInstantConverter = new(
+        value => value.UtcDateTime,
+        value => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)));
+
+    /// <summary>Variante de <see cref="UtcInstantConverter"/> pour les dates facultatives.</summary>
+    private static readonly ValueConverter<DateTimeOffset?, DateTime?> NullableUtcInstantConverter = new(
+        value => value.HasValue ? value.Value.UtcDateTime : null,
+        value => value.HasValue
+            ? new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            : null);
 }

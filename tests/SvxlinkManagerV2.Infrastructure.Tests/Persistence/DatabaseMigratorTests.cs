@@ -40,7 +40,8 @@ public class DatabaseMigratorTests : IDisposable
         DatabaseMigrator.InitialCreateId,
         DatabaseMigrator.AddSalonTypeId,
         DatabaseMigrator.AddIdentitySchemaId,
-        "20260830140047_AddAudioConfiguration"
+        "20260830140047_AddAudioConfiguration",
+        "20260830173529_AddActivityHistory"
     ];
 
     private readonly SqliteConnection _connection;
@@ -196,9 +197,10 @@ public class DatabaseMigratorTests : IDisposable
         if (!withSalonType)
             context.Database.ExecuteSqlRaw("ALTER TABLE \"Salons\" DROP COLUMN \"SalonType\";");
 
-        // Aucune base héritée ne connaît les niveaux audio : la table est postérieure à l'abandon
-        // d'EnsureCreated(), c'est Migrate() qui doit la créer.
-        context.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"AudioConfigurations\";");
+        // Aucune base héritée ne connaît les niveaux audio ni l'historique d'activité : ces tables
+        // sont postérieures à l'abandon d'EnsureCreated(), c'est Migrate() qui doit les créer.
+        foreach (var table in new[] { "AudioConfigurations", "ActivityEvents", "SalonSessions" })
+            context.Database.ExecuteSqlRaw($"DROP TABLE IF EXISTS \"{table}\";");
 
         context.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsHistory\";");
     }

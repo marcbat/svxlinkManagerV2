@@ -184,6 +184,48 @@ Le RSSI vient du module SA818 (`ISA818Service.ReadRssiAsync`, commande `RSSI?` �
 la carte son. Sa valeur est brute (0-255) et affichée telle quelle : aucune conversion en dBm n'est
 faite, le datasheet du module n'en garantissant pas la formule.
 
+### Historique d'activité (page Statistiques)
+
+Tout ce que le nœud observe était déjà publié par les trackers d'infrastructure sous forme
+d'événements C#, mais **rien n'en survivait** : le buffer de logs plafonne à 1000 lignes et les
+trackers ne tiennent qu'un état courant. Deux tables SQLite comblent ce trou, alimentées par
+`ActivityRecorderHostedService`, qui ne fait que convertir en écritures les événements de
+`ConnectedNodesTracker`, `DtmfCommandTracker`, `ReflectorLinkStateTracker`, `RxDistortionTracker`
+et `SquelchStateTracker`. **Aucune analyse de logs n'a lieu dans l'enregistreur** : elle appartient
+aux trackers.
+
+- **`SalonSessions`** — périodes passées sur un salon. Le mode autonome et le perroquet y sont des
+  natures de session (`SalonKind`) à part entière : sans cela le temps passé déconnecté serait un
+  trou. Ouvertes par `ActivateSalonCommand` / `ActivateStandaloneModeCommand`, qui portent désormais
+  un `SalonActivationOrigin` (web, DTMF, commande système, démarrage) — c'est lui qui dit si le nœud
+  est piloté depuis le navigateur ou depuis la radio.
+- **`ActivityEvents`** — table en ajout seul. **Les événements de durée sont écrits à leur fin**,
+  avec la durée déjà calculée : la lecture n'a jamais à appairer un début et une fin, et un arrêt
+  brutal ne laisse pas d'enregistrement à moitié constitué. L'heure locale y est *figée à l'écriture*
+  (`LocalHour`, `LocalDayOfWeek`) parce que SQLite ne sait pas convertir de fuseau dans une agrégation.
+
+**`IActivityRecorder` tient les intervalles encore ouverts** que la base ignore : la liaison
+réflecteur en cours et l'interruption en cours. `PendingLinkUpSince` est lu par la query — sans ce
+rattrapage, un nœud lié sans interruption depuis trois jours afficherait une disponibilité nulle.
+
+**`ActivityRecorderHostedService` doit rester enregistré avant `StartupActivationHostedService`** :
+son démarrage clôt les sessions laissées ouvertes par un arrêt brutal — à l'heure du dernier signe de
+vie connu, pas à celle du redémarrage — et refermerait sinon la session que l'activation automatique
+vient d'ouvrir.
+
+Côté lecture, `Features/Statistics` délègue à SQLite tous les regroupements d'événements ; seules les
+sessions, qui se comptent en unités par jour, sont chargées telles quelles. La page `/statistiques`
+n'introduit **aucune dépendance JavaScript** : barres et carte de chaleur sont du CSS calculé côté
+serveur, via `CssValue` — le CSS n'accepte que le point décimal, et une culture à virgule produirait
+des déclarations que le navigateur rejette en silence. Rétention configurable (section `Statistics`,
+90 jours par défaut) appliquée par `StatisticsPurgeHostedService`.
+
+**Le suivi du squelch local est la seule mesure d'activité radio locale possible** — le périphérique
+de capture ALSA est monopolisé par SVXLink, et en mode autonome comme en perroquet il n'existe aucune
+liaison réflecteur pour rapporter les passages. Il repose sur le motif `The squelch is OPEN` /
+`CLOSED` : si la configuration de SVXLink ne le produit pas, les compteurs locaux restent à zéro et
+l'interface le dit explicitement plutôt que d'afficher un zéro trompeur.
+
 ### Strategy Pattern — double version SVXLink
 
 L'application pilote deux installations SVXLink en parallèle, sélectionnées d'après le `ReflectorProtocol` du salon :
@@ -202,11 +244,12 @@ L'application pilote deux installations SVXLink en parallèle, sélectionnées d
 - **`GeneralConfigurationAggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000003`.
 - **`AudioConfigurationAggregate`** — singleton, ID fixe `00000000-0000-0000-0000-000000000004`. Niveaux ALSA mémorisés, avec le nom du contrôle auquel ils s'appliquent.
 - **`ReflectorAggregate`** — config INI brute du démon `svxreflector` local.
+- **`SalonSession` / `ActivityEvent`** (`Domain/Statistics`) — historique d'activité. Ce ne sont pas des agrégats : aucune invariante métier, uniquement des enregistrements horodatés.
 - **`TestAggregate`** — placeholder pour les tests.
 
 ### Services hébergés au démarrage
 
-`SA818InitializerHostedService`, `AudioInitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`.
+`SA818InitializerHostedService`, `AudioInitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`, `ActivityRecorderHostedService`, `StatisticsPurgeHostedService`.
 
 ## Points de vigilance
 

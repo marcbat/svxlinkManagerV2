@@ -30,6 +30,7 @@ public class ActivateStandaloneModeCommandTests
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly IActivityRecorder _activityRecorder;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
     public ActivateStandaloneModeCommandTests()
@@ -42,6 +43,7 @@ public class ActivateStandaloneModeCommandTests
         _tracker = Substitute.For<IActiveSessionTracker>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
         _linkStateService = Substitute.For<IReflectorLinkStateService>();
+        _activityRecorder = Substitute.For<IActivityRecorder>();
         _logger = Substitute.For<ILogger<ActivateStandaloneModeCommandHandler>>();
     }
 
@@ -262,6 +264,7 @@ public class ActivateStandaloneModeCommandTests
             _tracker,
             _connectedNodesService,
             _linkStateService,
+            _activityRecorder,
             _logger);
 
     private static GeneralConfigurationAggregate CreateValidGeneralConfig(
