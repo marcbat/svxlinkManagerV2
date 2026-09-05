@@ -54,10 +54,29 @@ remplacer <code>stable</code> dans <code>/etc/apt/sources.list.d/svxlinkmanager.
 
 <h2>Prérequis</h2>
 
-<p>Le paquet ne contient que l'application. Il suppose déjà installés sur la
-machine le runtime <strong>.NET 8 (linux-arm)</strong> et les deux versions de
-<strong>SVXLink</strong> (19.09.2 et 25.05). Voir le
-<a href="https://github.com/__REPO__">dépôt du projet</a>.</p>
+<p><code>apt</code> installe automatiquement les outils dont l'application a
+besoin (<code>procps</code>, <code>alsa-utils</code>, les bibliothèques des deux
+versions de SVXLink) ainsi que <code>libttspico-utils</code> et
+<code>network-manager</code>, qui sont recommandés.</p>
+
+<p>Deux prérequis restent en revanche à votre charge, faute de paquet
+installable :</p>
+
+<ul>
+  <li>le runtime <strong>.NET 8 (linux-arm)</strong> — Microsoft ne publie pas
+  de paquet <code>armhf</code> ;</li>
+  <li><strong>SVXLink</strong> 19.09.2 et 25.05, à compiler via
+  <code>setup-svxlink.sh</code>.</li>
+</ul>
+
+<p><strong>Annonces vocales :</strong> <code>libttspico-utils</code> (le moteur
+<code>pico2wave</code>) a été retiré de Debian et n'existe plus que sur Ubuntu.
+Sur un Armbian à base Debian il ne sera pas installé, et les annonces vocales
+resteront muettes. C'est la raison pour laquelle il est <em>recommandé</em> et
+non <em>requis</em> : un <code>Depends</code> rendrait le paquet impossible à
+installer sur ces systèmes.</p>
+
+<p>Voir le <a href="https://github.com/__REPO__">dépôt du projet</a>.</p>
 
 <footer>
   Publié automatiquement depuis les GitHub Releases de
