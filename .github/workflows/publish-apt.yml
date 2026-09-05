@@ -1,0 +1,223 @@
+name: Publier le dépôt APT
+
+# Reconstruit intégralement le dépôt APT à partir des GitHub Releases existantes,
+# puis le publie sur GitHub Pages. Le site publié est un pur cache régénérable :
+# les Releases restent la source de vérité, et rien n'est commité dans le dépôt.
+#
+# Le déclenchement passe par workflow_run et non par `on: release`, car une Release
+# publiée avec le GITHUB_TOKEN du workflow de build ne déclenche aucun autre
+# workflow (protection anti-boucle de GitHub Actions).
+
+on:
+  workflow_run:
+    workflows: ["Build Debian Package"]
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-apt:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Installer les outils Debian
+        run: sudo apt-get update && sudo apt-get install -y apt-utils
+
+      - name: Rassembler les paquets des releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # Toutes les versions stables sont conservées, mais seules les N dernières
+          # préversions de chaque canal : apt n'installe jamais qu'une seule version
+          # par canal, et l'historique complet des alphas ferait grossir le site sans
+          # fin (105 releases pesaient déjà ~315 Mo pour un quota Pages de 1 Go).
+          KEEP_PRERELEASES: "10"
+        run: |
+          set -euo pipefail
+          mkdir -p site
+
+          # Les canaux sont cumulatifs : une release stable alimente aussi beta et
+          # development, une beta alimente development. Sans cela un nœud abonné au
+          # canal beta resterait bloqué sur une préversion périmée — la version stable
+          # qui lui succède n'apparaîtrait dans aucune suite qu'il suit.
+          #
+          # gh release list trie par date décroissante : les compteurs ci-dessous
+          # conservent donc bien les préversions les plus récentes.
+          gh release list --limit 300 --json tagName,isDraft,isPrerelease \
+            --jq '.[] | select(.isDraft == false) | .tagName + " " + (.isPrerelease | tostring)' \
+            > releases.txt
+
+          beta_kept=0
+          alpha_kept=0
+
+          while read -r tag prerelease; do
+            [ -z "${tag:-}" ] && continue
+
+            case "$tag" in
+              *-beta.*)
+                if [ "$beta_kept" -ge "$KEEP_PRERELEASES" ]; then continue; fi
+                beta_kept=$((beta_kept + 1))
+                suites="beta development"
+                ;;
+              *-alpha.*)
+                if [ "$alpha_kept" -ge "$KEEP_PRERELEASES" ]; then continue; fi
+                alpha_kept=$((alpha_kept + 1))
+                suites="development"
+                ;;
+              *)
+                if [ "$prerelease" = "true" ]; then
+                  echo "Ignoré (préversion sans label reconnu) : $tag"
+                  continue
+                fi
+                suites="stable beta development"
+                ;;
+            esac
+
+            rm -rf downloads && mkdir -p downloads
+            if ! gh release download "$tag" --pattern '*.deb' --dir downloads 2>/dev/null; then
+              echo "Aucun .deb dans $tag — ignoré"
+              continue
+            fi
+
+            for deb in downloads/*.deb; do
+              [ -e "$deb" ] || continue
+              for suite in $suites; do
+                dest="site/pool/$suite/main/s/svxlinkmanagerv2"
+                mkdir -p "$dest"
+                cp -n "$deb" "$dest/"
+              done
+            done
+            echo "Indexé : $tag -> $suites"
+          done < releases.txt
+
+          if [ ! -d site/pool ]; then
+            echo "::error::Aucun paquet .deb récupéré depuis les releases."
+            exit 1
+          fi
+
+      - name: Générer les index APT
+        shell: bash
+        working-directory: site
+        run: |
+          set -euo pipefail
+
+          for suite in stable beta development; do
+            [ -d "pool/$suite" ] || continue
+
+            mkdir -p "dists/$suite/main/binary-armhf"
+
+            # Les chemins Filename: des index sont relatifs à la racine du site,
+            # donc apt-ftparchive doit être lancé depuis celle-ci.
+            apt-ftparchive --arch armhf packages "pool/$suite" \
+              > "dists/$suite/main/binary-armhf/Packages"
+            gzip -9ck "dists/$suite/main/binary-armhf/Packages" \
+              > "dists/$suite/main/binary-armhf/Packages.gz"
+
+            apt-ftparchive release "dists/$suite" \
+              -o APT::FTPArchive::Release::Origin="SvxlinkManagerV2" \
+              -o APT::FTPArchive::Release::Label="SvxlinkManagerV2" \
+              -o APT::FTPArchive::Release::Suite="$suite" \
+              -o APT::FTPArchive::Release::Codename="$suite" \
+              -o APT::FTPArchive::Release::Architectures="armhf" \
+              -o APT::FTPArchive::Release::Components="main" \
+              -o APT::FTPArchive::Release::Description="SvxlinkManagerV2 - canal $suite" \
+              > "dists/$suite/Release"
+
+            count=$(grep -c '^Package:' "dists/$suite/main/binary-armhf/Packages" || true)
+            echo "Suite $suite : $count paquet(s)"
+          done
+
+      - name: Signer les index
+        shell: bash
+        working-directory: site
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APT_GPG_PRIVATE_KEY:-}" ]; then
+            echo "::error::Secret APT_GPG_PRIVATE_KEY absent : apt refuse un dépôt non signé."
+            exit 1
+          fi
+
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          printf '%s' "$APT_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+
+          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          if [ -z "$key_id" ]; then
+            echo "::error::Aucune clé secrète importée depuis APT_GPG_PRIVATE_KEY."
+            exit 1
+          fi
+
+          for suite in stable beta development; do
+            [ -f "dists/$suite/Release" ] || continue
+            gpg --batch --yes --default-key "$key_id" --pinentry-mode loopback \
+              --clearsign -o "dists/$suite/InRelease" "dists/$suite/Release"
+            gpg --batch --yes --default-key "$key_id" --pinentry-mode loopback \
+              --detach-sign --armor -o "dists/$suite/Release.gpg" "dists/$suite/Release"
+          done
+
+          # Clé publique au format binaire, référencée par signed-by= côté client.
+          gpg --export "$key_id" > svxlinkmanager.gpg
+
+          rm -rf "$GNUPGHOME"
+
+      - name: Générer la page d'accueil
+        shell: bash
+        env:
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sed -e "s|__PAGES_URL__|${PAGES_URL}|g" \
+              -e "s|__REPO__|${REPO}|g" \
+              .github/apt/index.html > site/index.html
+          touch site/.nojekyll
+
+      - name: Résumé
+        shell: bash
+        run: |
+          {
+            echo "## Dépôt APT publié"
+            echo
+            for suite in stable beta development; do
+              f="site/dists/$suite/main/binary-armhf/Packages"
+              [ -f "$f" ] || continue
+              echo "- \`$suite\` : $(grep -c '^Package:' "$f" || echo 0) paquet(s)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configurer Pages
+        uses: actions/configure-pages@v5
+
+      - name: Téléverser le site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build-apt
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Déployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

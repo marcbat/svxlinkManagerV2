@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dépôt APT — SvxLink Manager V2</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem;
+         font: 16px/1.6 system-ui, -apple-system, sans-serif; }
+  pre { background: rgba(127,127,127,.14); padding: .85rem 1rem;
+        border-radius: 6px; overflow-x: auto; }
+  code { font-size: .92em; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2.25rem; font-size: 1.15rem; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: .4rem .75rem .4rem 0;
+           border-bottom: 1px solid rgba(127,127,127,.3); }
+  footer { margin-top: 3rem; font-size: .85rem; opacity: .7; }
+</style>
+</head>
+<body>
+
+<h1>Dépôt APT — SvxLink Manager V2</h1>
+<p>Paquets Debian <code>armhf</code> pour Orange Pi sous Armbian.</p>
+
+<h2>Installation</h2>
+
+<p>Enregistrer la clé de signature du dépôt :</p>
+<pre><code>curl -fsSL __PAGES_URL__/svxlinkmanager.gpg \
+  | sudo tee /etc/apt/keyrings/svxlinkmanager.gpg &gt; /dev/null</code></pre>
+
+<p>Déclarer la source :</p>
+<pre><code>echo "deb [arch=armhf signed-by=/etc/apt/keyrings/svxlinkmanager.gpg] __PAGES_URL__ stable main" \
+  | sudo tee /etc/apt/sources.list.d/svxlinkmanager.list</code></pre>
+
+<p>Installer :</p>
+<pre><code>sudo apt update &amp;&amp; sudo apt install svxlinkmanagerv2</code></pre>
+
+<p>Les mises à jour suivantes passent par <code>sudo apt upgrade</code>.</p>
+
+<h2>Canaux</h2>
+
+<table>
+  <tr><th>Suite</th><th>Contenu</th></tr>
+  <tr><td><code>stable</code></td><td>versions de production</td></tr>
+  <tr><td><code>beta</code></td><td>stable + préversions <code>~beta</code></td></tr>
+  <tr><td><code>development</code></td><td>tout, y compris <code>~alpha</code></td></tr>
+</table>
+
+<p>Les canaux sont cumulatifs : un nœud abonné à <code>beta</code> reçoit aussi
+les versions stables qui succèdent aux préversions. Changer de canal revient à
+remplacer <code>stable</code> dans <code>/etc/apt/sources.list.d/svxlinkmanager.list</code>.</p>
+
+<h2>Prérequis</h2>
+
+<p>Le paquet ne contient que l'application. Il suppose déjà installés sur la
+machine le runtime <strong>.NET 8 (linux-arm)</strong> et les deux versions de
+<strong>SVXLink</strong> (19.09.2 et 25.05). Voir le
+<a href="https://github.com/__REPO__">dépôt du projet</a>.</p>
+
+<footer>
+  Publié automatiquement depuis les GitHub Releases de
+  <a href="https://github.com/__REPO__">__REPO__</a>.
+</footer>
+
+</body>
+</html>
