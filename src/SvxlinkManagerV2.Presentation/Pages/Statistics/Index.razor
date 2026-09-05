@@ -1,0 +1,1036 @@
+@page "/statistiques"
+@*
+    Namespace explicite : sans lui, le dossier « Statistics » générerait le namespace
+    SvxlinkManagerV2.Presentation.Pages.Statistics, qui masquerait la feature
+    SvxlinkManagerV2.Application.Features.Statistics pour les fichiers voisins de Pages/.
+*@
+@namespace SvxlinkManagerV2.Presentation.Pages.ActivityStatistics
+@using System.Text
+@using SvxlinkManagerV2.Application.Features.Statistics
+@using SvxlinkManagerV2.Application.Features.Statistics.GetStatistics
+@using SvxlinkManagerV2.Application.Features.Statistics.ResetStatistics
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Domain.Statistics
+
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IJSRuntime JS
+
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">
+            <span class="material-symbols-outlined">insights</span>
+            Statistiques
+        </h1>
+        <p class="page-subtitle">
+            Ce que le nœud a vu — activité des salons sur lesquels il était posé, et la sienne propre
+            @if (_stats?.PeriodStart is { } start)
+            {
+                <span> — depuis le @start.ToString("dd/MM/yyyy à HH:mm")</span>
+            }
+        </p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-secondary btn-sm" @onclick="RefreshAsync" disabled="@_isBusy">
+            <span class="material-symbols-outlined">refresh</span>
+            Rafraîchir
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm"
+                @onclick="ExportTimelineAsync"
+                disabled="@(_stats is null || _stats.Timeline.Count == 0)">
+            <span class="material-symbols-outlined">download</span>
+            Exporter
+        </button>
+        @if (_confirmReset)
+        {
+            <button type="button" class="btn btn-danger btn-sm" @onclick="ResetAsync" disabled="@_isBusy">
+                <span class="material-symbols-outlined">delete_forever</span>
+                Confirmer l'effacement
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _confirmReset = false">
+                Annuler
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn btn-delete btn-sm" @onclick="() => _confirmReset = true" disabled="@_isBusy">
+                <span class="material-symbols-outlined">delete</span>
+                Remettre à zéro
+            </button>
+        }
+    </div>
+</div>
+
+<div class="period-selector">
+    @foreach (var period in Periods)
+    {
+        var value = period;
+        <button type="button"
+                class="period-button @(_period == value ? "active" : string.Empty)"
+                @onclick="() => ChangePeriodAsync(value)"
+                disabled="@_isBusy">
+            @value.ToLabel()
+        </button>
+    }
+    @if (_stats is not null)
+    {
+        <span class="period-hint">
+            <span class="material-symbols-outlined">history</span>
+            Conservation @_stats.RetentionDays jours
+        </span>
+    }
+</div>
+
+@if (_stats is null)
+{
+    <div class="card"><div class="skeleton" style="height:220px"></div></div>
+}
+else if (_stats.IsEmpty)
+{
+    <div class="card">
+        <div class="empty-state">
+            <span class="material-symbols-outlined">query_stats</span>
+            <p>
+                Aucune activité enregistrée sur cette période.
+                L'historique se remplit au fil de l'eau : changements de salon, passages entendus,
+                commandes DTMF. Élargissez la période si le nœud vient d'être mis en service.
+            </p>
+        </div>
+    </div>
+}
+else
+{
+    <!-- ── Synthèse ────────────────────────────────────────────── -->
+    <div class="stats-tiles">
+        @RenderTile("schedule", "Temps d'antenne", FormatDuration(_stats.Summary.TrackedTime), null)
+        @RenderTile("radio", "Salons occupés", _stats.Summary.DistinctSalonCount.ToString(),
+                    _stats.UnusedSalonNames.Count > 0 ? $"{_stats.UnusedSalonNames.Count} jamais activé(s)" : null)
+        @RenderTile("record_voice_over", "Passages entendus", _stats.Summary.TalkerCount.ToString(),
+                    FormatDuration(_stats.Summary.TalkerTime))
+        @RenderTile("dialpad", "Commandes DTMF", _stats.Summary.DtmfCount.ToString(),
+                    _stats.Dtmf.LastUsedAt is { } last ? $"dernière : {last:dd/MM HH:mm}" : null)
+        @RenderTile("hub", "Liaison réflecteur",
+                    _stats.Summary.LinkAvailabilityPercent is { } pct ? $"{Math.Round(pct)} %" : "—",
+                    _stats.Summary.LinkAvailabilityPercent is null ? "aucun salon réflecteur" : "du temps réflecteur")
+    </div>
+
+    <div class="stats-grid">
+
+        <!-- ── Temps par salon ─────────────────────────────────── -->
+        <div class="card stats-card--wide">
+            <div class="section-header">
+                <span class="material-symbols-outlined">donut_large</span>
+                Temps passé par salon
+            </div>
+
+            @foreach (var salon in _stats.SalonUsage)
+            {
+                <div class="usage-row">
+                    <div class="usage-header">
+                        <span class="usage-name">
+                            @salon.Name
+                            <span class="badge @KindBadgeClass(salon.Kind)">@KindLabel(salon.Kind)</span>
+                            @if (salon.IsOngoing)
+                            {
+                                <span class="badge badge-success">En cours</span>
+                            }
+                        </span>
+                        <span class="usage-value">@FormatDuration(salon.TotalTime) · @Math.Round(salon.SharePercent) %</span>
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill @KindBarClass(salon.Kind)" style="width:@CssValue.Percent(salon.SharePercent)"></div>
+                    </div>
+                    <div class="metric-detail">
+                        @salon.SessionCount activation(s) · moyenne @FormatDuration(salon.AverageSessionTime)
+                        @if (salon.LastStartedAt is { } lastStart)
+                        {
+                            <span> · dernière le @lastStart.ToString("dd/MM à HH:mm")</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_stats.UnusedSalonNames.Count > 0)
+            {
+                <div class="stats-note">
+                    <span class="material-symbols-outlined">cleaning_services</span>
+                    <span>
+                        Jamais activé sur la période : @string.Join(", ", _stats.UnusedSalonNames)
+                    </span>
+                </div>
+            }
+        </div>
+
+        <!-- ── Origine des activations ─────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">alt_route</span>
+                Origine des activations
+            </div>
+
+            @if (_stats.ActivationOrigins.Count == 0)
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucune activation sur la période.</span>
+                </div>
+            }
+            else
+            {
+                @foreach (var origin in _stats.ActivationOrigins)
+                {
+                    <div class="usage-row">
+                        <div class="usage-header">
+                            <span class="usage-name">@OriginLabel(origin.Origin)</span>
+                            <span class="usage-value">@origin.Count · @Math.Round(origin.SharePercent) %</span>
+                        </div>
+                        <div class="metric-bar">
+                            <div class="metric-bar-fill" style="width:@CssValue.Percent(origin.SharePercent)"></div>
+                        </div>
+                    </div>
+                }
+                <div class="metric-detail">
+                    Le partage entre interface web et radio dit comment le nœud est réellement piloté.
+                </div>
+            }
+        </div>
+
+        <!-- ── Trafic entendu ──────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">graphic_eq</span>
+                Trafic entendu
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Passages</span>
+                <span class="detail-value">@_stats.Traffic.Count</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Durée cumulée</span>
+                <span class="detail-value">@FormatDuration(_stats.Traffic.TotalTime)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Passage moyen</span>
+                <span class="detail-value">@FormatDuration(_stats.Traffic.AverageTime)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Passage le plus long</span>
+                <span class="detail-value">@FormatDuration(_stats.Traffic.LongestTime)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Indicatifs distincts</span>
+                <span class="detail-value">@_stats.Traffic.DistinctCallsignCount</span>
+            </div>
+        </div>
+
+        <!-- ── Palmarès des indicatifs ─────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">leaderboard</span>
+                Indicatifs les plus entendus
+            </div>
+
+            @if (_stats.Traffic.TopCallsigns.Count == 0)
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucun passage entendu sur la période.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Indicatif</th>
+                                <th class="numeric">Passages</th>
+                                <th class="numeric">Durée</th>
+                                <th class="numeric">Dernier</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var callsign in _stats.Traffic.TopCallsigns)
+                            {
+                                <tr>
+                                    <td class="mono">@callsign.Callsign</td>
+                                    <td class="numeric">@callsign.Count</td>
+                                    <td class="numeric">@FormatDuration(callsign.TotalTime)</td>
+                                    <td class="numeric">@callsign.LastHeardAt.ToString("dd/MM HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- ── Trafic par salon ────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">forum</span>
+                Trafic par salon
+            </div>
+
+            @if (_stats.Traffic.PerSalon.Count == 0)
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucun passage entendu sur la période.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Salon</th>
+                                <th class="numeric">Passages</th>
+                                <th class="numeric">Durée</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var salon in _stats.Traffic.PerSalon)
+                            {
+                                <tr>
+                                    <td>@salon.SalonName</td>
+                                    <td class="numeric">@salon.Count</td>
+                                    <td class="numeric">@FormatDuration(salon.TotalTime)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- ── Activité radio locale ───────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">settings_input_antenna</span>
+                Activité radio locale
+            </div>
+
+            @if (!_stats.LocalActivity.IsSquelchTrackingObserved)
+            {
+                <div class="stats-note">
+                    <span class="material-symbols-outlined">help</span>
+                    <span>
+                        Aucune ouverture de squelch n'a jamais été observée sur cette machine.
+                        SVXLink ne journalise peut-être pas l'état du squelch : les compteurs
+                        ci-dessous resteront à zéro même en cas de trafic local réel.
+                    </span>
+                </div>
+            }
+
+            <div class="detail-row">
+                <span class="detail-label">Réceptions locales</span>
+                <span class="detail-value">@_stats.LocalActivity.TransmissionCount</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Durée cumulée</span>
+                <span class="detail-value">@FormatDuration(_stats.LocalActivity.TotalTime)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Réception la plus longue</span>
+                <span class="detail-value">@FormatDuration(_stats.LocalActivity.LongestTime)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Perroquet</span>
+                <span class="detail-value">
+                    @_stats.LocalActivity.ParrotSessionCount bascule(s) · @FormatDuration(_stats.LocalActivity.ParrotTime)
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Écrêtages en réception</span>
+                <span class="detail-value @(_stats.LocalActivity.DistortionCount > 0 ? "metric-value--warning" : string.Empty)">
+                    @_stats.LocalActivity.DistortionCount
+                </span>
+            </div>
+            @if (_stats.LocalActivity.DistortionCount > 0)
+            {
+                <div class="metric-detail">
+                    Des écrêtages répétés signalent un niveau d'entrée trop élevé — voir la page Audio.
+                </div>
+            }
+        </div>
+
+        <!-- ── Commandes DTMF ──────────────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">dialpad</span>
+                Commandes DTMF
+            </div>
+
+            @if (_stats.Dtmf.TotalCount == 0)
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucune commande DTMF reçue sur la période.</span>
+                </div>
+            }
+            else
+            {
+                @foreach (var category in _stats.Dtmf.CountsByCategory)
+                {
+                    <div class="usage-row">
+                        <div class="usage-header">
+                            <span class="usage-name">@category.Category.ToLabel()</span>
+                            <span class="usage-value">@category.Count</span>
+                        </div>
+                        <div class="metric-bar">
+                            <div class="metric-bar-fill @(category.Category == DtmfCommandCategory.Unknown ? "metric-bar-fill--warning" : string.Empty)"
+                                 style="width:@CssValue.Percent((double)category.Count / _stats.Dtmf.TotalCount * 100)"></div>
+                        </div>
+                    </div>
+                }
+
+                <div class="table-scroll">
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Action</th>
+                                <th class="numeric">Fois</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @* « code » est un mot réservé de Razor : le nommer ainsi ferait
+                               interpréter @code comme la directive de bloc C#. *@
+                            @foreach (var usage in _stats.Dtmf.TopCodes)
+                            {
+                                <tr>
+                                    <td class="mono">@usage.Code</td>
+                                    <td>@usage.Label</td>
+                                    <td class="numeric">@usage.Count</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (_stats.Dtmf.UnmatchedCodes.Count > 0)
+                {
+                    <div class="stats-note stats-note--warning">
+                        <span class="material-symbols-outlined">warning</span>
+                        <span>
+                            Codes sans destinataire :
+                            @string.Join(", ", _stats.Dtmf.UnmatchedCodes.Select(c => $"{c.Code} ({c.Count}×)")).
+                            Un clavier DTMF mal réglé ou des faux positifs de décodage se voient ici.
+                        </span>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- ── Fiabilité de la liaison ─────────────────────────── -->
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">link</span>
+                Tenue de la liaison
+            </div>
+
+            @if (_stats.Reliability.AvailabilityPercent is { } availability)
+            {
+                <div class="metric-value @AvailabilityClass(availability)">@Math.Round(availability) %</div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill @AvailabilityBarClass(availability)" style="width:@CssValue.Percent(availability)"></div>
+                </div>
+                <div class="metric-detail">
+                    @FormatDuration(_stats.Reliability.LinkedTime) de liaison sur
+                    @FormatDuration(_stats.Reliability.ReflectorSessionTime) passés sur un salon réflecteur
+                </div>
+            }
+            else
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucun salon réflecteur n'a tourné sur la période.</span>
+                </div>
+            }
+
+            <div class="detail-row">
+                <span class="detail-label">Liaisons perdues</span>
+                <span class="detail-value">@_stats.Reliability.DisconnectionCount</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Connexions impossibles</span>
+                <span class="detail-value">@_stats.Reliability.FailureCount</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Plus longue interruption</span>
+                <span class="detail-value">@FormatDuration(_stats.Reliability.LongestOutage)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Plus longue liaison</span>
+                <span class="detail-value">@FormatDuration(_stats.Reliability.LongestLinkedStretch)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Démarrages de l'application</span>
+                <span class="detail-value">@_stats.Reliability.ApplicationStartCount</span>
+            </div>
+        </div>
+
+        <!-- ── Répartition horaire ─────────────────────────────── -->
+        <div class="card stats-card--full">
+            <div class="section-header">
+                <span class="material-symbols-outlined">calendar_view_week</span>
+                Quand le salon est vivant
+            </div>
+
+            @if (_stats.HourlyActivity.Count == 0)
+            {
+                <div class="metric-unavailable">
+                    <span class="material-symbols-outlined">info</span>
+                    <span>Aucun passage entendu sur la période.</span>
+                </div>
+            }
+            else
+            {
+                <div class="heatmap-scroll">
+                    <table class="heatmap">
+                        <thead>
+                            <tr>
+                                <th class="heatmap-corner"></th>
+                                @for (var hour = 0; hour < 24; hour++)
+                                {
+                                    <th class="heatmap-hour">@hour</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var day in DayOrder)
+                            {
+                                <tr>
+                                    <th class="heatmap-day">@DayLabel(day)</th>
+                                    @for (var hour = 0; hour < 24; hour++)
+                                    {
+                                        var cell = FindCell(day, hour);
+                                        <td class="heatmap-cell"
+                                            style="background:@CellColor(cell)"
+                                            title="@CellTitle(day, hour, cell)"></td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="metric-detail">
+                    Nombre de passages entendus, en heure locale. Le maximum observé
+                    (@MaxCellCount passage(s)) donne l'intensité la plus soutenue.
+                </div>
+            }
+        </div>
+
+        <!-- ── Chronologie ─────────────────────────────────────── -->
+        <div class="card stats-card--full">
+            <div class="section-header">
+                <span class="material-symbols-outlined">timeline</span>
+                Chronologie
+            </div>
+
+            <div class="timeline-filter">
+                <select class="form-control" @bind="_timelineFilter">
+                    <option value="">Tous les événements</option>
+                    @foreach (var type in _stats.Timeline.Select(t => t.Type).Distinct())
+                    {
+                        <option value="@type">@ActivityCsvFormatter.ToLabel(type)</option>
+                    }
+                </select>
+                <span class="metric-detail">@FilteredTimeline.Count événement(s) affiché(s)</span>
+            </div>
+
+            <div class="timeline-scroll">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Événement</th>
+                            <th>Salon</th>
+                            <th class="numeric">Durée</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in FilteredTimeline)
+                        {
+                            <tr>
+                                <td class="numeric">@entry.OccurredAt.ToString("dd/MM HH:mm:ss")</td>
+                                <td>@entry.Label</td>
+                                <td>@(entry.SalonName ?? "—")</td>
+                                <td class="numeric">@(entry.Duration is { } d ? FormatDuration(d) : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+}
+
+<style>
+    .period-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+    }
+
+    .period-button {
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--border-card);
+        background: var(--bg-card);
+        color: var(--text-muted);
+        font-size: 13px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .period-button:hover:not(:disabled) { color: var(--text); }
+    .period-button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .period-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .period-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .period-hint .material-symbols-outlined { font-size: 15px; }
+
+    .stats-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .stats-tile { text-align: left; }
+
+    .stats-tile-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+    }
+
+    .stats-tile-label .material-symbols-outlined { font-size: 16px; color: var(--accent); }
+
+    .stats-tile-value {
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.15;
+        margin-top: 8px;
+    }
+
+    .stats-tile-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /*
+        Pas d'align-items: start — les cartes s'étirent pour qu'une ligne adopte
+        la hauteur de sa carte la plus haute, comme sur la page Système.
+    */
+    .stats-grid {
+        display: grid;
+        /* min(340px, 100%) plutôt que 340px : sur un écran plus étroit que la colonne,
+           la carte se réduit au lieu de déborder de la zone de contenu. */
+        grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+        gap: 16px;
+    }
+
+    .stats-card--wide { grid-column: span 2; }
+    .stats-card--full { grid-column: 1 / -1; }
+
+    @@media (max-width: 900px) {
+        .stats-card--wide { grid-column: 1 / -1; }
+    }
+
+    .usage-row { margin-bottom: 16px; }
+    .usage-row:last-child { margin-bottom: 0; }
+
+    .usage-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+
+    .usage-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        flex-wrap: wrap;
+    }
+
+    .usage-value { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+
+    .metric-bar {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(160, 160, 192, 0.15);
+        overflow: hidden;
+        margin-bottom: 6px;
+    }
+
+    .metric-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+        transition: width 0.4s ease;
+    }
+
+    .metric-bar-fill--parrot { background: var(--warning); }
+    .metric-bar-fill--standalone { background: var(--text-muted); }
+    .metric-bar-fill--warning { background: var(--warning); }
+    .metric-bar-fill--danger { background: var(--danger); }
+    .metric-bar-fill--success { background: var(--success); }
+
+    .metric-value { font-size: 30px; font-weight: 700; line-height: 1.1; margin: 6px 0 10px; }
+    .metric-value--warning { color: var(--warning); }
+    .metric-value--danger { color: var(--danger); }
+
+    .metric-detail { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .metric-unavailable {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-muted);
+        padding: 12px 0;
+    }
+
+    .metric-unavailable .material-symbols-outlined { font-size: 18px; }
+
+    .stats-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        background: rgba(160, 160, 192, 0.08);
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .stats-note .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+    .stats-note--warning { background: var(--warning-light); color: var(--warning); }
+
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 14px;
+    }
+
+    .stats-table thead tr { border-bottom: 1px solid var(--border-card); }
+
+    .stats-table th {
+        text-align: left;
+        padding: 8px 10px;
+        color: var(--text-muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stats-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(42, 43, 74, 0.5);
+        vertical-align: middle;
+    }
+
+    /*
+        Le tableau déborde de sa carte sur une colonne étroite : c'est lui qui défile,
+        jamais la page — la règle vaut pour toute la grille.
+    */
+    .table-scroll { overflow-x: auto; }
+
+    .stats-table tbody tr:last-child td { border-bottom: none; }
+    .stats-table tbody tr:hover { background: rgba(108, 92, 231, 0.05); }
+    .stats-table .numeric { text-align: right; white-space: nowrap; }
+    .stats-table .mono { font-family: 'Roboto Mono', ui-monospace, monospace; }
+
+    /* Le tableau déborde sur mobile : c'est lui qui défile, jamais la page. */
+    .heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
+
+    .heatmap { border-collapse: separate; border-spacing: 2px; }
+    .heatmap-corner { width: 44px; }
+
+    .heatmap-hour {
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--text-muted);
+        text-align: center;
+        min-width: 22px;
+    }
+
+    .heatmap-day {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-muted);
+        text-align: right;
+        padding-right: 6px;
+        white-space: nowrap;
+    }
+
+    .heatmap-cell {
+        width: 22px;
+        height: 20px;
+        border-radius: 3px;
+    }
+
+    .timeline-filter {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 10px 0 4px;
+        flex-wrap: wrap;
+    }
+
+    .timeline-filter .form-control { max-width: 260px; }
+    .timeline-scroll { max-height: 460px; overflow-y: auto; overflow-x: auto; }
+</style>
+
+@code {
+    /// <summary>Périodes proposées, dans l'ordre d'affichage.</summary>
+    private static readonly StatisticsPeriod[] Periods =
+    [
+        StatisticsPeriod.Last24Hours,
+        StatisticsPeriod.Last7Days,
+        StatisticsPeriod.Last30Days,
+        StatisticsPeriod.All
+    ];
+
+    /// <summary>
+    /// Jours de la semaine dans l'ordre français. Les valeurs sont celles de
+    /// <see cref="DayOfWeek"/>, où dimanche vaut 0 : la semaine y commence donc à l'index 1.
+    /// </summary>
+    private static readonly int[] DayOrder = [1, 2, 3, 4, 5, 6, 0];
+
+    private StatisticsDto? _stats;
+    private StatisticsPeriod _period = StatisticsPeriod.Last7Days;
+    private string _timelineFilter = string.Empty;
+    private bool _isBusy;
+    private bool _confirmReset;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task ChangePeriodAsync(StatisticsPeriod period)
+    {
+        _period = period;
+        await LoadAsync();
+    }
+
+    private async Task RefreshAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isBusy = true;
+        try
+        {
+            _stats = await Mediator.Send(new GetStatisticsQuery(_period));
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Lecture de l'historique d'activité impossible : {ex.Message}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        _isBusy = true;
+        try
+        {
+            var result = await Mediator.Send(new ResetStatisticsCommand());
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess("Historique d'activité remis à zéro.");
+                    return LanguageExt.Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(" | ", errors.Select(e => e.Message)));
+                    return LanguageExt.Unit.Default;
+                });
+        }
+        finally
+        {
+            _isBusy = false;
+            _confirmReset = false;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task ExportTimelineAsync()
+    {
+        if (_stats is null)
+            return;
+
+        var exportedAt = DateTime.Now;
+
+        // BOM UTF-8 : sans lui, un tableur français ouvre le fichier en ANSI et massacre
+        // les accents des libellés.
+        var bytes = Encoding.UTF8.GetPreamble()
+            .Concat(Encoding.UTF8.GetBytes(ActivityCsvFormatter.Format(FilteredTimeline)))
+            .ToArray();
+
+        await JS.InvokeVoidAsync(
+            "fileDownload.fromBase64",
+            ActivityCsvFormatter.BuildFileName(exportedAt),
+            "text/csv;charset=utf-8",
+            Convert.ToBase64String(bytes));
+    }
+
+    private IReadOnlyList<TimelineEntryDto> FilteredTimeline
+    {
+        get
+        {
+            // Array.Empty ne peut pas être écrit ici : LanguageExt.Prelude, importé
+            // globalement par _Imports.razor, expose une méthode Array<T>() qui masque le type.
+            if (_stats is null)
+                return [];
+
+            if (string.IsNullOrEmpty(_timelineFilter) ||
+                !Enum.TryParse<ActivityEventType>(_timelineFilter, out var type))
+                return _stats.Timeline;
+
+            return _stats.Timeline.Where(t => t.Type == type).ToList();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Carte de chaleur
+    // -------------------------------------------------------------------------
+
+    private HourlyActivityCell? FindCell(int day, int hour)
+        => _stats?.HourlyActivity.FirstOrDefault(c => c.DayOfWeek == day && c.Hour == hour);
+
+    private int MaxCellCount
+        => _stats is null || _stats.HourlyActivity.Count == 0 ? 0 : _stats.HourlyActivity.Max(c => c.Count);
+
+    /// <summary>
+    /// Intensité proportionnelle au maximum observé, avec un plancher visible :
+    /// une case à un seul passage doit se distinguer d'une case vide.
+    /// </summary>
+    private string CellColor(HourlyActivityCell? cell)
+    {
+        if (cell is null || cell.Count == 0 || MaxCellCount == 0)
+            return CssValue.Rgba(160, 160, 192, 0.08);
+
+        var intensity = 0.15 + 0.85 * ((double)cell.Count / MaxCellCount);
+        return CssValue.Rgba(108, 92, 231, intensity);
+    }
+
+    private string CellTitle(int day, int hour, HourlyActivityCell? cell)
+        => cell is null || cell.Count == 0
+            ? $"{DayLabel(day)} {hour}h — aucun passage"
+            : $"{DayLabel(day)} {hour}h — {cell.Count} passage(s), {FormatDuration(TimeSpan.FromSeconds(cell.TotalSeconds))}";
+
+    private static string DayLabel(int dayOfWeek) => dayOfWeek switch
+    {
+        0 => "Dim",
+        1 => "Lun",
+        2 => "Mar",
+        3 => "Mer",
+        4 => "Jeu",
+        5 => "Ven",
+        _ => "Sam"
+    };
+
+    // -------------------------------------------------------------------------
+    // Rendu partagé et mise en forme
+    // -------------------------------------------------------------------------
+
+    private RenderFragment RenderTile(string icon, string label, string value, string? hint) => @<div class="card stats-tile">
+            <div class="stats-tile-label">
+                <span class="material-symbols-outlined">@icon</span>
+                @label
+            </div>
+            <div class="stats-tile-value">@value</div>
+            @if (!string.IsNullOrEmpty(hint))
+            {
+                <div class="stats-tile-hint">@hint</div>
+            }
+        </div>;
+
+
+    /// <summary>
+    /// Durée en français, tronquée au niveau de détail utile : les jours effacent
+    /// les secondes, qui n'apprendraient rien sur un cumul de plusieurs heures.
+    /// </summary>
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+            return "—";
+
+        if (duration.TotalDays >= 1)
+            return $"{(int)duration.TotalDays} j {duration.Hours} h {duration.Minutes} min";
+
+        if (duration.TotalHours >= 1)
+            return $"{(int)duration.TotalHours} h {duration.Minutes} min";
+
+        if (duration.TotalMinutes >= 1)
+            return $"{(int)duration.TotalMinutes} min {duration.Seconds} s";
+
+        return $"{Math.Max(1, (int)Math.Round(duration.TotalSeconds))} s";
+    }
+
+    private static string KindLabel(SalonKind kind) => kind switch
+    {
+        SalonKind.Reflector => "Réflecteur",
+        SalonKind.Parrot => "Perroquet",
+        _ => "Autonome"
+    };
+
+    private static string KindBadgeClass(SalonKind kind) => kind switch
+    {
+        SalonKind.Reflector => "badge-accent",
+        SalonKind.Parrot => "badge-warning",
+        _ => "badge-muted"
+    };
+
+    private static string KindBarClass(SalonKind kind) => kind switch
+    {
+        SalonKind.Reflector => string.Empty,
+        SalonKind.Parrot => "metric-bar-fill--parrot",
+        _ => "metric-bar-fill--standalone"
+    };
+
+    private static string OriginLabel(SalonActivationOrigin origin) => origin switch
+    {
+        SalonActivationOrigin.Web => "Interface web",
+        SalonActivationOrigin.Dtmf => "Code DTMF de salon",
+        SalonActivationOrigin.SystemCommand => "Commande DTMF système",
+        _ => "Démarrage automatique"
+    };
+
+    private static string AvailabilityClass(double percent)
+        => percent >= 95 ? string.Empty : percent >= 80 ? "metric-value--warning" : "metric-value--danger";
+
+    private static string AvailabilityBarClass(double percent)
+        => percent >= 95 ? "metric-bar-fill--success" : percent >= 80 ? "metric-bar-fill--warning" : "metric-bar-fill--danger";
+
+}

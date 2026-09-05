@@ -9,6 +9,7 @@ using SvxlinkManagerV2.Application.Features.Salons.GetDefaultSalon;
 using SvxlinkManagerV2.Application.Features.SvxLink.RestartSvxLink;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
+using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 
@@ -145,7 +146,7 @@ public class DtmfSystemCommandService : IHostedService
             return;
         }
 
-        var result = await mediator.Send(new ActivateStandaloneModeCommand());
+        var result = await mediator.Send(new ActivateStandaloneModeCommand(SalonActivationOrigin.SystemCommand));
 
         if (result.IsFail)
         {
@@ -210,7 +211,7 @@ public class DtmfSystemCommandService : IHostedService
     {
         _logger.LogInformation("Activation du salon « {SalonName} » via commande DTMF système", salon.Name);
 
-        var result = await mediator.Send(new ActivateSalonCommand(salon.Id));
+        var result = await mediator.Send(new ActivateSalonCommand(salon.Id, SalonActivationOrigin.SystemCommand));
 
         if (result.IsFail)
         {

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Features.Salons.ActivateStandaloneMode;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Common;
+using SvxlinkManagerV2.Domain.Statistics;
 using static LanguageExt.Prelude;
 
 namespace SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon;
@@ -15,7 +16,12 @@ namespace SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon;
 /// identique à l'état de démarrage de l'application sans salon par défaut configuré.
 /// </summary>
 /// <param name="Id">Identifiant unique du salon à désactiver</param>
-public record DeactivateSalonCommand(Guid Id) : IRequest<Validation<Error, Unit>>;
+/// <param name="Origin">
+/// Ce qui déclenche la désactivation, transmis au mode autonome qui prend le relais
+/// et ouvre la session correspondante dans l'historique.
+/// </param>
+public record DeactivateSalonCommand(Guid Id, SalonActivationOrigin Origin = SalonActivationOrigin.Web)
+    : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour la commande DeactivateSalonCommand.
@@ -48,7 +54,7 @@ public class DeactivateSalonCommandHandler : IRequestHandler<DeactivateSalonComm
             return Error.Validation("SALON_NOT_ACTIVE", "Ce salon n'est pas actuellement actif").ToFailure<Unit>();
 
         _logger.LogInformation("Retour en mode standalone après désactivation du Salon {SalonId}", command.Id);
-        var standaloneResult = await _mediator.Send(new ActivateStandaloneModeCommand(), cancellationToken);
+        var standaloneResult = await _mediator.Send(new ActivateStandaloneModeCommand(command.Origin), cancellationToken);
         if (standaloneResult.IsFail)
             return Error.Validation("STANDALONE_ACTIVATION_ERROR", "Impossible de revenir en mode standalone après désactivation du salon").ToFailure<Unit>();
 

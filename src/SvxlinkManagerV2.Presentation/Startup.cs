@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
+using SvxlinkManagerV2.Application.Features.Statistics;
 using SvxlinkManagerV2.Application.Features.SystemStatus;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
@@ -18,6 +19,7 @@ using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.Reflector;
 using SvxlinkManagerV2.Infrastructure.Runtime;
+using SvxlinkManagerV2.Infrastructure.Statistics;
 using SvxlinkManagerV2.Infrastructure.SvxLink;
 using SvxlinkManagerV2.Infrastructure.SvxLink.InfoProviders;
 using SvxlinkManagerV2.Infrastructure.SvxLink.Strategies;
@@ -100,6 +102,20 @@ namespace SvxlinkManagerV2.Presentation
             services.AddScoped<IGeneralConfigurationRepository, GeneralConfigurationRepository>();
             services.AddScoped<IReflectorRepository, ReflectorRepository>();
             services.AddScoped<IAudioConfigurationRepository, AudioConfigurationRepository>();
+            services.AddScoped<IActivityRepository, ActivityRepository>();
+
+            // Historique d'activité (page Statistiques).
+            // Le recorder est exposé sous les deux formes : l'interface pour les handlers MediatR,
+            // le type concret pour le service hébergé qui doit en piloter la même instance.
+            services.Configure<StatisticsOptions>(Configuration.GetSection(StatisticsOptions.SectionName));
+            services.AddSingleton<ActivityRecorder>();
+            services.AddSingleton<IActivityRecorder>(sp => sp.GetRequiredService<ActivityRecorder>());
+
+            // ATTENTION : doit rester enregistré AVANT StartupActivationHostedService.
+            // Son démarrage clôt les sessions laissées ouvertes par un arrêt brutal ; placé après
+            // l'activation automatique, il refermerait la session que celle-ci vient d'ouvrir.
+            services.AddHostedService<ActivityRecorderHostedService>();
+            services.AddHostedService<StatisticsPurgeHostedService>();
 
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
@@ -159,6 +175,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
+            services.AddSingleton<ISquelchStateService, SquelchStateTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddSingleton<ISvxLinkConfigurationReader, SvxLinkConfigurationReader>();
