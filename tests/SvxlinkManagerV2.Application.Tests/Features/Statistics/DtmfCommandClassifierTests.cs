@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SvxlinkManagerV2.Application.Features.Statistics;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 
@@ -68,6 +68,20 @@ public class DtmfCommandClassifierTests
 
         category.Should().Be(DtmfCommandCategory.Unknown);
         label.Should().Be("Code non numérique");
+    }
+
+    [Theory]
+    [InlineData("35*")]
+    [InlineData("351240")]
+    [InlineData("3522403")]
+    public void Classify_ShouldRecogniseTalkGroupCommands(string raw)
+    {
+        // Sans ce classement, « 35* » tomberait en « code non numérique » et « 351240 »
+        // en « aucun salon associé » : deux faux signaux de clavier DTMF déréglé.
+        var (category, label) = DtmfCommandClassifier.Classify(raw, Salons);
+
+        category.Should().Be(DtmfCommandCategory.TalkGroupCommand);
+        label.Should().Be("Commande talkgroup");
     }
 
     [Fact]

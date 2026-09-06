@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 
 namespace SvxlinkManagerV2.Integration.Tests;
@@ -90,6 +90,19 @@ public sealed class DockerComposeStack : IAsyncLifetime
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Exécute une commande shell dans le conteneur d'un service et retourne sa sortie.
+    /// </summary>
+    /// <remarks>
+    /// Sert à composer une séquence DTMF en écrivant dans le pseudo-terminal
+    /// <c>DTMF_CTRL_PTY</c> du nœud — c'est exactement ce que fait <c>DtmfPtyWriter</c>
+    /// côté application, et la seule façon d'éprouver le routage sans radio.
+    /// </remarks>
+    public async Task<(int ExitCode, string Output)> ExecAsync(string service, string shellCommand)
+    {
+        return await ComposeAsync(CommandTimeout, "exec", "-T", service, "sh", "-c", shellCommand);
     }
 
     /// <summary>Journaux complets d'un service depuis son démarrage.</summary>

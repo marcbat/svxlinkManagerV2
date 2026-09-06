@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -52,6 +52,15 @@ public class DtmfSalonSwitchService : IHostedService
         try
         {
             _logger.LogInformation("Commande DTMF reçue : {RawCommand}", rawCommand);
+
+            // Commandes talkgroup (préfixe 35) : routées par SVXLink vers ReflectorLogic,
+            // l'application n'a rien à en faire. Elles débordent de la plage salon et
+            // seraient sinon journalisées comme des codes invalides.
+            if (DtmfTalkGroupCommands.IsTalkGroupCommand(rawCommand))
+            {
+                _logger.LogDebug("Commande talkgroup {RawCommand} laissée à SVXLink", rawCommand);
+                return;
+            }
 
             // Parser le code DTMF
             if (!int.TryParse(rawCommand.Trim(), out var dtmfCode) || dtmfCode < 1 || dtmfCode > 9999)
