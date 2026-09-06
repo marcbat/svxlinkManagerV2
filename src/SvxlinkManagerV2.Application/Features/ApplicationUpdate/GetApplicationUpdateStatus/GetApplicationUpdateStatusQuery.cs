@@ -27,5 +27,5 @@ public class GetApplicationUpdateStatusQueryHandler
     public Task<Validation<Error, ApplicationUpdateStatusDto>> Handle(
         GetApplicationUpdateStatusQuery request,
         CancellationToken cancellationToken)
-        => _applicationUpdateService.GetStatusAsync(request.Channel, cancellationToken);
+        => _applicationUpdateService.GetStatusAsync(request.Channel, refreshIndex: true, cancellationToken);
 }

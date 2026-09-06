@@ -43,7 +43,7 @@ public class GetApplicationUpdateStatusQueryHandlerTests
             Message: "Update disponible");
 
         _applicationUpdateService
-            .GetStatusAsync(ApplicationUpdateChannel.Stable, Arg.Any<CancellationToken>())
+            .GetStatusAsync(ApplicationUpdateChannel.Stable, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Validation<Error, ApplicationUpdateStatusDto>.Success(expectedStatus)));
 
         var result = await _handler.Handle(
@@ -60,7 +60,7 @@ public class GetApplicationUpdateStatusQueryHandlerTests
     public async Task Handle_WhenServiceFails_ShouldReturnFailure()
     {
         _applicationUpdateService
-            .GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<CancellationToken>())
+            .GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Error.Validation("APPLICATION_UPDATE_ERROR", "GitHub indisponible").ToFailure<ApplicationUpdateStatusDto>()));
 
         var result = await _handler.Handle(

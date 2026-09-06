@@ -26,7 +26,6 @@ $packageRoot = Join-Path $stagingRoot $packageDirName
 $appRoot = Join-Path $packageRoot ("opt/{0}" -f $PackageName)
 $debianDir = Join-Path $packageRoot "DEBIAN"
 $systemdDir = Join-Path $packageRoot "etc/systemd/system"
-$helperPath = Join-Path $appRoot "install-update.sh"
 $outputDirAbs = Join-Path $repoRoot $OutputDir
 $debOutputPath = Join-Path $outputDirAbs ("{0}.deb" -f $packageDirName)
 
@@ -72,7 +71,7 @@ Copy-Item (Join-Path $repoRoot "deploy/systemd/svxlinkmanagerv2.service") $syste
 Copy-Item (Join-Path $repoRoot "deploy/debian/postinst") (Join-Path $debianDir "postinst") -Force
 Copy-Item (Join-Path $repoRoot "deploy/debian/prerm") (Join-Path $debianDir "prerm") -Force
 Copy-Item (Join-Path $repoRoot "deploy/debian/postrm") (Join-Path $debianDir "postrm") -Force
-Copy-Item (Join-Path $repoRoot "deploy/linux/install-update.sh") $helperPath -Force
+Copy-Item (Join-Path $repoRoot "deploy/apt/svxlinkmanager.gpg") (Join-Path $appRoot "svxlinkmanager.gpg") -Force
 Copy-Item (Join-Path $repoRoot "deploy/docker/dev-ca-hook.sh") (Join-Path $appRoot "dev-ca-hook.sh") -Force
 Copy-Item (Join-Path $repoRoot "deploy/linux/setup-svxlink.sh") (Join-Path $appRoot "setup-svxlink.sh") -Force
 
@@ -131,7 +130,7 @@ $dockerCmd = @(
     "chmod 0755 $packagePathInContainer/DEBIAN/postrm"
     "chmod 0644 $packagePathInContainer/DEBIAN/control"
     "chmod 0644 $packagePathInContainer/etc/systemd/system/svxlinkmanagerv2.service"
-    "chmod 0755 $packagePathInContainer/opt/$PackageName/install-update.sh"
+    "chmod 0644 $packagePathInContainer/opt/$PackageName/svxlinkmanager.gpg"
     "sed -i 's/\r$//' $packagePathInContainer/opt/$PackageName/dev-ca-hook.sh"
     "chmod 0755 $packagePathInContainer/opt/$PackageName/dev-ca-hook.sh"
     "sed -i 's/\r$//' $packagePathInContainer/opt/$PackageName/setup-svxlink.sh"

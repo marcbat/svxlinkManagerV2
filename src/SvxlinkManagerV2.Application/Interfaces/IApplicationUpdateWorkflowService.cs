@@ -12,8 +12,14 @@ public interface IApplicationUpdateWorkflowService
     /// <summary>
     /// Récupère le statut complet du workflow de mise à jour pour le canal demandé.
     /// </summary>
+    /// <param name="refreshIndex">
+    /// Interroge le dépôt distant avant de répondre. Voir
+    /// <see cref="IApplicationUpdateService.GetStatusAsync"/> : l'affichage d'une page
+    /// se contente de l'état connu, seule une vérification explicite rafraîchit.
+    /// </param>
     Task<Validation<Error, ApplicationUpdateWorkflowStatusDto>> GetStatusAsync(
         ApplicationUpdateChannel? channel = null,
+        bool refreshIndex = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
