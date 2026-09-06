@@ -36,17 +36,25 @@ Couverture de code :
 dotnet test SvxlinkManagerV2.sln --settings coverage.runsettings
 ```
 
+Tests d'intégration bout-en-bout (montent la stack Docker — voir [Tests d'intégration](#tests-dintégration)) :
+
+```bash
+SVXLINK_INTEGRATION_TESTS=1 dotnet test tests/SvxlinkManagerV2.Integration.Tests
+```
+
 Lancer l'application en local (mocks SA818/WiFi/daemon activés par `appsettings.Development.json`, SQLite dans un fichier local) :
 
 ```bash
 dotnet run --project src/SvxlinkManagerV2.Presentation
 ```
 
-Environnement Docker complet (app + second nœud SVXLink + réflecteur), app sur http://localhost:8080 :
+Environnement Docker complet (app + deux nœuds SVXLink + réflecteur), app sur http://localhost:8080 :
 
 ```bash
 docker compose up --build
 ```
+
+Voir [la stack de test Docker](#la-stack-de-test-docker) pour savoir qui parle à qui.
 
 Construire le paquet Debian ARM (`artifacts/deb/`) :
 
@@ -251,6 +259,26 @@ L'application pilote deux installations SVXLink en parallèle, sélectionnées d
 
 `SA818InitializerHostedService`, `AudioInitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`, `ActivityRecorderHostedService`, `StatisticsPurgeHostedService`.
 
+### La stack de test Docker
+
+Quatre conteneurs, sur le réseau `svxlink-network` :
+
+| Conteneur | Rôle | Indicatif | Protocole | Talkgroups |
+|-----------|------|-----------|-----------|------------|
+| `svxreflector` | réflecteur local, port 5300 | — | sert V2 et V3 en parallèle | TG 0, 240, 2403, 2404 |
+| `svxlinkmanager-app` | l'application et son démon SVXLink | celui du salon | V3 via le salon « Réflecteur Local » | `DEFAULT_TG` du salon (0 par défaut) |
+| `svxlink-node2` | nœud nu | `HB9GXP2-H` | **V2** (`AUTH_KEY`) | TG 240, imposé par `TG_FOR_V1_CLIENTS` |
+| `svxlink-node3` | nœud nu | `HB9GXP3-H` | **V3** (certificat X.509) | émet sur 2403, surveille 240 et 2404 |
+
+Ce qu'il faut en retenir :
+
+- **Deux nœuds V3 sont nécessaires** pour observer quoi que ce soit des fonctions de SVXLink 25.05 : un talkgroup, un QSY, une priorité de monitoring ou un talker distant n'existent pas avec un nœud seul. C'est la raison d'être de `svxlink-node3`.
+- **Le nœud V2 est conservé volontairement** : la coexistence V2/V3 sur un même réflecteur est le scénario réel de migration du parc. Elle impose `TG_FOR_V1_CLIENTS` côté réflecteur — un nœud V2 ne sait pas sélectionner de talkgroup, et sans cette variable il reste muet dès qu'un TG est utilisé sur le réflecteur.
+- **Un nœud V2 doit être déclaré dans `[USERS]`/`[PASSWORDS]`** de `svxreflector.conf` ; `ACCEPT_CALLSIGN` ne filtre que la forme de l'indicatif.
+- **La PKI n'est pas partagée** : chaque nœud V3 a son volume, et télécharge la CA du serveur tout seul (`CERT_DOWNLOAD_CA_BUNDLE`, actif par défaut). En revanche, si le volume PKI du réflecteur est recréé, la CA change et les nœuds gardent l'ancien bundle — le remède est de supprimer leur `ca-bundle.crt`, ou de repartir d'un `docker compose down -v`.
+- **`TG#2403` porte `AUTO_QSY_AFTER=30`** : une conversation qui s'y prolonge est déplacée vers un TG tiré dans `RANDOM_QSY_RANGE` (`2409900:100`, syntaxe `<borne basse>:<nombre>`). C'est court exprès, pour éprouver le QSY sans attendre.
+- **Le nœud applicatif se place sur un talkgroup depuis la fiche de son salon** (`DEFAULT_TG`, `MONITOR_TGS`), pas depuis un fichier versionné : sa configuration SVXLink est générée à l'activation.
+
 ## Points de vigilance
 
 - **`svxlink-config/svxlink.conf` doit rester versionné** (exception dans `.gitignore`) : `SvxLinkConfigurationService` l'utilise comme template pour générer la config d'un salon. Le supprimer casse l'activation des salons.
@@ -267,6 +295,18 @@ Principes :
 - Persistance : **SQLite in-memory** dans `Infrastructure.Tests`.
 - Les tests de génération de config SVXLink écrivent sur le **filesystem réel** dans un répertoire temporaire.
 - Chaque projet source déclare `InternalsVisibleTo` vers son projet de tests miroir.
+
+### Tests d'intégration
+
+`tests/SvxlinkManagerV2.Integration.Tests` monte la stack Docker versionnée et vérifie qu'une liaison en protocole V3 s'établit réellement : CSR signée par `dev-ca-hook.sh`, canal chiffré, `Login OK ... with protocol version 3.0`, et coexistence avec le nœud V2.
+
+C'est le filet qui manquait : les tests unitaires ne couvrent que la **génération** de `svxlink.conf` et la résolution de stratégie, si bien que l'absence d'`openssl` dans l'image du réflecteur — qui rendait *toute* connexion V3 impossible — a pu vivre sans être détectée.
+
+- **Ils sont ignorés par défaut.** `DockerComposeFactAttribute` ne les exécute que si `SVXLINK_INTEGRATION_TESTS=1` : `dotnet test SvxlinkManagerV2.sln` reste donc exécutable sans Docker et sans filtre. Ils portent aussi `Trait("Category", "Integration")`.
+- **La stack est le sujet du test**, pas un décor : ils pilotent le `docker-compose.yml` du dépôt sous un nom de projet dédié (`svxlink-integration`), avec `down -v` avant et après — la stack de développement du contributeur n'est pas touchée, et une CA laissée par une exécution précédente ne peut pas masquer une régression de la chaîne de signature.
+- **L'application .NET n'est pas montée** : la chaîne éprouvée (PKI, signature, chiffrement, login) passe intégralement par les nœuds nus, et son image coûterait plusieurs minutes de plus.
+- **Durées mesurées** (poste de développement, 06/09/2026) : **1 min 15 s** images déjà construites — la connexion du nœud en est l'essentiel, le réflecteur refusant la première tentative avant de faire signer la CSR — et **2 min 20 s** de plus pour construire les deux images à froid (`--no-cache`), SVXLink 25.05 étant compilé depuis les sources avec `make -j$(nproc)`. Sur un runner GitHub à 2 vCPU, cette compilation domine largement le job : le workflow [`integration-tests.yml`](.github/workflows/integration-tests.yml) est prévu avec `timeout-minutes: 90` et publie sa durée réelle dans le résumé du job. C'est ce coût qui justifie de le tenir hors de la boucle de chaque commit, sur `develop` et `release/*` seulement.
+- **Vérifié le 06/09/2026** : en retirant `openssl` de l'image du réflecteur, aucun `Login OK` n'est journalisé et le hook affiche « dépendance manquante » — les tests tombent bien, ce qui était l'objet de leur écriture.
 
 ## Références externes
 

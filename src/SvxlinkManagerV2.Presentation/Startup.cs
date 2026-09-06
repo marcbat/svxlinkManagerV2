@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
+using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Features.Statistics;
 using SvxlinkManagerV2.Application.Features.SystemStatus;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -120,6 +121,10 @@ namespace SvxlinkManagerV2.Presentation
 
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
+
+            // Adresse du réflecteur local, vers laquelle pointe le salon « Réflecteur Local »
+            // seedé. Lue avant les seeders, qui en dépendent tous les deux.
+            services.Configure<LocalReflectorOptions>(Configuration.GetSection(LocalReflectorOptions.SectionName));
 
             // Seeding des salons originaux
             services.AddHostedService<SalonSeederHostedService>();
