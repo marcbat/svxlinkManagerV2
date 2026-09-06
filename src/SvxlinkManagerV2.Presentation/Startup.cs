@@ -15,6 +15,7 @@ using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Infrastructure.Hardware;
 using SvxlinkManagerV2.Infrastructure.Monitoring;
 using SvxlinkManagerV2.Infrastructure.Network;
+using SvxlinkManagerV2.Infrastructure.Network.Apt;
 using SvxlinkManagerV2.Infrastructure.Persistence;
 using SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 using SvxlinkManagerV2.Infrastructure.Reflector;
@@ -160,9 +161,14 @@ namespace SvxlinkManagerV2.Presentation
             else
                 services.AddScoped<IWifiService, WifiService>();
 
-            services.Configure<ApplicationUpdateOptions>(Configuration.GetSection(ApplicationUpdateOptions.SectionName));
-            services.AddHttpClient<IApplicationUpdateService, GitHubReleaseUpdateService>();
-            services.AddSingleton<IApplicationUpdateWorkflowService, ApplicationUpdateWorkflowService>();
+            // Mise à jour applicative via le dépôt APT du projet. Le dépôt étant public et
+            // signé, il n'y a plus ni token ni téléchargement maison : apt résout les
+            // dépendances, compare les versions et installe.
+            services.Configure<AptUpdateOptions>(Configuration.GetSection(AptUpdateOptions.SectionName));
+            services.AddSingleton<IAptCommandRunner, AptCommandRunner>();
+            services.AddSingleton<IAptSourceManager, AptSourceManager>();
+            services.AddSingleton<IApplicationUpdateService, AptApplicationUpdateService>();
+            services.AddSingleton<IApplicationUpdateWorkflowService, AptApplicationUpdateWorkflowService>();
 
             // SVXLink version strategies (dual install: 19.09.2 legacy + 25.05 modern)
             services.AddSingleton<ISvxLinkVersionStrategy, SvxLinkLegacyStrategy>();

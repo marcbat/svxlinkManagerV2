@@ -7,8 +7,9 @@ SERVICE_NAME="svxlinkmanagerv2"
 PACKAGE_NAME="svxlinkmanagerv2"
 LOG_DIR="$APP_DIR/logs"
 LOG_FILE="$LOG_DIR/postinst.log"
-SYSTEMD_DROPIN_DIR="/etc/systemd/system/${SERVICE_NAME}.service.d"
-SYSTEMD_DROPIN_FILE="$SYSTEMD_DROPIN_DIR/10-secrets.conf"
+APT_KEYRING="/etc/apt/keyrings/svxlinkmanager.gpg"
+APT_SOURCE="/etc/apt/sources.list.d/svxlinkmanager.list"
+APT_REPOSITORY_URL="https://marcbat.github.io/svxlinkManagerV2"
 
 mkdir -p "$LOG_DIR"
 
@@ -58,42 +59,35 @@ ensure_directory() {
   mkdir -p "$target" 2>>"$LOG_FILE"
 }
 
-ensure_systemd_secrets_dropin() {
-  mkdir -p "$SYSTEMD_DROPIN_DIR"
-  cat > "$SYSTEMD_DROPIN_FILE" <<'EOF'
-[Service]
-EnvironmentFile=-/etc/svxlinkmanagerv2/secrets.env
-EOF
-  chmod 644 "$SYSTEMD_DROPIN_FILE"
-  chown root:root "$SYSTEMD_DROPIN_FILE"
-  log "Drop-in systemd secrets forcé: $SYSTEMD_DROPIN_FILE"
-}
-
-sanitize_runtime_github_tokens() {
-  for settings_file in \
-    "$APP_DIR/appsettings.json" \
-    "$APP_DIR/appsettings.Production.json" \
-    "$APP_DIR/appsettings.json.bak"; do
-    if [ -f "$settings_file" ]; then
-      if grep -q '"GitHubToken"' "$settings_file"; then
-        sed -i 's|"GitHubToken"[[:space:]]*:[[:space:]]*"[^"]*"|"GitHubToken": ""|g' "$settings_file"
-        log "Token runtime neutralisé dans $settings_file"
-      fi
-    fi
-  done
-}
-
-validate_systemd_environmentfile() {
-  if ! command -v systemctl >/dev/null 2>&1; then
+# Installe la clé de signature et la source APT du projet.
+# C'est ce qui permet aux nœuds installés avant la bascule vers apt de basculer sans
+# intervention : le premier paquet posé à la main amorce le dépôt, les suivants passent
+# par « apt upgrade ». La source n'est écrite que si elle est absente — le canal est
+# ensuite piloté depuis l'interface, qui réécrit ce fichier.
+ensure_apt_repository() {
+  if [ -f "$APP_DIR/svxlinkmanager.gpg" ]; then
+    mkdir -p /etc/apt/keyrings
+    cp "$APP_DIR/svxlinkmanager.gpg" "$APT_KEYRING"
+    chmod 0644 "$APT_KEYRING"
+    chown root:root "$APT_KEYRING"
+    log "Clé de signature du dépôt APT installée : $APT_KEYRING"
+  else
+    log "ATTENTION: clé de signature absente du paquet, dépôt APT non configuré"
     return
   fi
 
-  env_files="$(systemctl show "$SERVICE_NAME" -p EnvironmentFiles 2>>"$LOG_FILE" || true)"
-  if ! printf '%s' "$env_files" | grep -q '/etc/svxlinkmanagerv2/secrets.env'; then
-    fail "Le service $SERVICE_NAME ne charge pas /etc/svxlinkmanagerv2/secrets.env (EnvironmentFiles manquant)."
+  if [ ! -f "$APT_SOURCE" ]; then
+    mkdir -p /etc/apt/sources.list.d
+    cat > "$APT_SOURCE" <<EOF
+# Fichier géré par SvxlinkManagerV2 — toute modification manuelle sera écrasée
+# lors du prochain changement de canal depuis l'interface.
+deb [arch=armhf signed-by=$APT_KEYRING] $APT_REPOSITORY_URL stable main
+EOF
+    chmod 0644 "$APT_SOURCE"
+    log "Source APT créée sur le canal stable : $APT_SOURCE"
+  else
+    log "Source APT déjà présente, canal préservé : $APT_SOURCE"
   fi
-
-  log "Validation systemd OK: EnvironmentFiles contient /etc/svxlinkmanagerv2/secrets.env"
 }
 
 package_version="$(get_installed_package_version)"
@@ -106,35 +100,8 @@ fi
 mkdir -p "$APP_DIR/data"
 log "Répertoire data créé/vérifié"
 
-# --- Fichier de secrets pour les variables d'environnement sensibles ---
-# Créé uniquement s'il n'existe pas (préserve le token GitHub déjà configuré par l'utilisateur).
-SECRETS_DIR="/etc/svxlinkmanagerv2"
-SECRETS_FILE="$SECRETS_DIR/secrets.env"
-if [ ! -f "$SECRETS_FILE" ]; then
-  mkdir -p "$SECRETS_DIR"
-  cat > "$SECRETS_FILE" <<'EOF'
-# Secrets chargés par systemd (EnvironmentFile dans svxlinkmanagerv2.service).
-# Une variable par ligne, sans guillemets.
-#
-# Token GitHub pour les mises à jour OTA depuis un dépôt privé.
-# Générer un fine-grained PAT avec : Contents=Read + Metadata=Read.
-# Laisser commenté (ou vide) si le dépôt est public.
-#ApplicationUpdate__GitHubToken=github_pat_XXXXXXXXXXXXXXXXXXXX
-EOF
-  chmod 600 "$SECRETS_FILE"
-  chown root:root "$SECRETS_FILE"
-  log "Fichier de secrets créé : $SECRETS_FILE (mode 600)"
-else
-  log "Fichier de secrets déjà présent : $SECRETS_FILE (préservé)"
-fi
-
-# Nettoyage volontairement destructif (environnement de dev):
-# impose la source de vérité du token via /etc/svxlinkmanagerv2/secrets.env.
-sanitize_runtime_github_tokens
-
-# Forcer le chargement des secrets via un drop-in systemd, indépendant
-# d'un éventuel remplacement du fichier unité principal lors des upgrades.
-ensure_systemd_secrets_dropin
+# --- Dépôt APT : clé de signature et source ---
+ensure_apt_repository
 
 # La base SQLite est TOUJOURS préservée : le schéma est mis à niveau au démarrage
 # de l'application par les migrations EF Core (DatabaseMigrator), y compris pour une
@@ -220,7 +187,6 @@ chmod +x "$APP_DIR/SvxlinkManagerV2.Presentation" 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
   log "Activation et redémarrage du service $SERVICE_NAME..."
   systemctl daemon-reload >> "$LOG_FILE" 2>&1 || true
-  validate_systemd_environmentfile
   systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
   systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
   log "Service $SERVICE_NAME redémarré"

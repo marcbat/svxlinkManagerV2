@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 # Aucun User=/Group= : le service tourne en root. C'est requis par l'accès au port série
-# du SA818, par nmcli, par le pilotage des daemons SVXLink, par le helper de mise à jour
+# du SA818, par nmcli, par le pilotage des daemons SVXLink, par apt-get et systemd-run
 # et par les actions d'alimentation de l'interface (systemctl reboot / systemctl poweroff).
 # Ne pas dégrader les privilèges sans fournir les règles polkit correspondantes.
 Type=simple
@@ -19,11 +19,9 @@ Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://0.0.0.0:80
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 Environment=DOTNET_NOLOGO=true
-# Secrets (token GitHub pour les mises à jour OTA, etc.).
-# Le fichier est optionnel (préfixe '-') : le service démarre même s'il est absent.
-# Format attendu (une variable par ligne, sans guillemets) :
-#   ApplicationUpdate__GitHubToken=github_pat_XXXX
-# Le fichier est créé par le postinst en mode 600 (root only).
+# Fichier de secrets historique, conservé et optionnel (préfixe '-') : il ne portait
+# que le token GitHub des mises à jour OTA, devenu inutile depuis le passage à APT.
+# Les installations existantes le gardent sans effet ; il n'est plus créé.
 EnvironmentFile=-/etc/svxlinkmanagerv2/secrets.env
 KillSignal=SIGINT
 
