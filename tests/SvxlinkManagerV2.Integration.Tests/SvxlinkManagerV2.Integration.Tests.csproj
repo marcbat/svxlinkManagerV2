@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Tests d'intégration bout-en-bout : ils montent la stack Docker versionnée à la
+    racine du dépôt. Lents par nature, ils sont ignorés tant que la variable
+    d'environnement SVXLINK_INTEGRATION_TESTS ne vaut pas 1 — voir
+    DockerComposeFactAttribute. `dotnet test SvxlinkManagerV2.sln` reste donc
+    exécutable sans Docker.
+
+    Aucune référence aux projets sources : ce qui est éprouvé ici, ce sont les
+    images et les fichiers de configuration, pas du code C#.
+  -->
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="8.8.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

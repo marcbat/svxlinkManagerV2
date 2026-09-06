@@ -12,6 +12,12 @@
 #   CERT_PKI_DIR      : Répertoire PKI de svxreflector
 ###############################################################################
 
+# Toute la sortie du hook part sur stderr. svxreflector ne lit pas le stdout du
+# hook, et stdout bufferisé faisait disparaître le dernier message du journal :
+# la signature aboutissait sans que rien ne l'atteste, ce qui est exactement ce
+# qu'un hook de diagnostic ne doit pas faire. stderr n'est pas bufferisé.
+exec 1>&2
+
 # Dépendance dure : tout ce hook repose sur l'outil en ligne de commande
 # openssl. La bibliothèque libssl3 ne suffit pas — elle est présente dans
 # l'image alors que le binaire peut manquer. Sans cette garde, l'absence

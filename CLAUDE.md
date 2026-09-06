@@ -36,6 +36,12 @@ Couverture de code :
 dotnet test SvxlinkManagerV2.sln --settings coverage.runsettings
 ```
 
+Tests d'intégration bout-en-bout (montent la stack Docker — voir [Tests d'intégration](#tests-dintégration)) :
+
+```bash
+SVXLINK_INTEGRATION_TESTS=1 dotnet test tests/SvxlinkManagerV2.Integration.Tests
+```
+
 Lancer l'application en local (mocks SA818/WiFi/daemon activés par `appsettings.Development.json`, SQLite dans un fichier local) :
 
 ```bash
@@ -289,6 +295,18 @@ Principes :
 - Persistance : **SQLite in-memory** dans `Infrastructure.Tests`.
 - Les tests de génération de config SVXLink écrivent sur le **filesystem réel** dans un répertoire temporaire.
 - Chaque projet source déclare `InternalsVisibleTo` vers son projet de tests miroir.
+
+### Tests d'intégration
+
+`tests/SvxlinkManagerV2.Integration.Tests` monte la stack Docker versionnée et vérifie qu'une liaison en protocole V3 s'établit réellement : CSR signée par `dev-ca-hook.sh`, canal chiffré, `Login OK ... with protocol version 3.0`, et coexistence avec le nœud V2.
+
+C'est le filet qui manquait : les tests unitaires ne couvrent que la **génération** de `svxlink.conf` et la résolution de stratégie, si bien que l'absence d'`openssl` dans l'image du réflecteur — qui rendait *toute* connexion V3 impossible — a pu vivre sans être détectée.
+
+- **Ils sont ignorés par défaut.** `DockerComposeFactAttribute` ne les exécute que si `SVXLINK_INTEGRATION_TESTS=1` : `dotnet test SvxlinkManagerV2.sln` reste donc exécutable sans Docker et sans filtre. Ils portent aussi `Trait("Category", "Integration")`.
+- **La stack est le sujet du test**, pas un décor : ils pilotent le `docker-compose.yml` du dépôt sous un nom de projet dédié (`svxlink-integration`), avec `down -v` avant et après — la stack de développement du contributeur n'est pas touchée, et une CA laissée par une exécution précédente ne peut pas masquer une régression de la chaîne de signature.
+- **L'application .NET n'est pas montée** : la chaîne éprouvée (PKI, signature, chiffrement, login) passe intégralement par les nœuds nus, et son image coûterait plusieurs minutes de plus.
+- **Durées mesurées** (poste de développement, 06/09/2026) : **1 min 15 s** images déjà construites — la connexion du nœud en est l'essentiel, le réflecteur refusant la première tentative avant de faire signer la CSR — et **2 min 20 s** de plus pour construire les deux images à froid (`--no-cache`), SVXLink 25.05 étant compilé depuis les sources avec `make -j$(nproc)`. Sur un runner GitHub à 2 vCPU, cette compilation domine largement le job : le workflow [`integration-tests.yml`](.github/workflows/integration-tests.yml) est prévu avec `timeout-minutes: 90` et publie sa durée réelle dans le résumé du job. C'est ce coût qui justifie de le tenir hors de la boucle de chaque commit, sur `develop` et `release/*` seulement.
+- **Vérifié le 06/09/2026** : en retirant `openssl` de l'image du réflecteur, aucun `Login OK` n'est journalisé et le hook affiche « dépendance manquante » — les tests tombent bien, ce qui était l'objet de leur écriture.
 
 ## Références externes
 
