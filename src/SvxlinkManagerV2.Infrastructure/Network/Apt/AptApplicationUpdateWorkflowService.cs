@@ -43,9 +43,10 @@ public class AptApplicationUpdateWorkflowService : IApplicationUpdateWorkflowSer
 
     public async Task<Validation<Error, ApplicationUpdateWorkflowStatusDto>> GetStatusAsync(
         ApplicationUpdateChannel? channel = null,
+        bool refreshIndex = true,
         CancellationToken cancellationToken = default)
     {
-        var status = await _updateService.GetStatusAsync(channel, cancellationToken);
+        var status = await _updateService.GetStatusAsync(channel, refreshIndex, cancellationToken);
         return status.Map(BuildDto);
     }
 
@@ -63,7 +64,7 @@ public class AptApplicationUpdateWorkflowService : IApplicationUpdateWorkflowSer
 
         try
         {
-            var statusResult = await _updateService.GetStatusAsync(channel, cancellationToken);
+            var statusResult = await _updateService.GetStatusAsync(channel, refreshIndex: true, cancellationToken);
             if (statusResult.IsFail)
                 return statusResult.Map(_ => default(ApplicationUpdateWorkflowStatusDto)!);
 
@@ -199,7 +200,7 @@ public class AptApplicationUpdateWorkflowService : IApplicationUpdateWorkflowSer
             _logger.LogInformation("Installation de {Package} {Version} déléguée à systemd-run",
                 _options.PackageName, version);
 
-            var status = await _updateService.GetStatusAsync(null, cancellationToken);
+            var status = await _updateService.GetStatusAsync(null, refreshIndex: false, cancellationToken);
             return status.Match(
                 Succ: s => Validation<Error, ApplicationUpdateWorkflowStatusDto>.Success(BuildDto(s)),
                 Fail: errors => Validation<Error, ApplicationUpdateWorkflowStatusDto>.Fail(errors));

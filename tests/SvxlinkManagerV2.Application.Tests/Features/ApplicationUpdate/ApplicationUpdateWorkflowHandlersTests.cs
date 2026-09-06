@@ -26,7 +26,7 @@ public class ApplicationUpdateWorkflowHandlersTests
     public async Task GetStatusHandler_ShouldReturnWorkflowStatus()
     {
         var expected = CreateStatus();
-        _workflowService.GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<CancellationToken>())
+        _workflowService.GetStatusAsync(ApplicationUpdateChannel.Development, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Validation<Error, ApplicationUpdateWorkflowStatusDto>.Success(expected)));
 
         var handler = new GetApplicationUpdateWorkflowStatusQueryHandler(_workflowService);

@@ -35,6 +35,7 @@ public class AptApplicationUpdateService : IApplicationUpdateService
 
     public async Task<Validation<Error, ApplicationUpdateStatusDto>> GetStatusAsync(
         ApplicationUpdateChannel? channel = null,
+        bool refreshIndex = true,
         CancellationToken cancellationToken = default)
     {
         var currentVersion = GetAssemblyVersion();
@@ -54,11 +55,21 @@ public class AptApplicationUpdateService : IApplicationUpdateService
             var write = _sourceManager.WriteChannel(effectiveChannel);
             if (write.IsFail)
                 return write.Map(_ => default(ApplicationUpdateStatusDto)!);
+
+            // La suite vient de changer : ses index ne sont pas encore sur la machine,
+            // les lire sans recharger donnerait le candidat de l'ancien canal.
+            refreshIndex = true;
         }
 
-        var refresh = await RefreshIndexAsync(cancellationToken);
-        if (refresh.IsFail)
-            return refresh.Map(_ => default(ApplicationUpdateStatusDto)!);
+        // Sans rafraîchissement, la réponse vient des index déjà téléchargés : immédiate,
+        // au prix d'un candidat éventuellement daté. C'est le bon compromis à l'ouverture
+        // d'une page, « apt-get update » prenant une dizaine de secondes sur un Orange Pi.
+        if (refreshIndex)
+        {
+            var refresh = await RefreshIndexAsync(cancellationToken);
+            if (refresh.IsFail)
+                return refresh.Map(_ => default(ApplicationUpdateStatusDto)!);
+        }
 
         var policy = await _runner.RunAsync("apt-cache", ["policy", _options.PackageName], cancellationToken);
         if (!policy.Succeeded)

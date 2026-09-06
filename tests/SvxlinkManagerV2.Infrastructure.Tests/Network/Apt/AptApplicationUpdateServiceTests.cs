@@ -168,6 +168,39 @@ public class AptApplicationUpdateServiceTests
             Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task GetStatus_sans_rafraichissement_n_interroge_pas_le_depot()
+    {
+        _sourceManager.ReadChannel().Returns(ApplicationUpdateChannel.Stable);
+        GivenPolicy("1.5.1", "1.5.1");
+
+        await CreateService().GetStatusAsync(ApplicationUpdateChannel.Stable, refreshIndex: false);
+
+        // « apt-get update » prend une dizaine de secondes sur un Orange Pi : l'affichage
+        // d'une page doit se contenter des index déjà présents, sous peine de paraître figé.
+        await _runner.DidNotReceive().RunAsync(
+            "apt-get", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+        await _runner.Received(1).RunAsync(
+            "apt-cache", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetStatus_rafraichit_malgre_tout_quand_le_canal_change()
+    {
+        _sourceManager.ReadChannel().Returns(ApplicationUpdateChannel.Stable);
+        _sourceManager.WriteChannel(Arg.Any<ApplicationUpdateChannel>())
+            .Returns(Validation<Error, Unit>.Success(Unit.Default));
+        GivenPolicy("1.5.1", "1.5.1");
+
+        await CreateService().GetStatusAsync(ApplicationUpdateChannel.Beta, refreshIndex: false);
+
+        // Les index de la nouvelle suite ne sont pas encore sur la machine : s'en passer
+        // renverrait le candidat de l'ancien canal.
+        await _runner.Received(1).RunAsync(
+            "apt-get", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+
     [Theory]
     [InlineData("svxlinkmanagerv2:\n  Installed: 1.4.0\n  Candidate: 1.5.1\n", "1.4.0", "1.5.1")]
     [InlineData("svxlinkmanagerv2:\n  Installed: (none)\n  Candidate: 1.5.1\n", null, "1.5.1")]

@@ -36,14 +36,14 @@ public class AptApplicationUpdateWorkflowServiceTests
             PackageUrl: null,
             PackageName: null);
 
-        _updateService.GetStatusAsync(Arg.Any<ApplicationUpdateChannel?>(), Arg.Any<CancellationToken>())
+        _updateService.GetStatusAsync(Arg.Any<ApplicationUpdateChannel?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Validation<Error, ApplicationUpdateStatusDto>.Success(
                 new ApplicationUpdateStatusDto("1.5.1", ApplicationUpdateChannel.Stable, true, true, release, null)));
     }
 
     private void GivenNoUpdate()
     {
-        _updateService.GetStatusAsync(Arg.Any<ApplicationUpdateChannel?>(), Arg.Any<CancellationToken>())
+        _updateService.GetStatusAsync(Arg.Any<ApplicationUpdateChannel?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Validation<Error, ApplicationUpdateStatusDto>.Success(
                 new ApplicationUpdateStatusDto("1.5.1", ApplicationUpdateChannel.Stable, true, false, null, null)));
     }
