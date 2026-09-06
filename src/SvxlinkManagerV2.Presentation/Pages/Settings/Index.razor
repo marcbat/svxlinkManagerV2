@@ -270,7 +270,7 @@ else
                                 </div>
                             }
 
-                            <button type="button" class="btn btn-secondary" @onclick="RefreshUpdateWorkflowStatusAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
+                            <button type="button" class="btn btn-secondary" @onclick="CheckForUpdatesAsync" disabled="@(_isCheckingUpdates || _isRunningUpdateAction)">
                                 @if (_isCheckingUpdates)
                                 {
                                     <span class="material-symbols-outlined spin">progress_activity</span>
@@ -1006,12 +1006,23 @@ else
             _model.DefaultTxFrequency = config.DefaultTxFrequency;
         }
 
-        await RefreshUpdateWorkflowStatusAsync();
-
         _systemControlAvailability = await Mediator.Send<SystemControlAvailabilityDto>(
             new GetSystemControlAvailabilityQuery());
 
         _isLoading = false;
+
+        // Le statut de mise à jour est volontairement chargé après le premier rendu :
+        // l'attendre ici bloquait tout l'affichage de la page, qui paraissait figée.
+        // La carte « Mises à jour » affiche son propre indicateur pendant ce temps.
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await RefreshUpdateWorkflowStatusAsync(refreshIndex: false);
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -1077,7 +1088,14 @@ else
         }
     }
 
-    private async Task RefreshUpdateWorkflowStatusAsync()
+    /// Vérification demandée par l'opérateur : interroge réellement le dépôt.
+    private Task CheckForUpdatesAsync() => RefreshUpdateWorkflowStatusAsync(refreshIndex: true);
+
+    /// <param name="refreshIndex">
+    /// false pour se contenter de l'état déjà connu — le cas de l'affichage de la page.
+    /// true pour interroger réellement le dépôt, ce que fait le bouton « Vérifier ».
+    /// </param>
+    private async Task RefreshUpdateWorkflowStatusAsync(bool refreshIndex = true)
     {
         _isCheckingUpdates = true;
         _updateError = null;
@@ -1085,7 +1103,7 @@ else
         try
         {
             var result = await Mediator.Send<Validation<Error, ApplicationUpdateWorkflowStatusDto>>(
-                new GetApplicationUpdateWorkflowStatusQuery(_selectedUpdateChannel));
+                new GetApplicationUpdateWorkflowStatusQuery(_selectedUpdateChannel, refreshIndex));
 
             result.Match(
                 Succ: status => _updateWorkflowStatus = status,
