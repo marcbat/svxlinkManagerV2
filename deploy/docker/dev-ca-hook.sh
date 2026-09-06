@@ -12,6 +12,18 @@
 #   CERT_PKI_DIR      : Répertoire PKI de svxreflector
 ###############################################################################
 
+# Dépendance dure : tout ce hook repose sur l'outil en ligne de commande
+# openssl. La bibliothèque libssl3 ne suffit pas — elle est présente dans
+# l'image alors que le binaire peut manquer. Sans cette garde, l'absence
+# d'openssl se traduisait par un CN vide, donc par un message trompeur de
+# « CN illisible » alors que le problème est une dépendance absente.
+if ! command -v openssl >/dev/null 2>&1; then
+    echo "[dev-ca-hook] ERREUR FATALE: dépendance manquante — le binaire 'openssl' est introuvable." >&2
+    echo "[dev-ca-hook] Aucun CSR ne peut être signé : le réflecteur refusera toute connexion en protocole V3." >&2
+    echo "[dev-ca-hook] Corriger l'image en y installant le paquet 'openssl' (libssl3 seul ne suffit pas)." >&2
+    exit 1
+fi
+
 case "${CA_OP}" in
     PENDING_CSR_CREATE|PENDING_CSR_UPDATE)
         PKI_DIR="${CERT_PKI_DIR:-/var/lib/svxlink/pki}"
@@ -31,8 +43,8 @@ case "${CA_OP}" in
              | grep '^\s*CN=' | sed 's/^\s*CN=//')
 
         if [ -z "${CN}" ]; then
-            echo "[dev-ca-hook] ERREUR: Impossible d'extraire le CN du CSR" >&2
-            exit 0
+            echo "[dev-ca-hook] ERREUR: CSR illisible — aucun CN dans le sujet du CSR reçu" >&2
+            exit 1
         fi
 
         echo "[dev-ca-hook] Signature du certificat pour: ${CN}"
@@ -43,14 +55,19 @@ case "${CA_OP}" in
         # Signer le CSR avec l'Issuing CA
         # Note: -copy_extensions n'est disponible qu'en OpenSSL 3.0+
         # Pour compatibilité OpenSSL 1.1.1 (Ubuntu Focal/Armbian), on l'omet.
-        openssl x509 -req \
+        if ! openssl x509 -req \
             -in "${CSR_TMP}" \
             -CA "${CA_CRT}" \
             -CAkey "${CA_KEY}" \
             -CAcreateserial \
             -out "${CERT_OUT}" \
-            -days 365 \
-            2>/dev/null
+            -days 365
+        then
+            echo "[dev-ca-hook] ERREUR: échec de la signature du CSR de ${CN}" >&2
+            echo "[dev-ca-hook] Vérifier la présence de l'Issuing CA : ${CA_CRT} et ${CA_KEY}" >&2
+            rm -f "${CERT_OUT}"
+            exit 1
+        fi
 
         # Ajouter le certificat de l'Issuing CA pour la chaîne de vérification
         cat "${CA_CRT}" >> "${CERT_OUT}"
