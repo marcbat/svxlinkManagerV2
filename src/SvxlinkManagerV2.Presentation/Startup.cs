@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -184,6 +184,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
+            services.AddSingleton<ITalkGroupStateService, TalkGroupTracker>();
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISquelchStateService, SquelchStateTracker>();

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using LanguageExt;
 using LanguageExt.UnitTesting;
 using Microsoft.Extensions.Logging;
@@ -30,6 +30,7 @@ public class ActivateStandaloneModeCommandTests
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly ITalkGroupStateService _talkGroupStateService;
     private readonly IActivityRecorder _activityRecorder;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
@@ -43,6 +44,7 @@ public class ActivateStandaloneModeCommandTests
         _tracker = Substitute.For<IActiveSessionTracker>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
         _linkStateService = Substitute.For<IReflectorLinkStateService>();
+        _talkGroupStateService = Substitute.For<ITalkGroupStateService>();
         _activityRecorder = Substitute.For<IActivityRecorder>();
         _logger = Substitute.For<ILogger<ActivateStandaloneModeCommandHandler>>();
     }
@@ -264,6 +266,7 @@ public class ActivateStandaloneModeCommandTests
             _tracker,
             _connectedNodesService,
             _linkStateService,
+            _talkGroupStateService,
             _activityRecorder,
             _logger);
 
