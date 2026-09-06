@@ -68,7 +68,10 @@ RUN printf '%s\n' \
     > /etc/asound.conf
 
 # Create required directories
-RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d
+# /var/lib/svxlink/pki accueille la PKI d'un nœud en protocole V3 : clé privée,
+# CSR et certificat signé par le réflecteur. Monté en volume par docker-compose.
+RUN mkdir -p /var/log/svxlink /var/spool/svxlink /etc/svxlink/conf.d \
+             /var/lib/svxlink/pki
 
 # SVXLink runs in foreground (pas de --daemon pour Docker)
 ENTRYPOINT ["svxlink", "--config=/etc/svxlink/svxlink.conf"]

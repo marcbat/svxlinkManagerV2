@@ -42,11 +42,13 @@ Lancer l'application en local (mocks SA818/WiFi/daemon activés par `appsettings
 dotnet run --project src/SvxlinkManagerV2.Presentation
 ```
 
-Environnement Docker complet (app + second nœud SVXLink + réflecteur), app sur http://localhost:8080 :
+Environnement Docker complet (app + deux nœuds SVXLink + réflecteur), app sur http://localhost:8080 :
 
 ```bash
 docker compose up --build
 ```
+
+Voir [la stack de test Docker](#la-stack-de-test-docker) pour savoir qui parle à qui.
 
 Construire le paquet Debian ARM (`artifacts/deb/`) :
 
@@ -250,6 +252,26 @@ L'application pilote deux installations SVXLink en parallèle, sélectionnées d
 ### Services hébergés au démarrage
 
 `SA818InitializerHostedService`, `AudioInitializerHostedService`, `SalonSeederHostedService`, `ReflectorSeederHostedService`, `StartupActivationHostedService`, `LogicTclInitializerHostedService`, `DtmfSalonSwitchService`, `DtmfAnnounceService`, `DtmfSystemCommandService`, `ReflectorConnectionAnnouncementService`, `SvxLinkDiagnosticsHostedService`, `ActivityRecorderHostedService`, `StatisticsPurgeHostedService`.
+
+### La stack de test Docker
+
+Quatre conteneurs, sur le réseau `svxlink-network` :
+
+| Conteneur | Rôle | Indicatif | Protocole | Talkgroups |
+|-----------|------|-----------|-----------|------------|
+| `svxreflector` | réflecteur local, port 5300 | — | sert V2 et V3 en parallèle | TG 0, 240, 2403, 2404 |
+| `svxlinkmanager-app` | l'application et son démon SVXLink | celui du salon | V3 via le salon « Réflecteur Local » | `DEFAULT_TG` du salon (0 par défaut) |
+| `svxlink-node2` | nœud nu | `HB9GXP2-H` | **V2** (`AUTH_KEY`) | TG 240, imposé par `TG_FOR_V1_CLIENTS` |
+| `svxlink-node3` | nœud nu | `HB9GXP3-H` | **V3** (certificat X.509) | émet sur 2403, surveille 240 et 2404 |
+
+Ce qu'il faut en retenir :
+
+- **Deux nœuds V3 sont nécessaires** pour observer quoi que ce soit des fonctions de SVXLink 25.05 : un talkgroup, un QSY, une priorité de monitoring ou un talker distant n'existent pas avec un nœud seul. C'est la raison d'être de `svxlink-node3`.
+- **Le nœud V2 est conservé volontairement** : la coexistence V2/V3 sur un même réflecteur est le scénario réel de migration du parc. Elle impose `TG_FOR_V1_CLIENTS` côté réflecteur — un nœud V2 ne sait pas sélectionner de talkgroup, et sans cette variable il reste muet dès qu'un TG est utilisé sur le réflecteur.
+- **Un nœud V2 doit être déclaré dans `[USERS]`/`[PASSWORDS]`** de `svxreflector.conf` ; `ACCEPT_CALLSIGN` ne filtre que la forme de l'indicatif.
+- **La PKI n'est pas partagée** : chaque nœud V3 a son volume, et télécharge la CA du serveur tout seul (`CERT_DOWNLOAD_CA_BUNDLE`, actif par défaut). En revanche, si le volume PKI du réflecteur est recréé, la CA change et les nœuds gardent l'ancien bundle — le remède est de supprimer leur `ca-bundle.crt`, ou de repartir d'un `docker compose down -v`.
+- **`TG#2403` porte `AUTO_QSY_AFTER=30`** : une conversation qui s'y prolonge est déplacée vers un TG tiré dans `RANDOM_QSY_RANGE` (`2409900:100`, syntaxe `<borne basse>:<nombre>`). C'est court exprès, pour éprouver le QSY sans attendre.
+- **Le nœud applicatif se place sur un talkgroup depuis la fiche de son salon** (`DEFAULT_TG`, `MONITOR_TGS`), pas depuis un fichier versionné : sa configuration SVXLink est générée à l'activation.
 
 ## Points de vigilance
 

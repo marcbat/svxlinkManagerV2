@@ -35,7 +35,10 @@ services:
       - svxlink-network
     restart: unless-stopped
 
-  # Nœud SVXLink 2 - Second nœud pour tester la connexion multi-nœuds au réflecteur
+  # Nœud SVXLink 2 — protocole V2 (AUTH_KEY), conservé pour éprouver la
+  # coexistence V2/V3 sur un même réflecteur : c'est le scénario réel de
+  # migration du parc. Le réflecteur le rattache au TG défini par
+  # TG_FOR_V1_CLIENTS, sans quoi il resterait muet.
   svxlink-node2:
     build:
       context: .
@@ -43,6 +46,27 @@ services:
     container_name: svxlink-node2
     volumes:
       - ./svxlink-config-node2:/etc/svxlink
+    depends_on:
+      svxreflector:
+        condition: service_started
+    networks:
+      - svxlink-network
+    restart: unless-stopped
+
+  # Nœud SVXLink 3 — protocole V3 (certificats X.509), second nœud V3 de la
+  # stack. Un talkgroup, un QSY ou un talker distant n'ont de sens qu'à partir
+  # de deux nœuds V3 : sans lui, le nœud applicatif se connecte au réflecteur
+  # mais il ne peut rien s'y passer.
+  svxlink-node3:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: svxlink-node3
+    volumes:
+      - ./svxlink-config-node3:/etc/svxlink
+      # PKI propre au nœud : sa clé privée et le certificat signé par le
+      # réflecteur ne doivent pas être partagés avec les autres conteneurs.
+      - svxlink-pki-node3:/var/lib/svxlink/pki
     depends_on:
       svxreflector:
         condition: service_started
@@ -73,6 +97,8 @@ volumes:
   svxlink-logs:
     driver: local
   svxlink-pki-app:
+    driver: local
+  svxlink-pki-node3:
     driver: local
   svxlink-pki-reflector:
     driver: local
