@@ -15,6 +15,10 @@ services:
       - SvxLink__UseMockDaemon=false
       - SystemMonitoring__DataPath=/app/data
       - ApplicationUpdate__GitHubToken=${GITHUB_TOKEN}
+      # Le réflecteur local vit dans un autre conteneur : le salon « Réflecteur
+      # Local » seedé doit viser le nom du service, pas l'adresse de bouclage.
+      - LocalReflector__Host=svxreflector
+      - LocalReflector__Port=5300
     volumes:
       # Variante Docker du template (audio/PTT en null/Dummy, pas de hardware
       # dans le conteneur). svxlink-config/ reste le template de production.
