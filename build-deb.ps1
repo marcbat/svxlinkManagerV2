@@ -87,14 +87,19 @@ Section: misc
 Priority: optional
 Architecture: $DebArchitecture
 Maintainer: SvxlinkManager Team
-Depends: libc6 (>= 2.31), systemd, procps, alsa-utils, libsigc++-2.0-0v5, libgsm1, libpopt0, tcl8.6, libgcrypt20, libspeex1, libasound2, libopus0, libcurl4, libssl3, libjsoncpp25
+Depends: libc6 (>= 2.31), systemd, procps, alsa-utils, libsigc++-2.0-0v5, libgsm1, libpopt0, tcl8.6, libgcrypt20, libspeex1, libopus0, libcurl4, libasound2 | libasound2t64, libssl3 | libssl1.1, libjsoncpp25 | libjsoncpp1
 Recommends: libttspico-utils, network-manager
 Description: SvxlinkManagerV2 (framework-dependent) for Armbian armhf
  SvxlinkManagerV2 with systemd service for Orange Pi.
  .
  Depends couvre les outils invoques par l'application (pgrep/pkill via procps,
  amixer via alsa-utils, systemctl) et les bibliotheques des deux versions de
- SVXLink, y compris libssl3 et libjsoncpp25 requises par la 25.05.
+ SVXLink, y compris libssl et libjsoncpp requises par la 25.05.
+ .
+ Les bibliotheques dont le nom change selon la distribution sont declarees
+ en alternatives : la cible Armbian Focal fournit libssl1.1 et libjsoncpp1,
+ la ou Debian bookworm fournit libssl3 et libjsoncpp25. Sans alternative le
+ paquet devient non installable sur l'une ou l'autre.
  .
  pico2wave (annonces vocales) et nmcli (Wi-Fi) sont en Recommends et non en
  Depends : libttspico-utils a ete retire de Debian et n'existe plus que sur
