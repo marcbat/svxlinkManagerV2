@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using LanguageExt;
 using LanguageExt.UnitTesting;
 using Microsoft.Extensions.Logging;
@@ -30,6 +30,7 @@ public class ActivateSalonCommandTests
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly ITalkGroupStateService _talkGroupStateService;
     private readonly ISalonAnnouncementService _announcementService;
     private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly IActivityRecorder _activityRecorder;
@@ -45,6 +46,7 @@ public class ActivateSalonCommandTests
         _daemonService = Substitute.For<ISvxLinkDaemonService>();
         _connectedNodesService = Substitute.For<IConnectedNodesService>();
         _linkStateService = Substitute.For<IReflectorLinkStateService>();
+        _talkGroupStateService = Substitute.For<ITalkGroupStateService>();
         _announcementService = Substitute.For<ISalonAnnouncementService>();
         _dtmfPtyWriter = Substitute.For<IDtmfPtyWriter>();
         _activityRecorder = Substitute.For<IActivityRecorder>();
@@ -405,12 +407,79 @@ public class ActivateSalonCommandTests
             .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
     }
 
+    [Fact]
+    public async Task Handle_WithV3Salon_ShouldResetTheTalkGroupToTheSalonDefault()
+    {
+        // Une sélection faite à chaud sur le salon précédent ne doit pas survivre :
+        // le daemon repart sur le DEFAULT_TG écrit dans la configuration générée.
+        var salonId = Guid.NewGuid();
+        var aggregate = CreateValidV3Aggregate(salonId, defaultTg: 2403);
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<Error, SalonAggregate>>(aggregate.ToSuccess()));
+        SetupSuccessfulActivation();
+
+        var result = await CallHandle(new ActivateSalonCommand(salonId));
+
+        result.ShouldBeSuccess();
+        _talkGroupStateService.Received(1).ApplyDefault(2403);
+        _talkGroupStateService.DidNotReceive().MarkNotApplicable();
+    }
+
+    [Fact]
+    public async Task Handle_WithV2Salon_ShouldMarkTheTalkGroupAsNotApplicable()
+    {
+        // SVXLink 19.09.2 ne connaît pas les talkgroups.
+        var salonId = Guid.NewGuid();
+        var aggregate = CreateValidAggregate(salonId);
+        _repository.GetByIdAsync(salonId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<Error, SalonAggregate>>(aggregate.ToSuccess()));
+        SetupSuccessfulActivation();
+
+        var result = await CallHandle(new ActivateSalonCommand(salonId));
+
+        result.ShouldBeSuccess();
+        _talkGroupStateService.Received(1).MarkNotApplicable();
+        _talkGroupStateService.DidNotReceive().ApplyDefault(Arg.Any<int>());
+    }
+
+    private void SetupSuccessfulActivation()
+    {
+        _tracker.ActiveSalonId.Returns((Guid?)null);
+        _sa818Repository.GetConfigurationAsync(Arg.Any<CancellationToken>())
+            .Returns(CreateValidSA818Config());
+        _sa818Service.ConfigureAsync(Arg.Any<SA818CommandSet>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _announcementService.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<Error, Unit>>(unit.ToSuccess()));
+        _configurationService.GenerateAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+        _daemonService.RestartAsync(Arg.Any<ReflectorProtocol>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<global::LanguageExt.Common.Error, Unit>>(unit));
+    }
+
+    private static SalonAggregate CreateValidV3Aggregate(Guid id, int defaultTg)
+    {
+        var baseConfig = CreateValidAggregate(id).Configuration;
+        var config = baseConfig with
+        {
+            ReflectorProtocol = ReflectorProtocol.V3,
+            AuthKey = null,
+            DefaultTg = defaultTg,
+            MonitorTgs = "240,2404"
+        };
+
+        return SalonAggregate.Create(id, "Salon V3", false, config).Match(
+            Succ: a => a,
+            Fail: _ => throw new InvalidOperationException("Failed to create aggregate"));
+    }
+
     private Task<Validation<Error, Unit>> CallHandle(ActivateSalonCommand command)
     {
         var handler = new ActivateSalonCommandHandler(
             _repository, _tracker, _sa818Repository, _sa818Service,
             _configurationService, _daemonService, _connectedNodesService,
-            _linkStateService, _announcementService, _dtmfPtyWriter, _activityRecorder, _logger);
+            _linkStateService, _talkGroupStateService, _announcementService, _dtmfPtyWriter,
+            _activityRecorder, _logger);
         return handler.Handle(command, CancellationToken.None);
     }
 

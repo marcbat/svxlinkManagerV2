@@ -1,14 +1,16 @@
-@page "/"
+﻿@page "/"
 @implements IDisposable
 @using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
 @using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.SelectTalkGroup
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Application.Models
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
 @using SvxlinkManagerV2.Domain.Common
 
@@ -17,6 +19,7 @@
 @inject IReflectorDaemonService ReflectorDaemonService
 @inject IConnectedNodesService ConnectedNodesService
 @inject IReflectorLinkStateService LinkStateService
+@inject ITalkGroupStateService TalkGroupStateService
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -53,6 +56,13 @@
                         &nbsp;/&nbsp;
                         TX @(_activeSalon.Configuration.TxCtcss.HasValue ? $"{_activeSalon.Configuration.TxCtcss.Value:F1} Hz" : "Aucun")
                     </span>
+                    @if (SupportsTalkGroups)
+                    {
+                        <span class="focus-detail-item">
+                            <span class="material-symbols-outlined">groups</span>
+                            Talkgroup @CurrentTalkGroupLabel
+                        </span>
+                    }
                 </div>
             </div>
         </div>
@@ -157,6 +167,56 @@
             </button>
         </div>
     </div>
+
+    <!-- Talkgroup (protocole V3 uniquement) -->
+    @if (SupportsTalkGroups)
+    {
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">groups</span>
+                Talkgroup
+                <span class="badge badge-accent" style="margin-left:8px;">@CurrentTalkGroupLabel</span>
+            </div>
+
+            <div class="actions-stack">
+                <select class="form-select" style="flex:1;min-width:160px;"
+                        @bind="_selectedTalkGroup" disabled="@_isSelectingTalkGroup">
+                    @foreach (var tg in AvailableTalkGroups)
+                    {
+                        <option value="@tg">@tg @(tg == DefaultTalkGroup ? "(par défaut)" : "")</option>
+                    }
+                </select>
+                <input class="form-control" type="number" min="0" style="width:120px;"
+                       placeholder="Autre TG" @bind="_customTalkGroup" disabled="@_isSelectingTalkGroup" />
+                <button class="btn btn-primary btn-sm"
+                        disabled="@_isSelectingTalkGroup"
+                        @onclick="() => SelectTalkGroup(_customTalkGroup ?? _selectedTalkGroup)">
+                    @if (_isSelectingTalkGroup)
+                    {
+                        <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">swap_horiz</span>
+                    }
+                    Rejoindre
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        disabled="@_isSelectingTalkGroup"
+                        @onclick="() => SelectTalkGroup(DefaultTalkGroup)">
+                    <span class="material-symbols-outlined">restart_alt</span>
+                    TG par défaut
+                </button>
+            </div>
+
+            <p class="help-dtmf-hint" style="margin-top:10px;">
+                <span class="material-symbols-outlined">info</span>
+                Le changement est transmis à SVXLink sans redémarrer le daemon. Il n'est pas
+                mémorisé : le salon repart sur son talkgroup par défaut à la prochaine activation,
+                et SVXLink le relâche de lui-même après @(_activeSalon?.Configuration.TgSelectTimeout ?? 0) s sans activité.
+            </p>
+        </div>
+    }
 
     <!-- Nœuds connectés -->
     <div class="card">
@@ -436,6 +496,10 @@
     private Guid? _selectedSalonId;
     private bool _isActivating;
     private bool _isDeactivating;
+    private int? _currentTalkGroup;
+    private int _selectedTalkGroup;
+    private int? _customTalkGroup;
+    private bool _isSelectingTalkGroup;
 
     private PeriodicTimer? _statusTimer;
     private CancellationTokenSource? _cts;
@@ -456,6 +520,21 @@
         // L'état de la liaison est poussé par les logs SVXLink : aucun rafraîchissement manuel.
         _linkState = LinkStateService.State;
         LinkStateService.OnStateChanged += OnLinkStateChanged;
+
+        // Le talkgroup courant vient des logs : il change aussi sans que l'application
+        // l'ait demandé (QSY du réflecteur, commande DTMF composée sur la radio).
+        _currentTalkGroup = TalkGroupStateService.Current;
+        _selectedTalkGroup = _currentTalkGroup ?? DefaultTalkGroup;
+        TalkGroupStateService.OnTalkGroupChanged += OnTalkGroupChanged;
+    }
+
+    private void OnTalkGroupChanged(int? talkGroup)
+    {
+        InvokeAsync(() =>
+        {
+            _currentTalkGroup = talkGroup;
+            StateHasChanged();
+        });
     }
 
     private void OnLinkStateChanged(ReflectorLinkState state)
@@ -564,6 +643,7 @@
         ConnectedNodesService.OnNodeTxStarted -= OnNodeTxStarted;
         ConnectedNodesService.OnNodeTxStopped -= OnNodeTxStopped;
         LinkStateService.OnStateChanged -= OnLinkStateChanged;
+        TalkGroupStateService.OnTalkGroupChanged -= OnTalkGroupChanged;
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -703,6 +783,86 @@
         finally
         {
             _isDeactivating = false;
+        }
+    }
+
+    /// <summary>
+    /// Les talkgroups n'existent qu'en protocole V3 : un salon V2 ne sait pas les sélectionner,
+    /// et un perroquet n'a pas de liaison réflecteur du tout.
+    /// </summary>
+    private bool SupportsTalkGroups =>
+        _activeSalon is not null
+        && _activeSalon.SalonType != SalonType.Parrot
+        && _activeSalon.Configuration.ReflectorProtocol == ReflectorProtocol.V3;
+
+    private int DefaultTalkGroup => _activeSalon?.Configuration.DefaultTg ?? 0;
+
+    private string CurrentTalkGroupLabel =>
+        _currentTalkGroup is { } tg ? (tg == 0 ? "aucun" : tg.ToString()) : "inconnu";
+
+    /// <summary>
+    /// Talkgroups proposés : le TG par défaut du salon et ceux de MONITOR_TGS. Un TG hors
+    /// liste reste saisissable dans le champ voisin.
+    /// </summary>
+    private IEnumerable<int> AvailableTalkGroups
+    {
+        get
+        {
+            var talkGroups = new List<int> { DefaultTalkGroup };
+            talkGroups.AddRange(ParseMonitorTgs(_activeSalon?.Configuration.MonitorTgs));
+
+            if (_currentTalkGroup is { } current)
+                talkGroups.Add(current);
+
+            return talkGroups.Distinct().OrderBy(tg => tg);
+        }
+    }
+
+    /// <summary>
+    /// MONITOR_TGS est une liste séparée par des virgules dont chaque entrée peut porter un
+    /// suffixe de priorité (« 226+ ») : seuls les chiffres de tête sont un numéro de TG.
+    /// </summary>
+    private static IEnumerable<int> ParseMonitorTgs(string? monitorTgs)
+    {
+        if (string.IsNullOrWhiteSpace(monitorTgs))
+            yield break;
+
+        foreach (var entry in monitorTgs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var digits = new string(entry.TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var talkGroup))
+                yield return talkGroup;
+        }
+    }
+
+    private async Task SelectTalkGroup(int talkGroup)
+    {
+        _isSelectingTalkGroup = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new SelectTalkGroupCommand(talkGroup));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess($"Commande envoyée : talkgroup {talkGroup}.");
+                    _customTalkGroup = null;
+                    _selectedTalkGroup = talkGroup;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isSelectingTalkGroup = false;
         }
     }
 

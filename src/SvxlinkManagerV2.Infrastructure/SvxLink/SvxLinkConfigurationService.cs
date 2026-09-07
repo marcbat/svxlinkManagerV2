@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -74,7 +74,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             {
                 // Mode Reflector : SimplexLogic + ReflectorLogic
                 UpdateGlobalSection(iniData, salon);
-                UpdateLinkSection(iniData);
+                UpdateLinkSection(iniData, salon);
                 UpdateReflectorLogicSection(iniData, salon);
                 UpdateSimplexLogicSection(iniData, salon);
             }
@@ -246,27 +246,72 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [LinkToReflector] qui relie SimplexLogic et ReflectorLogic.
-    /// Cette section est constante : SVXLink requiert ce pont pour router l'audio
-    /// entre le hardware local (SimplexLogic) et le reflector (ReflectorLogic).
+    /// SVXLink requiert ce pont pour router l'audio entre le matériel local (SimplexLogic)
+    /// et le réflecteur (ReflectorLogic).
+    ///
+    /// En protocole V3, la logique simplex porte en plus un <b>préfixe de commande</b>
+    /// (<c>SimplexLogic:35</c>) : c'est lui, et lui seul, qui rend les commandes talkgroup
+    /// atteignables. <c>LinkManager::addLogic</c> ne crée l'objet de commande que si
+    /// <c>atoi(cmd) &gt; 0</c> ; avec un champ vide, rien n'est jamais routé vers
+    /// <c>ReflectorLogic::remoteCmdReceived</c>. Cf. <see cref="DtmfTalkGroupCommands"/>.
+    ///
+    /// Le troisième champ (nom d'annonce) reste volontairement absent : il ne sert qu'aux
+    /// annonces d'activation du lien, inaudibles ici puisque <c>DEFAULT_ACTIVE=1</c> maintient
+    /// le lien monté en permanence, et il ferait chercher à SVXLink un son <c>Core/&lt;nom&gt;.wav</c>
+    /// qui n'existe dans aucun jeu de sons livré.
+    ///
+    /// Un salon V2 conserve la forme historique sans préfixe : SVXLink 19.09.2 ne connaît pas
+    /// les talkgroups, un préfixe n'y ouvrirait aucune commande.
     /// </summary>
-    private void UpdateLinkSection(IniFile iniData)
+    private void UpdateLinkSection(IniFile iniData, SalonAggregate salon)
     {
-        iniData["LinkToReflector"]["CONNECT_LOGICS"] = "SimplexLogic,ReflectorLogic";
+        var connectLogics = salon.Configuration.ReflectorProtocol == ReflectorProtocol.V3
+            ? $"SimplexLogic:{DtmfTalkGroupCommands.Prefix},ReflectorLogic"
+            : "SimplexLogic,ReflectorLogic";
+
+        iniData["LinkToReflector"]["CONNECT_LOGICS"] = connectLogics;
         iniData["LinkToReflector"]["DEFAULT_ACTIVE"] = "1";
         iniData["LinkToReflector"]["TIMEOUT"] = "0";
 
-        _logger.LogDebug("Section [LinkToReflector] mise à jour");
+        _logger.LogDebug("Section [LinkToReflector] mise à jour (CONNECT_LOGICS: {ConnectLogics})", connectLogics);
     }
 
     /// <summary>
     /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
     /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
+    /// <summary>
+    /// Chemin du gestionnaire d'événements TCL racine de l'installation SVXLink visée.
+    /// Toutes les logiques doivent le désigner : c'est lui qui charge <c>events.d/*.tcl</c>
+    /// puis les surcharges de <c>events.d/local/*.tcl</c>, dont le Logic.tcl de l'application.
+    /// </summary>
+    /// <remarks>
+    /// La stratégie expose <c>EventsDirectory</c> = <c>&lt;préfixe&gt;/share/svxlink/events.d/local</c> ;
+    /// remonter de deux niveaux donne le répertoire qui porte events.tcl. Manipulation de
+    /// chaîne et non <c>Path.Combine</c> : la cible est Linux, quel que soit l'OS de build.
+    /// </remarks>
+    private static string ResolveEventsTclPath(ISvxLinkVersionStrategy strategy)
+    {
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')];        // retire /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')];  // retire /events.d
+        return $"{eventsBasePath}/events.tcl";
+    }
+
     private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
     {
         var config = salon.Configuration;
         var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
-        var eventHandlerPath = $"{strategy.EventsDirectory}/Logic.tcl";
+
+        // events.tcl, et non events.d/local/Logic.tcl : c'est events.tcl qui charge les
+        // gestionnaires standards — dont ReflectorLogic.tcl — avant d'appliquer les
+        // surcharges locales. Pointer Logic.tcl directement laissait l'interpréteur de
+        // ReflectorLogic sans son propre namespace : SVXLink appelle
+        // ReflectorLogic::tg_selected, ::report_tg_status ou ::tg_command_activation, et
+        // toutes échouaient sur « invalid command name ». Aucune annonce de talkgroup
+        // n'était donc jouée. Notre Logic.tcl reste chargé : events.tcl le lit ensuite,
+        // au titre des surcharges de events.d/local.
+        var eventHandlerPath = ResolveEventsTclPath(strategy);
 
         if (config.ReflectorProtocol == ReflectorProtocol.V2)
         {
@@ -372,11 +417,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     {
         var config = salon.Configuration;
         var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
-        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
-        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
-        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
-        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
-        var eventsTclPath = $"{eventsBasePath}/events.tcl";
+        var eventsTclPath = ResolveEventsTclPath(strategy);
 
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";

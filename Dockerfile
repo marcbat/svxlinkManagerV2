@@ -130,10 +130,9 @@ RUN chmod +x /usr/local/bin/dev-ca-hook.sh
 # Copy .NET application
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
-COPY deploy/linux/install-update.sh /app/install-update.sh
 
 # Create logs directory for the application
-RUN mkdir -p /app/logs && chmod 0755 /app/install-update.sh
+RUN mkdir -p /app/logs
 
 # Expose HTTP port
 EXPOSE 8080

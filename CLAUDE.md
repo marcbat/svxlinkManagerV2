@@ -133,6 +133,36 @@ SVXLink → Logic.tcl (émet "DTMF_CMD:<code>" dans les logs)
 
 `Logic.tcl` est un `EmbeddedResource` de l'Infrastructure, déployé au démarrage dans les répertoires `events.d/local` des **deux** installations SVXLink par `LogicTclDeploymentService`.
 
+**`Logic.tcl` est l'aiguillage, pas un simple mouchard.** `Logic::processCommandQueue` l'appelle *avant* le `CmdParser` de SVXLink et s'arrête si le script retourne autre chose que 0. Tout ce qui n'est pas explicitement rendu à SVXLink (`return 0`) lui échappe donc définitivement — c'est le cas des modules 1-19, et désormais des commandes talkgroup.
+
+**Les commandes talkgroup (V3) ne passent pas par l'application.** Elles sont routées par SVXLink lui-même vers `ReflectorLogic::remoteCmdReceived`, à travers le **préfixe de commande** déclaré dans `CONNECT_LOGICS` de la section `[LinkToReflector]` : `SimplexLogic:35,ReflectorLogic`. Sans ce préfixe, `LinkManager::addLogic` n'instancie aucun `LinkCmd` (condition `atoi(cmd) > 0`) et **aucune** commande talkgroup n'est atteignable, ni par radio ni par le PTY.
+
+| Séquence | Effet (`DtmfTalkGroupCommands`) |
+|---|---|
+| `35*#` | Annonce du talkgroup courant et de l'état de la liaison |
+| `351<tg>#` / `351#` | Sélectionner `<tg>` / revenir au talkgroup précédent |
+| `352<tg>#` / `352#` | QSY vers `<tg>` / vers un talkgroup tiré au hasard |
+| `353#` | Suivre le dernier QSY annoncé |
+| `354<tg>#` | Surveillance temporaire de `<tg>` (`TMP_MONITOR_TIMEOUT`) |
+
+Trois conséquences à retenir :
+
+- **`35` est un préfixe, pas une plage.** SVXLink capte toute séquence qui commence par ces chiffres, quelle que soit sa longueur : `DtmfCodeRanges.IsValidForSalon` refuse donc `35` et `3500-3599` en plus des plages historiques. Le préfixe `9` des exemples de la documentation SVXLink a été écarté pour cette raison — il aurait capté les codes semés 96 (RRF), 97 (FON) et 98 (Salon Technique). `35` se loge dans la plage 300-399, déjà réservée, sans toucher aux annonces 301-307, aux commandes système 310-320 ni aux commandes internes 398/399.
+- **`35#` seul est volontairement non routé.** `LinkManager::cmdReceived` interpréterait la sous-commande vide comme une *désactivation du lien*, ce qui couperait l'audio entre la radio et le réflecteur sur une faute de frappe. Le motif de `Logic.tcl` et `DtmfTalkGroupCommands.IsTalkGroupCommand` doivent rester synchronisés.
+- **Un salon V2 ne déclare aucun préfixe** : SVXLink 19.09.2 ignore les talkgroups, et sa configuration générée reste `SimplexLogic,ReflectorLogic`.
+
+**`EVENT_HANDLER` désigne `events.tcl`, jamais `events.d/local/Logic.tcl`.** Chaque logique a son propre interpréteur TCL, et SVXLink y appelle des procédures qualifiées par le nom de la logique (`ReflectorLogic::report_tg_status`, `SimplexLogic::startup`). C'est `events.tcl` qui charge `events.d/*.tcl` — dont `ReflectorLogic.tcl`, qui crée ce namespace — **puis** les surcharges de `events.d/local/*.tcl`, dont notre `Logic.tcl`. Pointer `Logic.tcl` directement laissait l'interpréteur de `ReflectorLogic` sans namespace : toutes ses annonces échouaient en « invalid command name », et aucune annonce de talkgroup n'était jouée.
+
+**Le talkgroup sélectionné n'est pas rémanent.** Passé `TG_SELECT_TIMEOUT` sans activité, SVXLink journalise un `Selecting TG #0` et le nœud retombe hors talkgroup. C'est une raison de plus pour que l'état affiché vienne des logs et non de la commande émise.
+
+### Talkgroup courant (protocole V3)
+
+`ITalkGroupStateService` (implémenté par `TalkGroupTracker`, singleton) suit le talkgroup du nœud. Comme `ReflectorLinkStateTracker`, **il lit les logs plutôt que la commande émise** — et pour la même raison : le talkgroup change aussi sans que l'application l'ait demandé, par une commande DTMF composée sur la radio, un QSY décidé par le réflecteur, une bascule sur un talkgroup prioritaire, ou l'expiration de `TG_SELECT_TIMEOUT`. Le motif reconnu est `ReflectorLogic: Selecting TG #<n>`.
+
+`Current` vaut `null` quand la notion n'a pas de sens — salon V2, perroquet, mode autonome — et le tracker ignore alors les lignes résiduelles du daemon. Les commandes d'activation appellent `ApplyDefault(DefaultTg)` ou `MarkNotApplicable()`, comme elles le font déjà pour l'état de la liaison.
+
+`SelectTalkGroupCommand` (`Features/Salons/SelectTalkGroup`) ne touche ni la base ni le daemon : elle compose `351<tg>` dans le PTY DTMF via `IDtmfPtyWriter`. **Son succès n'est que celui de l'émission** — c'est le tracker qui dit le talkgroup réellement courant. Le talkgroup sélectionné à chaud n'est donc pas persisté : le salon repart sur son `DEFAULT_TG` à la réactivation.
+
 ### État du daemon vs état de la liaison réflecteur
 
 Deux notions distinctes, à ne pas confondre :
@@ -278,6 +308,7 @@ Ce qu'il faut en retenir :
 - **La PKI n'est pas partagée** : chaque nœud V3 a son volume, et télécharge la CA du serveur tout seul (`CERT_DOWNLOAD_CA_BUNDLE`, actif par défaut). En revanche, si le volume PKI du réflecteur est recréé, la CA change et les nœuds gardent l'ancien bundle — le remède est de supprimer leur `ca-bundle.crt`, ou de repartir d'un `docker compose down -v`.
 - **`TG#2403` porte `AUTO_QSY_AFTER=30`** : une conversation qui s'y prolonge est déplacée vers un TG tiré dans `RANDOM_QSY_RANGE` (`2409900:100`, syntaxe `<borne basse>:<nombre>`). C'est court exprès, pour éprouver le QSY sans attendre.
 - **Le nœud applicatif se place sur un talkgroup depuis la fiche de son salon** (`DEFAULT_TG`, `MONITOR_TGS`), pas depuis un fichier versionné : sa configuration SVXLink est générée à l'activation.
+- **`svxlink-node3` porte une `SimplexLogic` reliée par `[LinkToReflector]`**, à l'image du nœud applicatif, et un `DTMF_CTRL_PTY`. C'est ce qui rend les commandes talkgroup éprouvables sans radio ni image applicative : `TalkGroupCommandTests` y écrit la séquence comme le ferait `DtmfPtyWriter`. Son `Rx1` utilise des valeurs **entières** de `VOX_THRESH`/`VOX_FILTER_DEPTH` — SVXLink rejette une valeur décimale par « Config variable Rx1/VOX_THRESH not set », et sans récepteur valide la logique simplex ne démarre pas.
 
 ## Points de vigilance
 
@@ -298,7 +329,10 @@ Principes :
 
 ### Tests d'intégration
 
-`tests/SvxlinkManagerV2.Integration.Tests` monte la stack Docker versionnée et vérifie qu'une liaison en protocole V3 s'établit réellement : CSR signée par `dev-ca-hook.sh`, canal chiffré, `Login OK ... with protocol version 3.0`, et coexistence avec le nœud V2.
+`tests/SvxlinkManagerV2.Integration.Tests` monte la stack Docker versionnée et vérifie deux choses qu'aucun test unitaire ne peut atteindre :
+
+- **la liaison V3 s'établit réellement** (`ReflectorV3ConnectionTests`) : CSR signée par `dev-ca-hook.sh`, canal chiffré, `Login OK ... with protocol version 3.0`, et coexistence avec le nœud V2 ;
+- **les commandes talkgroup sont atteignables** (`TalkGroupCommandTests`) : une séquence écrite dans le `DTMF_CTRL_PTY` de `svxlink-node3` — comme le fait `DtmfPtyWriter` — doit traverser `Logic.tcl`, le préfixe de `CONNECT_LOGICS` et aboutir sur `Selecting TG #240`. Les tests unitaires ne valident que le *contenu* du fichier généré ; seule la stack montre que SVXLink l'honore.
 
 C'est le filet qui manquait : les tests unitaires ne couvrent que la **génération** de `svxlink.conf` et la résolution de stratégie, si bien que l'absence d'`openssl` dans l'image du réflecteur — qui rendait *toute* connexion V3 impossible — a pu vivre sans être détectée.
 

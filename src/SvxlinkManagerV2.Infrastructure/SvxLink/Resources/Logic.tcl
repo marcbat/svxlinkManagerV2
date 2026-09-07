@@ -23,6 +23,8 @@
 #   1-19     : Modules SVXLink (Parrot, Help…) → return 0 (SVXLink traite)
 #   20-299   : Codes salon → return 1 (.NET traite le changement de salon)
 #   300-399  : Annonces vocales / commandes internes → return 1 (.NET traite)
+#   35…      : Commandes talkgroup (protocole V3) → return 0 (SVXLink route vers
+#              ReflectorLogic via le préfixe déclaré dans CONNECT_LOGICS)
 #   400-9999 : Codes salon → return 1 (.NET traite le changement de salon)
 #
 ###############################################################################
@@ -43,6 +45,7 @@ proc startup {} {
 #   - 1-19   : émet DTMF_CMD + return 0 → SVXLink active le module correspondant
 #   - 398    : joue Name.wav (annonce connexion réflecteur) + return 1
 #   - 399    : joue le WAV TTS généré par .NET + return 1
+#   - 35…    : émet DTMF_CMD + return 0 → SVXLink route vers ReflectorLogic (talkgroups)
 #   - autres : émet DTMF_CMD + return 1 → .NET traite (salon switch ou annonce)
 #
 proc dtmf_cmd_received {cmd} {
@@ -77,6 +80,19 @@ proc dtmf_cmd_received {cmd} {
         if {$code >= 1 && $code <= 19} {
             return 0
         }
+    }
+
+    # --- Commandes talkgroup (protocole V3) : 35 suivi d'une sous-commande ---
+    # Le préfixe 35 est déclaré dans CONNECT_LOGICS ([LinkToReflector]) ; return 0 laisse
+    # SVXLink router la commande vers ReflectorLogic::remoteCmdReceived, qui reconnaît
+    # les sous-commandes * (état), 1 (sélection de TG), 2 (QSY), 3 (suivi de QSY) et
+    # 4 (surveillance temporaire).
+    #
+    # Le préfixe seul ("35") est délibérément exclu : LinkManager l'interpréterait comme
+    # une désactivation du lien, ce qui couperait l'audio vers le réflecteur.
+    # Motif synchronisé avec DtmfTalkGroupCommands.CommandPattern côté .NET.
+    if {[regexp {^35(\*|[1-4][0-9]*)$} $cmd]} {
+        return 0
     }
 
     # --- Plage 20-299, 300-399, 400-9999 : traité par .NET ---

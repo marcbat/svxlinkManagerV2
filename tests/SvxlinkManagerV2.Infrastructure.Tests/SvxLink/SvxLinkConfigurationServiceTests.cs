@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -120,9 +120,9 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateAsync_ShouldCreateLinkToReflectorSection()
+    public async Task GenerateAsync_WithV2Salon_ShouldCreateLinkToReflectorSectionWithoutCommandPrefix()
     {
-        // Arrange
+        // Arrange — SVXLink 19.09.2 ne connaît pas les talkgroups : aucun préfixe à déclarer.
         var salon = CreateTestSalon();
         var outputPath = GetTestOutputPath("svxlink_linktoreflector.conf");
 
@@ -135,6 +135,65 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["LinkToReflector"]["CONNECT_LOGICS"].Should().Be("SimplexLogic,ReflectorLogic");
         iniData["LinkToReflector"]["DEFAULT_ACTIVE"].Should().Be("1");
         iniData["LinkToReflector"]["TIMEOUT"].Should().Be("0");
+    }
+
+    [Theory]
+    [InlineData(false, "/opt/svxlink-legacy/share/svxlink/events.tcl")]
+    [InlineData(true, "/opt/svxlink-modern/share/svxlink/events.tcl")]
+    public async Task GenerateAsync_ShouldPointReflectorLogicAtTheRootEventHandler(bool v3, string expected)
+    {
+        // Pointer events.d/local/Logic.tcl directement prive l'interpréteur de ReflectorLogic
+        // de son propre namespace : SVXLink appelle ReflectorLogic::report_tg_status ou
+        // ::tg_selected et échoue sur « invalid command name ». C'est events.tcl qui charge
+        // les gestionnaires standards puis nos surcharges locales.
+        var salon = v3 ? CreateTestSalonV3() : CreateTestSalon();
+        var outputPath = GetTestOutputPath($"svxlink_reflector_eventhandler_{(v3 ? "v3" : "v2")}.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["ReflectorLogic"]["EVENT_HANDLER"].Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithV3Salon_ShouldDeclareTalkGroupCommandPrefix()
+    {
+        // Arrange — sans préfixe, LinkManager::addLogic ne crée aucun LinkCmd
+        // (condition atoi(cmd) > 0) et aucune commande talkgroup n'est atteignable.
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_linktoreflector_v3.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+
+        iniData["LinkToReflector"]["CONNECT_LOGICS"]
+            .Should().Be($"SimplexLogic:{DtmfTalkGroupCommands.Prefix},ReflectorLogic");
+        iniData["LinkToReflector"]["DEFAULT_ACTIVE"].Should().Be("1");
+        iniData["LinkToReflector"]["TIMEOUT"].Should().Be("0");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithV3Salon_ShouldDeclareANumericPrefixUsableByLinkManager()
+    {
+        // Arrange — le champ « commande » de CONNECT_LOGICS doit satisfaire atoi(cmd) > 0,
+        // sinon SVXLink ignore silencieusement le préfixe.
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_linktoreflector_v3_prefix.conf");
+
+        // Act
+        await _service.GenerateAsync(salon, outputPath);
+
+        // Assert
+        var iniData = IniFile.Parse(outputPath);
+        var simplexSpec = iniData["LinkToReflector"]["CONNECT_LOGICS"].Split(',')[0].Split(':');
+
+        simplexSpec.Should().HaveCountGreaterThanOrEqualTo(2);
+        int.TryParse(simplexSpec[1], out var command).Should().BeTrue();
+        command.Should().BeGreaterThan(0);
     }
 
     [Fact]

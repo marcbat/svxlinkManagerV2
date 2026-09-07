@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using MediatR;
 using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
@@ -39,6 +39,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
     private readonly ISvxLinkDaemonService _daemonService;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly ITalkGroupStateService _talkGroupStateService;
     private readonly ISalonAnnouncementService _announcementService;
     private readonly IDtmfPtyWriter _dtmfPtyWriter;
     private readonly IActivityRecorder _activityRecorder;
@@ -53,6 +54,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         ISvxLinkDaemonService daemonService,
         IConnectedNodesService connectedNodesService,
         IReflectorLinkStateService linkStateService,
+        ITalkGroupStateService talkGroupStateService,
         ISalonAnnouncementService announcementService,
         IDtmfPtyWriter dtmfPtyWriter,
         IActivityRecorder activityRecorder,
@@ -66,6 +68,7 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
         _daemonService = daemonService;
         _connectedNodesService = connectedNodesService;
         _linkStateService = linkStateService;
+        _talkGroupStateService = talkGroupStateService;
         _announcementService = announcementService;
         _dtmfPtyWriter = dtmfPtyWriter;
         _activityRecorder = activityRecorder;
@@ -142,6 +145,14 @@ public class ActivateSalonCommandHandler : IRequestHandler<ActivateSalonCommand,
             _linkStateService.MarkNotApplicable();
         else
             _linkStateService.BeginConnecting();
+
+        // Le talkgroup sélectionné à chaud ne survit pas à l'activation : le daemon repart
+        // sur le DEFAULT_TG écrit dans la configuration. Seul un salon réflecteur V3 en a un.
+        if (aggregate.SalonType != SalonType.Parrot
+            && aggregate.Configuration.ReflectorProtocol == ReflectorProtocol.V3)
+            _talkGroupStateService.ApplyDefault(aggregate.Configuration.DefaultTg);
+        else
+            _talkGroupStateService.MarkNotApplicable();
 
         _logger.LogInformation("Redémarrage du daemon SVXLink (protocole: {Protocol})", aggregate.Configuration.ReflectorProtocol);
         var daemonResult = await _daemonService.RestartAsync(aggregate.Configuration.ReflectorProtocol, cancellationToken);

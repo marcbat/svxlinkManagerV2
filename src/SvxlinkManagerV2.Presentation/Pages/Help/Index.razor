@@ -1,6 +1,7 @@
-@page "/aide"
+﻿@page "/aide"
 @using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 
 @inject IMediator Mediator
 
@@ -191,6 +192,46 @@
     </p>
 </div>
 
+<!-- ── Commandes talkgroup (protocole V3) ───────────────────── -->
+@if (_hasV3Salon)
+{
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="section-header">
+            <span class="material-symbols-outlined">groups</span>
+            Commandes talkgroup (protocole V3)
+        </div>
+
+        <table class="help-dtmf-table">
+            <thead>
+                <tr>
+                    <th>Séquence</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var command in DtmfTalkGroupCommands.All)
+                {
+                    <tr>
+                        <td>
+                            <span class="badge badge-accent">
+                                <span class="material-symbols-outlined">dialpad</span>
+                                @command.Pattern
+                            </span>
+                        </td>
+                        <td>@command.Description</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="help-dtmf-hint">
+            <span class="material-symbols-outlined">info</span>
+            Ces commandes sont traitées par SVXLink lui-même et ne sont disponibles que sur un salon
+            en protocole V3. <strong>@DtmfTalkGroupCommands.Prefix</strong> est le préfixe du lien vers
+            le réflecteur ; <strong>&lt;tg&gt;</strong> désigne le numéro du talkgroup.
+        </p>
+    </div>
+}
+
 <!-- ── Modules SVXLink ──────────────────────────────────────── -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="section-header">
@@ -260,6 +301,10 @@
                 <td>Commandes d'annonce vocale, commandes système et commandes internes</td>
             </tr>
             <tr>
+                <td><span class="badge badge-accent">@(DtmfCodeRanges.TalkGroupCommandPrefix)…</span></td>
+                <td>Commandes talkgroup (protocole V3) — préfixe transmis à SVXLink, quelle que soit la longueur de la séquence</td>
+            </tr>
+            <tr>
                 <td><span class="badge badge-accent">400 — 9999</span></td>
                 <td>Codes salon — changement de salon par radio (plage étendue)</td>
             </tr>
@@ -268,13 +313,15 @@
     <p class="help-dtmf-hint">
         <span class="material-symbols-outlined">info</span>
         Lors de l'attribution d'un code DTMF à un salon, seules les plages <strong>20-299</strong> et <strong>400-9999</strong> sont disponibles.
-        Les plages 1-19 et 300-399 sont réservées au système.
+        Les plages 1-19 et 300-399 sont réservées au système, ainsi que tout code commençant par
+        <strong>@DtmfCodeRanges.TalkGroupCommandPrefix</strong> (3500-3599), capté par SVXLink comme une commande talkgroup.
     </p>
 </div>
 
 @code {
     private bool _isLoading = true;
     private List<SalonAggregate> _salonsWithDtmf = [];
+    private bool _hasV3Salon;
 
     protected override async Task OnInitializedAsync()
     {
@@ -283,6 +330,13 @@
             .Where(s => s.DtmfCode.HasValue)
             .OrderBy(s => s.DtmfCode)
             .ToList();
+
+        // Les commandes talkgroup n'existent que sur un lien réflecteur en V3 : inutile de les
+        // documenter sur un nœud qui n'a que des salons V2 ou un perroquet.
+        _hasV3Salon = salons.Any(s =>
+            s.SalonType != SalonType.Parrot
+            && s.Configuration.ReflectorProtocol == ReflectorProtocol.V3);
+
         _isLoading = false;
     }
 }
