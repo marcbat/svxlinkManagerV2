@@ -1,4 +1,6 @@
 ﻿using FluentAssertions;
+using LanguageExt;
+using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -23,6 +25,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly ISvxLinkStrategyResolver _strategyResolver;
     private readonly IGeneralConfigurationRepository _generalConfigurationRepository;
+    private readonly INodeInformationWriter _nodeInformationWriter;
     private readonly string _testOutputDirectory;
     private readonly List<string> _filesToCleanup;
     private readonly string _templatePath;
@@ -47,8 +50,15 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         _generalConfigurationRepository.GetAsync(Arg.Any<CancellationToken>())
             .Returns((GeneralConfigurationAggregate?)null);
 
+        // L'écriture du document du nœud est éprouvée à part : ici seule compte la
+        // déclaration de NODE_INFO_FILE dans la configuration générée.
+        _nodeInformationWriter = Substitute.For<INodeInformationWriter>();
+        _nodeInformationWriter.WriteAsync(Arg.Any<SalonAggregate>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Validation<LanguageExt.Common.Error, Unit>>(Unit.Default));
+
         _service = new SvxLinkConfigurationService(
-            _logger, _strategyResolver, _generalConfigurationRepository, _templatePath);
+            _logger, _strategyResolver, _generalConfigurationRepository,
+            _nodeInformationWriter, _templatePath);
         
         // Créer un répertoire temporaire pour les tests
         _testOutputDirectory = Path.Combine(Path.GetTempPath(), $"svxlink-test-{Guid.NewGuid()}");

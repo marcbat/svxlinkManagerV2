@@ -503,7 +503,46 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                                 .HasForeignKey("GeneralConfigurationAggregateId");
                         });
 
+                    b.OwnsOne("SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities.NodeInformation", "NodeInformation", b1 =>
+                        {
+                            b1.Property<Guid>("GeneralConfigurationAggregateId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int>("Class")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("Hidden")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<double?>("Latitude")
+                                .HasColumnType("REAL");
+
+                            b1.Property<string>("Location")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Locator")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<double?>("Longitude")
+                                .HasColumnType("REAL");
+
+                            b1.Property<string>("Sysop")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("GeneralConfigurationAggregateId");
+
+                            b1.ToTable("GeneralConfigurations");
+
+                            b1.ToJson("NodeInformation");
+
+                            b1.WithOwner()
+                                .HasForeignKey("GeneralConfigurationAggregateId");
+                        });
+
                     b.Navigation("CertificateSubject")
+                        .IsRequired();
+
+                    b.Navigation("NodeInformation")
                         .IsRequired();
                 });
 

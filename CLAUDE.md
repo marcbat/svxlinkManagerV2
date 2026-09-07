@@ -184,6 +184,18 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Informations publiées au réflecteur (NODE_INFO_FILE)
+
+Un nœud V3 peut publier ses caractéristiques au réflecteur, qui les expose dans ses annuaires et tableaux de bord. Sans cela le nœud n'y est qu'un indicatif. `NodeInformationWriter` écrit ce document à chaque activation d'un salon V3, et `NODE_INFO_FILE` le déclare — c'est une **projection de la configuration**, pas un état à préserver.
+
+L'essentiel est déduit de ce que l'application connaît déjà : fréquences et tonalités du salon, indicatif, talkgroup par défaut. Ne sont saisis dans la configuration générale que les champs indéductibles — lieu, nature du nœud, sysop, position, locator, et le drapeau `hidden`.
+
+**Seul ce qui est connu est publié.** Le modèle de référence de SVXLink décrit aussi les antennes (hauteur, azimut) et la puissance d'émission, que rien dans la configuration ne modélise : le format étant libre, ces clés sont omises plutôt que remplies de valeurs inventées ou réclamées dans un formulaire que personne ne remplirait.
+
+Deux détails du format valent d'être connus : `ctcssFreq` est un **tableau** en réception et une **valeur unique** en émission ; `toneToTalkgroup` associe la tonalité reçue au talkgroup à activer, table forcément dégénérée ici puisque l'application ne connaît qu'un CTCSS et un talkgroup par salon. Un salon V2 y associe le talkgroup 0 — publier le sien serait mensonger, SVXLink 19.09.2 les ignorant.
+
+L'échec d'écriture **ne fait pas échouer l'activation** : un nœud anonyme dans les annuaires reste un nœud qui fonctionne, alors qu'un salon qui refuserait de s'activer pour cette raison serait une régression franche. La clé n'est alors simplement pas déclarée.
+
 ### Paramètres V3 du salon et identité du certificat
 
 Trois réglages de comportement vivent dans `SvxLinkConfiguration`, donc dans le JSON de l'owned entity — **aucune migration n'est nécessaire pour en ajouter** :

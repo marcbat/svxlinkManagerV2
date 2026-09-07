@@ -16,17 +16,22 @@ public record GeneralConfigurationUpdated : DomainEvent
     /// <summary>Identité portée par le certificat X.509 du nœud (CERT_SUBJ_*).</summary>
     public CertificateSubject CertificateSubject { get; init; } = CertificateSubject.Empty;
 
+    /// <summary>Informations publiées au réflecteur (NODE_INFO_FILE).</summary>
+    public NodeInformation NodeInformation { get; init; } = NodeInformation.Empty;
+
     public GeneralConfigurationUpdated(
         bool startReflectorOnStartup,
         bool startDefaultSalonOnStartup,
         decimal defaultRxFrequency,
         decimal defaultTxFrequency,
-        CertificateSubject certificateSubject)
+        CertificateSubject certificateSubject,
+        NodeInformation nodeInformation)
     {
         StartReflectorOnStartup = startReflectorOnStartup;
         StartDefaultSalonOnStartup = startDefaultSalonOnStartup;
         DefaultRxFrequency = defaultRxFrequency;
         DefaultTxFrequency = defaultTxFrequency;
         CertificateSubject = certificateSubject;
+        NodeInformation = nodeInformation;
     }
 }
