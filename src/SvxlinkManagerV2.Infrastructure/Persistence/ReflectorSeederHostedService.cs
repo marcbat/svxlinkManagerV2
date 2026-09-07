@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -117,7 +117,12 @@ public class ReflectorSeederHostedService : IHostedService
     /// Retourne la configuration INI par défaut du réflecteur local.
     /// Compatible SVXLink 25.05 — protocole V3 avec certificats X.509.
     /// </summary>
-    internal static string GetDefaultReflectorConfig()
+    /// <remarks>
+    /// Publique parce que la page Réflecteur s'en sert pour créer le réflecteur quand la
+    /// base n'en contient aucun : elle en tenait sa propre copie, et une clé ajoutée ici
+    /// manquait alors sur tout réflecteur créé depuis l'interface.
+    /// </remarks>
+    public static string GetDefaultReflectorConfig()
     {
         return """
             [GLOBAL]
@@ -126,6 +131,13 @@ public class ReflectorSeederHostedService : IHostedService
             ACCEPT_CALLSIGN=.*
             CODECS=OPUS
             CERT_PKI_DIR=/var/lib/svxlink/pki
+
+            # Serveur HTTP de statut, lu par la page Réflecteur pour la vue de supervision.
+            # SVXLink lie ce port sur toutes les interfaces (Async::TcpServer sans adresse,
+            # non configurable) : sur une machine exposée, il doit être fermé au pare-feu.
+            # Sa propre documentation le décrit comme simple, non audité et sensible à la
+            # charge — il n'a rien à faire sur l'Internet public.
+            HTTP_SRV_PORT=8888
 
             [ROOT_CA]
             COMMON_NAME=SvxReflector Root CA

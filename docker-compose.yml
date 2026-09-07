@@ -75,6 +75,12 @@ services:
     restart: unless-stopped
 
   # SvxReflector - Serveur de conférence pour nœuds SvxLink
+  #
+  # Aucun port publié : ni le 5300 des nœuds, ni le HTTP_SRV_PORT de l'API de statut.
+  # SVXLink lie ce dernier sur toutes les interfaces (Async::TcpServer sans adresse, non
+  # configurable) et sa documentation demande explicitement de ne pas l'exposer — serveur
+  # simple, non audité, sensible à la charge. Il reste joignable depuis le réseau
+  # svxlink-network, qui suffit à l'application.
   svxreflector:
     build:
       context: .

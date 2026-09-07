@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Models;
 
@@ -20,7 +20,9 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 ///   - "*** ERROR[ReflectorLogic]: Server error: ..." : refus du réflecteur (25.05)
 ///   - "ReflectorLogic: Disconnected from HOTE:PORT: CAUSE" : liaison coupée
 ///   - "ReflectorLogic: Heartbeat timeout" : liaison perdue
-///   - messages liés au certificat client : certificat rejeté (25.05 uniquement)
+///   - messages liés au certificat du nœud : certificat rejeté (25.05 uniquement)
+///   - "*** ERROR[ReflectorLogic]: Certificate verification failed for reflector server" :
+///     l'autorité connue du nœud ne signe pas le certificat du serveur (25.05 uniquement)
 ///   - "*** ERROR: ReflectorLogic/HOST missing in configuration" : configuration incomplète
 /// </summary>
 public class ReflectorLinkStateTracker : IReflectorLinkStateService, IDisposable
@@ -124,7 +126,14 @@ public class ReflectorLinkStateTracker : IReflectorLinkStateService, IDisposable
         if (Has(message, "missing in configuration"))
             return new ReflectorLinkState(ReflectorLinkStatus.Failed, ReflectorLinkFailureReason.ConfigurationInvalid, detail);
 
-        // Certificat client du protocole V3 (25.05) rejeté, illisible ou absent.
+        // Le nœud ne reconnaît pas l'autorité qui a signé le certificat du réflecteur.
+        // Testé avant le cas du certificat du nœud : les deux messages contiennent le mot
+        // « certificate » mais appellent des remèdes opposés.
+        if (IsServerCertificateFailure(message))
+            return new ReflectorLinkState(
+                ReflectorLinkStatus.Failed, ReflectorLinkFailureReason.ServerCertificateUntrusted, detail);
+
+        // Certificat du nœud (protocole V3, 25.05) rejeté, illisible ou absent.
         if (IsCertificateFailure(message))
             return new ReflectorLinkState(ReflectorLinkStatus.Failed, ReflectorLinkFailureReason.CertificateRejected, detail);
 
@@ -174,6 +183,23 @@ public class ReflectorLinkStateTracker : IReflectorLinkStateService, IDisposable
             ? ReflectorLinkStatus.Disconnected
             : ReflectorLinkStatus.Failed;
 
+    /// <summary>
+    /// Échec de vérification du certificat <b>du serveur</b>, émis par
+    /// <c>ReflectorLogic::onVerifyPeer</c> quand OpenSSL refuse la chaîne présentée.
+    /// </summary>
+    /// <remarks>
+    /// Les lignes OpenSSL brutes qui suivent (<c>sslDoHandshake failed</c>,
+    /// <c>certificate verify failed</c>) ne portent pas le nom de la logique : elles sont
+    /// écartées en amont par <see cref="Interpret"/>. Seule cette ligne-ci est exploitable,
+    /// et c'est elle qui nomme la cause.
+    /// </remarks>
+    private static bool IsServerCertificateFailure(string message) =>
+        Has(message, "Certificate verification failed for reflector server");
+
+    /// <summary>
+    /// Problème sur le certificat <b>du nœud</b> : absent, illisible, ou désaccordé de sa
+    /// clé privée.
+    /// </summary>
     private static bool IsCertificateFailure(string message) =>
         Has(message, "certificate") &&
         (Has(message, "Failed to load client certificate") ||
