@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -33,7 +33,15 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
         modelBuilder.Entity<SalonAggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<SA818Aggregate>().Ignore(e => e.DomainEvents);
         modelBuilder.Entity<ReflectorAggregate>().Ignore(e => e.DomainEvents);
-        modelBuilder.Entity<GeneralConfigurationAggregate>().Ignore(e => e.DomainEvents);
+        modelBuilder.Entity<GeneralConfigurationAggregate>(entity =>
+        {
+            entity.Ignore(e => e.DomainEvents);
+
+            // Sérialisé en JSON, comme la configuration des salons : l'identité du
+            // certificat compte sept champs facultatifs, et en ajouter un ne devra pas
+            // coûter une migration de plus.
+            entity.OwnsOne(e => e.CertificateSubject, subject => subject.ToJson());
+        });
         modelBuilder.Entity<AudioConfigurationAggregate>().Ignore(e => e.DomainEvents);
 
         modelBuilder.Entity<SalonAggregate>(entity =>
