@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SvxlinkManagerV2.Application.Features.ApplicationUpdate;
+using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Features.Statistics;
 using SvxlinkManagerV2.Application.Features.SystemStatus;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -121,6 +122,12 @@ namespace SvxlinkManagerV2.Presentation
             // SA818 initializer
             services.AddHostedService<SA818InitializerHostedService>();
 
+            // Adresse du réflecteur local, vers laquelle pointe le salon « Réflecteur Local »
+            // seedé. Lue avant les seeders, qui en dépendent tous les deux.
+            services.Configure<LocalReflectorOptions>(Configuration.GetSection(LocalReflectorOptions.SectionName));
+            services.Configure<CertificateAuthorityOptions>(
+                Configuration.GetSection(CertificateAuthorityOptions.SectionName));
+
             // Seeding des salons originaux
             services.AddHostedService<SalonSeederHostedService>();
 
@@ -179,10 +186,30 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<ISvxLinkLogService, SvxLinkLogBuffer>();
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
+            services.AddSingleton<ITalkGroupStateService, TalkGroupTracker>();
+            services.AddSingleton<IReflectorTrustService, ReflectorTrustService>();
+
+            // Un seul service porte la lecture et la réinitialisation de la PKI du nœud :
+            // les deux travaillent sur les mêmes fichiers, nommés d'après l'indicatif.
+            services.AddSingleton<NodeCertificateService>();
+            services.AddSingleton<INodeCertificateReader>(sp => sp.GetRequiredService<NodeCertificateService>());
+            services.AddSingleton<INodeCertificateRequestResetter>(sp => sp.GetRequiredService<NodeCertificateService>());
+
+            // Le poller est à la fois le singleton lu par la query et le service hébergé qui
+            // l'alimente : une seule instance, sans quoi la page lirait un instantané que
+            // personne ne met à jour.
+            services.AddSingleton<IReflectorCommandWriter, ReflectorCommandPtyWriter>();
+            services.AddSingleton<IPendingCertificateRequestReader, PendingCertificateRequestReader>();
+            services.AddHostedService<CertificateAutoSignHostedService>();
+
+            services.AddSingleton<ReflectorStatusPoller>();
+            services.AddSingleton<IReflectorStatusService>(sp => sp.GetRequiredService<ReflectorStatusPoller>());
+            services.AddHostedService(sp => sp.GetRequiredService<ReflectorStatusPoller>());
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISquelchStateService, SquelchStateTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
+            services.AddScoped<INodeInformationWriter, NodeInformationWriter>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddSingleton<ISvxLinkConfigurationReader, SvxLinkConfigurationReader>();
             services.AddScoped<ISalonAnnouncementService, SalonAnnouncementService>();

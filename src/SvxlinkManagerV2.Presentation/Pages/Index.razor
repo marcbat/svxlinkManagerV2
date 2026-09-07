@@ -1,14 +1,19 @@
-@page "/"
+﻿@page "/"
 @implements IDisposable
 @using SvxlinkManagerV2.Application.Features.Salons.GetActiveSalon
 @using SvxlinkManagerV2.Application.Features.Salons.GetAllSalons
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
+@using SvxlinkManagerV2.Application.Features.Salons.SelectTalkGroup
+@using SvxlinkManagerV2.Application.Features.Salons.GetNodeCertificate
+@using SvxlinkManagerV2.Application.Features.Salons.RegenerateCertificateRequest
+@using SvxlinkManagerV2.Application.Features.SvxLink.ResetReflectorTrust
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Application.Models
 @using SvxlinkManagerV2.Domain.Aggregates.Salon
+@using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Aggregates.SA818
 @using SvxlinkManagerV2.Domain.Common
 
@@ -17,6 +22,7 @@
 @inject IReflectorDaemonService ReflectorDaemonService
 @inject IConnectedNodesService ConnectedNodesService
 @inject IReflectorLinkStateService LinkStateService
+@inject ITalkGroupStateService TalkGroupStateService
 @inject ToastService ToastService
 
 <!-- ── Page Header ─────────────────────────────────────────── -->
@@ -53,6 +59,17 @@
                         &nbsp;/&nbsp;
                         TX @(_activeSalon.Configuration.TxCtcss.HasValue ? $"{_activeSalon.Configuration.TxCtcss.Value:F1} Hz" : "Aucun")
                     </span>
+                    @if (SupportsTalkGroups)
+                    {
+                        <span class="focus-detail-item">
+                            <span class="material-symbols-outlined">groups</span>
+                            Talkgroup @CurrentTalkGroupLabel
+                            @if (TalkGroupOriginLabel is { } origin)
+                            {
+                                <span>&nbsp;(@origin)</span>
+                            }
+                        </span>
+                    }
                 </div>
             </div>
         </div>
@@ -67,9 +84,29 @@
             <div class="link-alert-title">@LinkStatusLabel : @LinkFailureLabel</div>
             <div class="link-alert-detail">
                 Le daemon SVXLink tourne, mais le nœud n'est pas relié au réflecteur.
+                @if (LinkRemedy is not null)
+                {
+                    <div class="link-alert-remedy">@LinkRemedy</div>
+                }
                 @if (!string.IsNullOrWhiteSpace(_linkState.Detail))
                 {
                     <code class="link-alert-log">@_linkState.Detail</code>
+                }
+                @if (CanResetTrust)
+                {
+                    <button class="btn btn-secondary btn-sm" style="margin-top:10px;"
+                            disabled="@_isResettingTrust"
+                            @onclick="ResetReflectorTrust">
+                        @if (_isResettingTrust)
+                        {
+                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">lock_reset</span>
+                        }
+                        Réinitialiser la confiance
+                    </button>
                 }
             </div>
         </div>
@@ -158,6 +195,155 @@
         </div>
     </div>
 
+    <!-- Certificat du nœud (protocole V3 uniquement) -->
+    @if (SupportsTalkGroups && _certificate.Status != NodeCertificateStatus.NotApplicable)
+    {
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">verified_user</span>
+                Certificat du nœud
+                <span class="badge @CertificateBadgeCss" style="margin-left:8px;">@CertificateStatusLabel</span>
+            </div>
+
+            <p class="help-dtmf-hint" style="margin-top:0;">
+                <span class="material-symbols-outlined">@CertificateIcon</span>
+                @CertificateExplanation
+            </p>
+
+            @if (_certificate.Status is NodeCertificateStatus.Valid
+                or NodeCertificateStatus.Expiring or NodeCertificateStatus.Expired)
+            {
+                <div class="focus-active-details" style="margin-top:6px;">
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">badge</span>
+                        @_certificate.Subject
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">approval</span>
+                        Émis par @_certificate.Issuer
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">event</span>
+                        Valable jusqu'au @_certificate.NotAfter?.ToString("dd/MM/yyyy")
+                        @if (_certificate.DaysUntilExpiry is { } days)
+                        {
+                            <span>&nbsp;(@(days >= 0 ? $"{days} jour(s)" : "expiré"))</span>
+                        }
+                    </span>
+                </div>
+            }
+
+            <div class="actions-stack" style="margin-top:10px;">
+                @if (_confirmRegenerate)
+                {
+                    <span style="color:var(--danger);font-weight:600;">
+                        Le nœud perdra son certificat et restera hors ligne jusqu'à ce que le
+                        sysop du réflecteur signe la nouvelle demande. Confirmer ?
+                    </span>
+                    <button class="btn btn-danger btn-sm"
+                            disabled="@_isRegeneratingCertificate"
+                            @onclick="RegenerateCertificateRequest">
+                        @if (_isRegeneratingCertificate)
+                        {
+                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">restart_alt</span>
+                        }
+                        Oui, régénérer
+                    </button>
+                    <button class="btn btn-secondary btn-sm"
+                            disabled="@_isRegeneratingCertificate"
+                            @onclick="() => _confirmRegenerate = false">
+                        Annuler
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _confirmRegenerate = true">
+                        <span class="material-symbols-outlined">autorenew</span>
+                        Régénérer la demande
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Talkgroup (protocole V3 uniquement) -->
+    @if (SupportsTalkGroups)
+    {
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">groups</span>
+                Talkgroup
+                <span class="badge badge-accent" style="margin-left:8px;">@CurrentTalkGroupLabel</span>
+            </div>
+
+            <div class="actions-stack">
+                <select class="form-select" style="flex:1;min-width:160px;"
+                        @bind="_selectedTalkGroup" disabled="@_isSelectingTalkGroup">
+                    @foreach (var tg in AvailableTalkGroups)
+                    {
+                        <option value="@tg">@tg @(tg == DefaultTalkGroup ? "(par défaut)" : "")</option>
+                    }
+                </select>
+                <input class="form-control" type="number" min="0" style="width:120px;"
+                       placeholder="Autre TG" @bind="_customTalkGroup" disabled="@_isSelectingTalkGroup" />
+                <button class="btn btn-primary btn-sm"
+                        disabled="@_isSelectingTalkGroup"
+                        @onclick="() => SelectTalkGroup(_customTalkGroup ?? _selectedTalkGroup)">
+                    @if (_isSelectingTalkGroup)
+                    {
+                        <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">swap_horiz</span>
+                    }
+                    Rejoindre
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        disabled="@_isSelectingTalkGroup"
+                        @onclick="() => SelectTalkGroup(DefaultTalkGroup)">
+                    <span class="material-symbols-outlined">restart_alt</span>
+                    TG par défaut
+                </button>
+            </div>
+
+            @if (_talkGroupState.TemporaryMonitors.Count > 0)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">hearing</span>
+                    Surveillance temporaire : @string.Join(", ", _talkGroupState.TemporaryMonitors).
+                </p>
+            }
+
+            @if (_talkGroupState.PendingQsy is { } pendingQsy)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">swap_horiz</span>
+                    QSY annoncé vers le talkgroup @pendingQsy, en attente d'être suivi.
+                </p>
+            }
+
+            @if (_talkGroupState.LastQsyFailed)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">error</span>
+                    Le dernier QSY demandé a échoué : aucun talkgroup actif, ou liaison coupée.
+                </p>
+            }
+
+            <p class="help-dtmf-hint" style="margin-top:10px;">
+                <span class="material-symbols-outlined">info</span>
+                Le changement est transmis à SVXLink sans redémarrer le daemon. Il n'est pas
+                mémorisé : le salon repart sur son talkgroup par défaut à la prochaine activation,
+                et SVXLink le relâche de lui-même après @(_activeSalon?.Configuration.TgSelectTimeout ?? 0) s sans activité.
+            </p>
+        </div>
+    }
+
     <!-- Nœuds connectés -->
     <div class="card">
         <div class="section-header">
@@ -169,7 +355,41 @@
             }
         </div>
 
-        @if (_connectedNodes.Count > 0)
+        @if (_connectedNodes.Count > 0 && GroupNodesByTalkGroup)
+        {
+            @foreach (var group in NodesByTalkGroup)
+            {
+                <div class="node-group @(group.Key == _talkGroupState.TalkGroup ? "node-group--current" : "")">
+                    <div class="node-group-header">
+                        <span class="material-symbols-outlined">groups</span>
+                        Talkgroup @(group.Key == 0 ? "aucun" : group.Key.ToString())
+                        @if (group.Key == _talkGroupState.TalkGroup)
+                        {
+                            <span class="node-chip-tag">le vôtre</span>
+                        }
+                    </div>
+                    <div class="node-list">
+                        @foreach (var node in group.OrderBy(n => n.Name))
+                        {
+                            <div class="@GetNodeChipCss(node)">
+                                <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
+                                @node.Name
+                                @if (IsCurrentNode(node))
+                                {
+                                    <span class="node-chip-tag">Courant</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <p class="help-dtmf-hint">
+                <span class="material-symbols-outlined">info</span>
+                Deux nœuds sur des talkgroups différents ne s'entendent pas, même connectés au
+                même réflecteur.
+            </p>
+        }
+        else if (_connectedNodes.Count > 0)
         {
             <div class="node-list">
                 @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
@@ -297,6 +517,40 @@
         font-size: 12px;
         color: var(--text-muted);
         margin-top: 4px;
+    }
+
+    .node-group {
+        border-left: 2px solid var(--border);
+        padding-left: 10px;
+        margin-bottom: 12px;
+    }
+
+    .node-group--current {
+        border-left-color: var(--accent);
+    }
+
+    .node-group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+        .node-group--current .node-group-header {
+            color: var(--accent);
+        }
+
+        .node-group-header .material-symbols-outlined {
+            font-size: 15px;
+        }
+
+    .link-alert-remedy {
+        margin-top: 6px;
+        color: var(--text);
+        font-weight: 600;
     }
 
     .link-alert-log {
@@ -436,6 +690,14 @@
     private Guid? _selectedSalonId;
     private bool _isActivating;
     private bool _isDeactivating;
+    private TalkGroupState _talkGroupState = TalkGroupState.NotApplicable;
+    private int _selectedTalkGroup;
+    private int? _customTalkGroup;
+    private bool _isSelectingTalkGroup;
+    private bool _isResettingTrust;
+    private NodeCertificateState _certificate = NodeCertificateState.NotApplicable;
+    private bool _isRegeneratingCertificate;
+    private bool _confirmRegenerate;
 
     private PeriodicTimer? _statusTimer;
     private CancellationTokenSource? _cts;
@@ -456,6 +718,21 @@
         // L'état de la liaison est poussé par les logs SVXLink : aucun rafraîchissement manuel.
         _linkState = LinkStateService.State;
         LinkStateService.OnStateChanged += OnLinkStateChanged;
+
+        // Le talkgroup courant vient des logs : il change aussi sans que l'application
+        // l'ait demandé (QSY du réflecteur, commande DTMF composée sur la radio).
+        _talkGroupState = TalkGroupStateService.State;
+        _selectedTalkGroup = _talkGroupState.TalkGroup ?? DefaultTalkGroup;
+        TalkGroupStateService.OnTalkGroupChanged += OnTalkGroupChanged;
+    }
+
+    private void OnTalkGroupChanged(TalkGroupState state)
+    {
+        InvokeAsync(() =>
+        {
+            _talkGroupState = state;
+            StateHasChanged();
+        });
     }
 
     private void OnLinkStateChanged(ReflectorLinkState state)
@@ -564,6 +841,7 @@
         ConnectedNodesService.OnNodeTxStarted -= OnNodeTxStarted;
         ConnectedNodesService.OnNodeTxStopped -= OnNodeTxStopped;
         LinkStateService.OnStateChanged -= OnLinkStateChanged;
+        TalkGroupStateService.OnTalkGroupChanged -= OnTalkGroupChanged;
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -631,6 +909,16 @@
             }
 
             _linkState = LinkStateService.State;
+
+            try
+            {
+                _certificate = await Mediator.Send<NodeCertificateState>(new GetNodeCertificateQuery());
+            }
+            catch (Exception ex)
+            {
+                _certificate = NodeCertificateState.NotApplicable;
+                loadErrors.Add($"certificat du nœud: {ex.Message}");
+            }
         }
         finally
         {
@@ -707,6 +995,190 @@
     }
 
     /// <summary>
+    /// Les talkgroups n'existent qu'en protocole V3 : un salon V2 ne sait pas les sélectionner,
+    /// et un perroquet n'a pas de liaison réflecteur du tout.
+    /// </summary>
+    private bool SupportsTalkGroups =>
+        _activeSalon is not null
+        && _activeSalon.SalonType != SalonType.Parrot
+        && _activeSalon.Configuration.ReflectorProtocol == ReflectorProtocol.V3;
+
+    private int DefaultTalkGroup => _activeSalon?.Configuration.DefaultTg ?? 0;
+
+    private string CurrentTalkGroupLabel =>
+        _talkGroupState.TalkGroup is { } tg ? (tg == 0 ? "aucun" : tg.ToString()) : "inconnu";
+
+    /// <summary>
+    /// Ce qui a provoqué la sélection courante. SVXLink distingue lui-même ces origines :
+    /// sans elles, un QSY décidé par le réflecteur ressemble à une manœuvre de l'opérateur.
+    /// </summary>
+    private string? TalkGroupOriginLabel => _talkGroupState.Origin switch
+    {
+        TalkGroupActivationOrigin.Local => "activité locale",
+        TalkGroupActivationOrigin.Remote => "activité distante",
+        TalkGroupActivationOrigin.Priority => "talkgroup prioritaire",
+        TalkGroupActivationOrigin.Command => "commande DTMF",
+        TalkGroupActivationOrigin.Default => "talkgroup par défaut",
+        TalkGroupActivationOrigin.Qsy => "QSY du réflecteur",
+        TalkGroupActivationOrigin.Timeout => "délai écoulé",
+        _ => null
+    };
+
+    /// <summary>
+    /// Talkgroups proposés : le TG par défaut du salon et ceux de MONITOR_TGS. Un TG hors
+    /// liste reste saisissable dans le champ voisin.
+    /// </summary>
+    private IEnumerable<int> AvailableTalkGroups
+    {
+        get
+        {
+            var talkGroups = new List<int> { DefaultTalkGroup };
+            talkGroups.AddRange(ParseMonitorTgs(_activeSalon?.Configuration.MonitorTgs));
+
+            if (_talkGroupState.TalkGroup is { } current)
+                talkGroups.Add(current);
+
+            // Une surveillance temporaire ajoutée en DTMF doit rester atteignable depuis
+            // l'interface, sans quoi il faudrait retaper le numéro à la main.
+            talkGroups.AddRange(_talkGroupState.TemporaryMonitors);
+
+            return talkGroups.Distinct().OrderBy(tg => tg);
+        }
+    }
+
+    /// <summary>
+    /// MONITOR_TGS est une liste séparée par des virgules dont chaque entrée peut porter un
+    /// suffixe de priorité (« 226+ ») : seuls les chiffres de tête sont un numéro de TG.
+    /// </summary>
+    private static IEnumerable<int> ParseMonitorTgs(string? monitorTgs)
+    {
+        if (string.IsNullOrWhiteSpace(monitorTgs))
+            yield break;
+
+        foreach (var entry in monitorTgs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var digits = new string(entry.TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var talkGroup))
+                yield return talkGroup;
+        }
+    }
+
+    private async Task SelectTalkGroup(int talkGroup)
+    {
+        _isSelectingTalkGroup = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new SelectTalkGroupCommand(talkGroup));
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess($"Commande envoyée : talkgroup {talkGroup}.");
+                    _customTalkGroup = null;
+                    _selectedTalkGroup = talkGroup;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isSelectingTalkGroup = false;
+        }
+    }
+
+    private string CertificateStatusLabel => _certificate.Status switch
+    {
+        NodeCertificateStatus.NotGenerated => "pas encore généré",
+        NodeCertificateStatus.PendingSignature => "en attente de signature",
+        NodeCertificateStatus.Valid => "valide",
+        NodeCertificateStatus.Expiring => "expire bientôt",
+        NodeCertificateStatus.Expired => "expiré",
+        _ => "illisible"
+    };
+
+    private string CertificateBadgeCss => _certificate.Status switch
+    {
+        NodeCertificateStatus.Valid => "badge-success",
+        NodeCertificateStatus.PendingSignature or NodeCertificateStatus.Expiring => "badge-warning",
+        NodeCertificateStatus.Expired or NodeCertificateStatus.Unreadable => "badge-danger",
+        _ => "badge-muted"
+    };
+
+    private string CertificateIcon => _certificate.Status switch
+    {
+        NodeCertificateStatus.Valid => "check_circle",
+        NodeCertificateStatus.PendingSignature => "hourglass_top",
+        _ => "info"
+    };
+
+    /// <summary>
+    /// L'attente de signature est le cas que l'application montrait comme un échec de
+    /// connexion : le dire explicitement est tout l'objet de cette section.
+    /// </summary>
+    private string CertificateExplanation => _certificate.Status switch
+    {
+        NodeCertificateStatus.NotGenerated =>
+            "Le nœud n'a pas encore généré sa clé. Elle est créée au premier démarrage de "
+            + "SVXLink sur un salon en protocole V3.",
+        NodeCertificateStatus.PendingSignature =>
+            "La demande de signature a été transmise au réflecteur et attend la décision de "
+            + "son sysop. Ce n'est pas une panne : l'attente peut durer des heures ou des "
+            + "jours, et le nœud se connectera de lui-même une fois la demande signée."
+            + (_certificate.RequestedAt is { } requested
+                ? $" Demande déposée le {requested:dd/MM/yyyy à HH:mm}."
+                : string.Empty),
+        NodeCertificateStatus.Valid =>
+            "Le nœud dispose d'un certificat valide.",
+        NodeCertificateStatus.Expiring =>
+            $"Le certificat expire dans moins de {NodeCertificateState.ExpiryWarningDays} jours. "
+            + "Régénérez la demande sans attendre : la signature dépend du sysop du réflecteur.",
+        NodeCertificateStatus.Expired =>
+            "Le certificat a expiré et le réflecteur le refusera. Régénérez la demande.",
+        _ => "Le certificat est présent mais illisible. Régénérer la demande le remplacera."
+    };
+
+    private async Task RegenerateCertificateRequest()
+    {
+        _isRegeneratingCertificate = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new RegenerateCertificateRequestCommand());
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess(
+                        "Nouvelle demande de signature déposée. Le nœud restera hors ligne "
+                        + "jusqu'à ce que le sysop du réflecteur la signe.");
+                    _confirmRegenerate = false;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isRegeneratingCertificate = false;
+        }
+    }
+
+    /// <summary>
     /// Sans daemon, aucune liaison n'a de sens : l'état issu des logs est alors ignoré.
     /// </summary>
     private ReflectorLinkStatus EffectiveLinkStatus =>
@@ -744,13 +1216,71 @@
     {
         ReflectorLinkFailureReason.AuthenticationRejected => "authentification refusée",
         ReflectorLinkFailureReason.HostUnreachable        => "hôte injoignable",
-        ReflectorLinkFailureReason.CertificateRejected    => "certificat rejeté",
+        ReflectorLinkFailureReason.CertificateRejected    => "certificat du nœud rejeté",
+        ReflectorLinkFailureReason.ServerCertificateUntrusted
+                                                          => "autorité de certification du réflecteur inconnue",
         ReflectorLinkFailureReason.ProtocolError          => "erreur de protocole",
         ReflectorLinkFailureReason.RemoteDisconnected     => "connexion fermée par le réflecteur",
         ReflectorLinkFailureReason.HeartbeatTimeout       => "plus de réponse du réflecteur",
         ReflectorLinkFailureReason.ConfigurationInvalid   => "configuration réflecteur incomplète",
         _                                                 => "cause non identifiée"
     };
+
+    /// <summary>
+    /// Conduite à tenir, quand la cause en admet une. Le reste des causes se règle hors du
+    /// nœud (adresse du réflecteur, indicatif déclaré côté serveur) : rien à proposer ici.
+    /// </summary>
+    private string? LinkRemedy => _linkState.Reason switch
+    {
+        ReflectorLinkFailureReason.ServerCertificateUntrusted =>
+            "Le réflecteur a changé d'autorité de certification. Faites oublier au nœud "
+            + "celle qu'il connaît : il retéléchargera la nouvelle et SVXLink redémarrera. "
+            + "Si le réflecteur a régénéré toute sa PKI, le certificat de ce nœud devra "
+            + "aussi être signé à nouveau par son administrateur.",
+        ReflectorLinkFailureReason.CertificateRejected =>
+            "Le certificat de ce nœud n'est plus valide. Il doit être signé à nouveau par "
+            + "l'administrateur du réflecteur.",
+        ReflectorLinkFailureReason.ConfigurationInvalid =>
+            "La configuration du salon actif est incomplète : vérifiez l'adresse du "
+            + "réflecteur et l'indicatif dans la fiche du salon.",
+        _ => null
+    };
+
+    private bool CanResetTrust =>
+        IsLinkFaulted && _linkState.Reason == ReflectorLinkFailureReason.ServerCertificateUntrusted;
+
+    private async Task ResetReflectorTrust()
+    {
+        _isResettingTrust = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ResetReflectorTrustCommand());
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess(
+                        "Autorité de certification oubliée, SVXLink redémarre. La liaison "
+                        + "se rétablit dès que le nœud a retéléchargé la nouvelle autorité — "
+                        + "à moins que son propre certificat ne doive être signé à nouveau.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isResettingTrust = false;
+        }
+    }
 
     private string LinkTooltip => EffectiveLinkStatus switch
     {
@@ -761,6 +1291,24 @@
                                           => $"Dernière cause détectée : {LinkFailureLabel}.",
         _                                 => "Tentative de connexion au réflecteur en cours."
     };
+
+    /// <summary>
+    /// Le regroupement n'a de sens qu'en V3, et seulement si l'on connaît réellement le
+    /// talkgroup des nœuds : sur un réflecteur distant l'API de statut n'est pas
+    /// accessible, et tout regrouper sous « aucun » serait pire que la liste plate.
+    /// </summary>
+    private bool GroupNodesByTalkGroup =>
+        SupportsTalkGroups && _connectedNodes.Any(node => node.TalkGroup.HasValue);
+
+    /// <summary>
+    /// Nœuds groupés par talkgroup, celui du nœud local en tête puis par numéro croissant.
+    /// Un nœud dont le talkgroup est inconnu est rangé avec « aucun ».
+    /// </summary>
+    private IEnumerable<IGrouping<int, ConnectedNodeInfo>> NodesByTalkGroup =>
+        _connectedNodes
+            .GroupBy(node => node.TalkGroup ?? 0)
+            .OrderByDescending(group => group.Key == _talkGroupState.TalkGroup)
+            .ThenBy(group => group.Key);
 
     private bool IsCurrentNode(ConnectedNodeInfo node)
     {

@@ -2,7 +2,9 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
@@ -26,6 +28,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     private IServiceScopeFactory _scopeFactory = null!;
     private IHostEnvironment _environment = null!;
     private ISetupStatusService _setupStatusService = null!;
+    private LocalReflectorOptions _localReflector = null!;
 
     public SalonSeederHostedServiceIntegrationTests(PostgresContainerFixture fixture)
     {
@@ -54,6 +57,10 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         _setupStatusService = Substitute.For<ISetupStatusService>();
         _setupStatusService.IsSetupRequiredAsync(Arg.Any<CancellationToken>()).Returns(false);
 
+        // Valeurs volontairement différentes des valeurs par défaut : les tests doivent
+        // vérifier que l'adresse du réflecteur local vient bien de la configuration.
+        _localReflector = new LocalReflectorOptions { Host = "reflecteur.test", Port = 5399 };
+
         return Task.CompletedTask;
     }
 
@@ -67,7 +74,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreate8Salons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -81,7 +88,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldCreateSalonsWithFixedGuids()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
         var expectedGuids = new[]
         {
             new Guid("235a4521-15a1-4e02-a540-91ee600452ac"),
@@ -106,7 +113,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveIsDefaultFalse()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -153,7 +160,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création salon initial"));
 
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act - Exécuter le seeder alors qu'un salon existe déjà
         await service.StartAsync(CancellationToken.None);
@@ -169,7 +176,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenCalledTwiceOnEmptyDatabase_ShouldCreate8SalonsOnFirstCallOnly()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act - Premier démarrage
         await service.StartAsync(CancellationToken.None);
@@ -186,7 +193,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldContainRRFSalon()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -205,7 +212,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldNotContainObsoleteSalons()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -220,29 +227,52 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     public async Task StartAsync_WhenNoSalonsExist_ShouldContainReflecteurLocalSalon()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        // Assert - Vérifier la présence du salon Réflecteur Local (V3, localhost)
+        // Assert - Vérifier la présence du salon Réflecteur Local (V3, hôte configuré)
         var reflecteurLocalId = new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04");
         var salons = await _repository.GetAllAsync();
         var reflecteurLocal = salons.FirstOrDefault(s => s.Id == reflecteurLocalId);
         reflecteurLocal.Should().NotBeNull();
         reflecteurLocal!.Name.Should().Be("Réflecteur Local");
-        reflecteurLocal.Configuration.Host.Should().Be("127.0.0.1");
-        reflecteurLocal.Configuration.Port.Should().Be(5300);
+        reflecteurLocal.Configuration.Host.Should().Be("reflecteur.test");
+        reflecteurLocal.Configuration.Port.Should().Be(5399);
         reflecteurLocal.Configuration.ReflectorProtocol.Should().Be(ReflectorProtocol.V3);
         reflecteurLocal.Configuration.AuthKey.Should().BeNull();
         reflecteurLocal.DtmfCode.Should().Be(210);
+    }
+
+    /// <summary>
+    /// Régression #142 : sans configuration explicite, le réflecteur local reste joignable
+    /// par l'adresse de bouclage — le démon svxreflector tourne alors sur le nœud lui-même.
+    /// C'est la valeur de production, celle qu'un déploiement sur Orange Pi doit retrouver.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenLocalReflectorNotConfigured_ShouldFallBackToLoopback()
+    {
+        // Arrange — options laissées à leurs valeurs par défaut
+        var service = new SalonSeederHostedService(
+            _scopeFactory, _logger, _environment, _setupStatusService,
+            Options.Create(new LocalReflectorOptions()));
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        // Assert
+        var salons = await _repository.GetAllAsync();
+        var reflecteurLocal = salons.Single(s => s.Name == "Réflecteur Local");
+        reflecteurLocal.Configuration.Host.Should().Be("127.0.0.1");
+        reflecteurLocal.Configuration.Port.Should().Be(5300);
     }
 
     [Fact]
     public async Task StartAsync_WhenNoSalonsExist_AllSalonsShouldHaveDtmfCodeAssigned()
     {
         // Arrange
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -283,7 +313,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var service = new SalonSeederHostedService(scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act — ne doit pas lever d'exception (le catch interne absorbe)
         var act = async () => await service.StartAsync(CancellationToken.None);
@@ -337,7 +367,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
             async aggregate => await _repository.SaveAsync(aggregate),
             errors => throw new Exception("Échec création salon initial"));
 
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, productionEnvironment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, productionEnvironment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);
@@ -358,7 +388,7 @@ public class SalonSeederHostedServiceIntegrationTests : IAsyncLifetime
     {
         // Arrange — simuler le wizard requis (base vide)
         _setupStatusService.IsSetupRequiredAsync(Arg.Any<CancellationToken>()).Returns(true);
-        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService);
+        var service = new SalonSeederHostedService(_scopeFactory, _logger, _environment, _setupStatusService, Options.Create(_localReflector));
 
         // Act
         await service.StartAsync(CancellationToken.None);

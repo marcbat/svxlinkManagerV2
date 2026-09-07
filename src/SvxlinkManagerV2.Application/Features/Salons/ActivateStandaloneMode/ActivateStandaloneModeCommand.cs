@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using MediatR;
 using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
@@ -40,6 +40,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
     private readonly IActiveSessionTracker _tracker;
     private readonly IConnectedNodesService _connectedNodesService;
     private readonly IReflectorLinkStateService _linkStateService;
+    private readonly ITalkGroupStateService _talkGroupStateService;
     private readonly IActivityRecorder _activityRecorder;
     private readonly ILogger<ActivateStandaloneModeCommandHandler> _logger;
 
@@ -52,6 +53,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         IActiveSessionTracker tracker,
         IConnectedNodesService connectedNodesService,
         IReflectorLinkStateService linkStateService,
+        ITalkGroupStateService talkGroupStateService,
         IActivityRecorder activityRecorder,
         ILogger<ActivateStandaloneModeCommandHandler> logger)
     {
@@ -63,6 +65,7 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         _tracker = tracker;
         _connectedNodesService = connectedNodesService;
         _linkStateService = linkStateService;
+        _talkGroupStateService = talkGroupStateService;
         _activityRecorder = activityRecorder;
         _logger = logger;
     }
@@ -121,6 +124,9 @@ public class ActivateStandaloneModeCommandHandler : IRequestHandler<ActivateStan
         // Mode autonome : la configuration générée ne comporte pas de ReflectorLogic,
         // il n'y a donc aucune liaison à surveiller.
         _linkStateService.MarkNotApplicable();
+
+        // Mode autonome : aucune ReflectorLogic, donc aucun talkgroup.
+        _talkGroupStateService.MarkNotApplicable();
 
         _logger.LogInformation("Démarrage du daemon SVXLink en mode standalone (version moderne)");
         var daemonResult = await _daemonService.RestartAsync(ReflectorProtocol.V3, cancellationToken);

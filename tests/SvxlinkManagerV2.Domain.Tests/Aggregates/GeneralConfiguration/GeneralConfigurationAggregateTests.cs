@@ -1,6 +1,7 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using LanguageExt.UnitTesting;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Events;
 
 namespace SvxlinkManagerV2.Domain.Tests.Aggregates.GeneralConfiguration;
@@ -206,7 +207,9 @@ public class GeneralConfigurationAggregateTests
             startReflectorOnStartup: true,
             startDefaultSalonOnStartup: true,
             defaultRxFrequency: 144.800m,
-            defaultTxFrequency: 144.200m);
+            defaultTxFrequency: 144.200m,
+            certificateSubject: CertificateSubject.Empty,
+            nodeInformation: NodeInformation.Empty);
 
         // Act
         aggregate.Apply(evt);
@@ -228,7 +231,9 @@ public class GeneralConfigurationAggregateTests
             startReflectorOnStartup: true,
             startDefaultSalonOnStartup: true,
             defaultRxFrequency: 430.500m,
-            defaultTxFrequency: 430.500m);
+            defaultTxFrequency: 430.500m,
+            certificateSubject: CertificateSubject.Empty,
+            nodeInformation: NodeInformation.Empty);
 
         // Act
         aggregate.Apply(evt);

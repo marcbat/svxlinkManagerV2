@@ -1,10 +1,12 @@
-using LanguageExt;
+﻿using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Models;
 using SvxlinkManagerV2.Domain.Common;
 using SvxlinkManagerV2.Domain.Statistics;
 using static LanguageExt.Prelude;
+
+using SvxlinkManagerV2.Application.Features.Statistics;
 
 namespace SvxlinkManagerV2.Infrastructure.Persistence.Repositories;
 
@@ -272,6 +274,33 @@ public class ActivityRepository : IActivityRepository
 
         return rows
             .Select(r => new DtmfCodeSummary(r.Code, r.Count, r.LastUsedAt))
+            .ToList()
+            .AsReadOnly();
+    }
+
+    public async Task<IReadOnlyList<TalkGroupUsageDto>> GetTalkGroupUsageAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var from = fromUtc.ToUniversalTime();
+
+        var rows = await _context.ActivityEvents
+            .Where(e => e.OccurredAt >= from
+                        && e.Type == ActivityEventType.TalkGroupPeriod
+                        && e.TalkGroup != null)
+            .GroupBy(e => e.TalkGroup!.Value)
+            .Select(g => new
+            {
+                TalkGroup = g.Key,
+                TotalSeconds = g.Sum(e => (long)(e.DurationSeconds ?? 0)),
+                Count = g.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(r => new TalkGroupUsageDto(r.TalkGroup, TimeSpan.FromSeconds(r.TotalSeconds), r.Count))
+            .OrderByDescending(u => u.TotalTime)
+            .ThenBy(u => u.TalkGroup)
             .ToList()
             .AsReadOnly();
     }

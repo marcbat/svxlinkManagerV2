@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -117,7 +117,12 @@ public class ReflectorSeederHostedService : IHostedService
     /// Retourne la configuration INI par défaut du réflecteur local.
     /// Compatible SVXLink 25.05 — protocole V3 avec certificats X.509.
     /// </summary>
-    internal static string GetDefaultReflectorConfig()
+    /// <remarks>
+    /// Publique parce que la page Réflecteur s'en sert pour créer le réflecteur quand la
+    /// base n'en contient aucun : elle en tenait sa propre copie, et une clé ajoutée ici
+    /// manquait alors sur tout réflecteur créé depuis l'interface.
+    /// </remarks>
+    public static string GetDefaultReflectorConfig()
     {
         return """
             [GLOBAL]
@@ -126,6 +131,57 @@ public class ReflectorSeederHostedService : IHostedService
             ACCEPT_CALLSIGN=.*
             CODECS=OPUS
             CERT_PKI_DIR=/var/lib/svxlink/pki
+
+            # Serveur HTTP de statut, lu par la page Réflecteur pour lister les nœuds
+            # connectés et leur talkgroup.
+            #
+            # SVXLink lie ce port sur toutes les interfaces (Async::TcpServer sans adresse,
+            # non configurable) : sur une machine exposée, il doit être fermé au pare-feu.
+            # Sa propre documentation le décrit comme simple, non audité et sensible à la
+            # charge — il n'a rien à faire sur l'Internet public.
+            HTTP_SRV_PORT=8888
+
+            # Pseudo-terminal de commandes runtime, par lequel l'application signe les
+            # demandes de certificat (CA SIGN) et bloque temporairement un nœud (NODE BLOCK).
+            # Sans lui, une demande déposée dans pending_csrs/ y reste indéfiniment et le
+            # nœud demandeur enchaîne les « Access denied ».
+            #
+            # Aucun CERT_CA_HOOK n'est déclaré : la signature est une décision humaine, prise
+            # depuis la page Certificats. Le hook de développement dev-ca-hook.sh signe, lui,
+            # n'importe quel indicatif — il n'a sa place que dans la stack Docker.
+            COMMAND_PTY=/tmp/reflector_ctrl
+
+            # Talkgroup auquel sont rattachés les nœuds en protocole V1/V2 : ceux-ci ne
+            # savent pas sélectionner de talkgroup eux-mêmes. Sans cette variable ils ne
+            # participent à aucun TG et restent muets dès qu'un talkgroup est utilisé — ce
+            # qui arrive dès qu'un nœud V3 est présent. C'est le paramètre clé de la
+            # coexistence V2/V3 pendant la migration du parc.
+            #
+            # Sur un réflecteur local le numéro est libre ; celui-ci est aussi celui de la
+            # stack de test, pour que tout le projet parle du même talkgroup.
+            TG_FOR_V1_CLIENTS=240
+
+            # Plage dans laquelle le réflecteur tire un talkgroup lors d'un QSY aléatoire.
+            # Sans elle, le QSY aléatoire — et donc AUTO_QSY_AFTER — ne fonctionne pas.
+            #
+            # Syntaxe : <borne basse>:<nombre de TG>, et non une plage à tiret. La convention
+            # recommandée par svxreflector.conf(5) est <MCC>9900:100 :
+            #   Suisse : 2289900:100      France : 2089900:100
+            RANDOM_QSY_RANGE=2289900:100
+
+            # Protection contre un émetteur resté bloqué : au-delà de SQL_TIMEOUT secondes
+            # d'émission continue, l'audio du nœud est coupé, puis il reste muet pendant
+            # SQL_TIMEOUT_BLOCKTIME secondes. Sans cela, un micro coincé monopolise le
+            # talkgroup jusqu'à intervention.
+            SQL_TIMEOUT=300
+            SQL_TIMEOUT_BLOCKTIME=60
+
+            # Filtrages facultatifs, décommenter au besoin :
+            #   ACCEPT_CERT_EMAIL — n'accepte les demandes de certificat que si l'adresse
+            #                       déclarée correspond à cette expression régulière.
+            #   REJECT_CALLSIGN   — refuse les indicatifs correspondants, avant tout examen.
+            #ACCEPT_CERT_EMAIL=.*@example\.org$
+            #REJECT_CALLSIGN=^(XX1ABC|YY2DEF)$
 
             [ROOT_CA]
             COMMON_NAME=SvxReflector Root CA
@@ -139,7 +195,26 @@ public class ReflectorSeederHostedService : IHostedService
             COMMON_NAME=svxreflector
             SUBJECT_ALT_NAME=DNS:localhost,IP:127.0.0.1
 
+            # ── Talkgroups ────────────────────────────────────────────────────────────
+            #
+            # Une section [TG#<numéro>] par talkgroup à déclarer. Trois variables :
+            #
+            #   AUTO_QSY_AFTER — déplace vers un talkgroup tiré dans RANDOM_QSY_RANGE une
+            #                    conversation qui dure plus de N secondes. Sert à garder
+            #                    libre un canal d'appel. 0 désactive.
+            #   ALLOW          — expression régulière des indicatifs autorisés sur ce
+            #                    talkgroup.
+            #   SHOW_ACTIVITY  — 0 masque l'activité de ce talkgroup dans le statut publié.
+
+            # TG 0 : « aucun talkgroup ». Un nœud qui n'en a sélectionné aucun s'y trouve.
             [TG#0]
+            AUTO_QSY_AFTER=0
+            ALLOW=.*
+            SHOW_ACTIVITY=1
+
+            # Talkgroup des nœuds V1/V2, cf. TG_FOR_V1_CLIENTS ci-dessus. Il doit exister,
+            # sans quoi la variable ne désigne rien.
+            [TG#240]
             AUTO_QSY_AFTER=0
             ALLOW=.*
             SHOW_ACTIVITY=1

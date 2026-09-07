@@ -1,7 +1,8 @@
-using LanguageExt;
+﻿using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Common;
@@ -18,24 +19,38 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly ISvxLinkStrategyResolver _strategyResolver;
+    private readonly IGeneralConfigurationRepository _generalConfigurationRepository;
+    private readonly INodeInformationWriter _nodeInformationWriter;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
     private const string SvxLinkConfigDir = "/etc/svxlink";
 
+    /// <summary>
+    /// Document décrivant le nœud, publié au réflecteur (<c>NODE_INFO_FILE</c>).
+    /// Il vit à côté de svxlink.conf, dont il est une projection.
+    /// </summary>
+    internal const string NodeInfoFileName = "node_info.json";
+
     // Constructeur pour l'injection de dépendances
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
-        ISvxLinkStrategyResolver strategyResolver)
-        : this(logger, strategyResolver, null) { }
+        ISvxLinkStrategyResolver strategyResolver,
+        IGeneralConfigurationRepository generalConfigurationRepository,
+        INodeInformationWriter nodeInformationWriter)
+        : this(logger, strategyResolver, generalConfigurationRepository, nodeInformationWriter, null) { }
 
     // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
         ISvxLinkStrategyResolver strategyResolver,
+        IGeneralConfigurationRepository generalConfigurationRepository,
+        INodeInformationWriter nodeInformationWriter,
         string? templatePath)
     {
         _logger = logger;
         _strategyResolver = strategyResolver;
+        _generalConfigurationRepository = generalConfigurationRepository;
+        _nodeInformationWriter = nodeInformationWriter;
         _templatePath = templatePath;
     }
 
@@ -74,8 +89,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             {
                 // Mode Reflector : SimplexLogic + ReflectorLogic
                 UpdateGlobalSection(iniData, salon);
-                UpdateLinkSection(iniData);
-                UpdateReflectorLogicSection(iniData, salon);
+                UpdateLinkSection(iniData, salon);
+                await UpdateReflectorLogicSectionAsync(iniData, salon, cancellationToken);
                 UpdateSimplexLogicSection(iniData, salon);
             }
             UpdateReceiverSection(iniData, salon);
@@ -246,27 +261,152 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 
     /// <summary>
     /// Met à jour la section [LinkToReflector] qui relie SimplexLogic et ReflectorLogic.
-    /// Cette section est constante : SVXLink requiert ce pont pour router l'audio
-    /// entre le hardware local (SimplexLogic) et le reflector (ReflectorLogic).
+    /// SVXLink requiert ce pont pour router l'audio entre le matériel local (SimplexLogic)
+    /// et le réflecteur (ReflectorLogic).
+    ///
+    /// En protocole V3, la logique simplex porte en plus un <b>préfixe de commande</b>
+    /// (<c>SimplexLogic:35</c>) : c'est lui, et lui seul, qui rend les commandes talkgroup
+    /// atteignables. <c>LinkManager::addLogic</c> ne crée l'objet de commande que si
+    /// <c>atoi(cmd) &gt; 0</c> ; avec un champ vide, rien n'est jamais routé vers
+    /// <c>ReflectorLogic::remoteCmdReceived</c>. Cf. <see cref="DtmfTalkGroupCommands"/>.
+    ///
+    /// Le troisième champ (nom d'annonce) reste volontairement absent : il ne sert qu'aux
+    /// annonces d'activation du lien, inaudibles ici puisque <c>DEFAULT_ACTIVE=1</c> maintient
+    /// le lien monté en permanence, et il ferait chercher à SVXLink un son <c>Core/&lt;nom&gt;.wav</c>
+    /// qui n'existe dans aucun jeu de sons livré.
+    ///
+    /// Un salon V2 conserve la forme historique sans préfixe : SVXLink 19.09.2 ne connaît pas
+    /// les talkgroups, un préfixe n'y ouvrirait aucune commande.
     /// </summary>
-    private void UpdateLinkSection(IniFile iniData)
+    private void UpdateLinkSection(IniFile iniData, SalonAggregate salon)
     {
-        iniData["LinkToReflector"]["CONNECT_LOGICS"] = "SimplexLogic,ReflectorLogic";
+        var connectLogics = salon.Configuration.ReflectorProtocol == ReflectorProtocol.V3
+            ? $"SimplexLogic:{DtmfTalkGroupCommands.Prefix},ReflectorLogic"
+            : "SimplexLogic,ReflectorLogic";
+
+        iniData["LinkToReflector"]["CONNECT_LOGICS"] = connectLogics;
         iniData["LinkToReflector"]["DEFAULT_ACTIVE"] = "1";
         iniData["LinkToReflector"]["TIMEOUT"] = "0";
 
-        _logger.LogDebug("Section [LinkToReflector] mise à jour");
+        _logger.LogDebug("Section [LinkToReflector] mise à jour (CONNECT_LOGICS: {ConnectLogics})", connectLogics);
     }
 
     /// <summary>
     /// Met à jour la section [ReflectorLogic] avec les paramètres de connexion au Reflector.
     /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
-    private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
+    /// <summary>
+    /// Publie les informations du nœud et déclare le fichier dans <c>NODE_INFO_FILE</c>.
+    /// </summary>
+    /// <remarks>
+    /// L'échec d'écriture ne fait pas échouer la génération : un nœud anonyme dans les
+    /// annuaires reste un nœud qui fonctionne, alors qu'un salon qui refuse de s'activer
+    /// pour cette raison serait une régression franche. La clé n'est alors pas déclarée,
+    /// SVXLink n'ayant rien à lire.
+    /// </remarks>
+    private async Task WriteNodeInformationAsync(
+        IniFile iniData,
+        SalonAggregate salon,
+        CancellationToken cancellationToken)
+    {
+        var path = $"{SvxLinkConfigDir}/{NodeInfoFileName}";
+        var result = await _nodeInformationWriter.WriteAsync(salon, path, cancellationToken);
+
+        result.Match(
+            Succ: _ =>
+            {
+                iniData["ReflectorLogic"]["NODE_INFO_FILE"] = path;
+                return LanguageExt.Unit.Default;
+            },
+            Fail: errors =>
+            {
+                _logger.LogWarning(
+                    "Informations du nœud non publiées, le salon s'active sans : {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message)));
+
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "NODE_INFO_FILE");
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    /// <summary>
+    /// Écrit la variable si sa valeur s'écarte de celle que SVXLink applique par défaut,
+    /// et l'efface du template sinon.
+    /// </summary>
+    private static void WriteIfNotDefault(IniFile iniData, string key, int value, int defaultValue)
+    {
+        if (value == defaultValue)
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+        else
+            iniData["ReflectorLogic"][key] = value.ToString();
+    }
+
+    /// <summary>
+    /// Reporte l'identité du nœud (<c>CERT_SUBJ_*</c>) depuis la configuration générale.
+    /// </summary>
+    /// <remarks>
+    /// Ces valeurs relèvent du nœud et non du salon : elles sont communes à tous les salons
+    /// V3. Les champs vides ne sont pas écrits, ce qui laisse SVXLink construire un sujet
+    /// réduit au Common Name. Les anciennes valeurs sont retirées à chaque génération, sans
+    /// quoi un champ effacé par l'opérateur survivrait dans le fichier.
+    /// </remarks>
+    private async Task WriteCertificateSubjectAsync(IniFile iniData, CancellationToken cancellationToken)
+    {
+        var subject = (await _generalConfigurationRepository.GetAsync(cancellationToken))?.CertificateSubject
+                      ?? CertificateSubject.Empty;
+
+        foreach (var (key, _) in CertificateSubject.Empty.ToConfigurationEntries())
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+
+        foreach (var key in AllCertificateSubjectKeys)
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+
+        foreach (var (key, value) in subject.ToConfigurationEntries())
+            iniData["ReflectorLogic"][key] = value;
+    }
+
+    /// <summary>Toutes les variables d'identité, pour pouvoir effacer celles qui ne sont plus renseignées.</summary>
+    private static readonly string[] AllCertificateSubjectKeys =
+    [
+        "CERT_SUBJ_GN", "CERT_SUBJ_SN", "CERT_SUBJ_OU",
+        "CERT_SUBJ_O", "CERT_SUBJ_L", "CERT_SUBJ_ST", "CERT_SUBJ_C"
+    ];
+
+    /// <summary>
+    /// Chemin du gestionnaire d'événements TCL racine de l'installation SVXLink visée.
+    /// Toutes les logiques doivent le désigner : c'est lui qui charge <c>events.d/*.tcl</c>
+    /// puis les surcharges de <c>events.d/local/*.tcl</c>, dont le Logic.tcl de l'application.
+    /// </summary>
+    /// <remarks>
+    /// La stratégie expose <c>EventsDirectory</c> = <c>&lt;préfixe&gt;/share/svxlink/events.d/local</c> ;
+    /// remonter de deux niveaux donne le répertoire qui porte events.tcl. Manipulation de
+    /// chaîne et non <c>Path.Combine</c> : la cible est Linux, quel que soit l'OS de build.
+    /// </remarks>
+    private static string ResolveEventsTclPath(ISvxLinkVersionStrategy strategy)
+    {
+        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
+        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')];        // retire /local
+        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')];  // retire /events.d
+        return $"{eventsBasePath}/events.tcl";
+    }
+
+    private async Task UpdateReflectorLogicSectionAsync(
+        IniFile iniData,
+        SalonAggregate salon,
+        CancellationToken cancellationToken)
     {
         var config = salon.Configuration;
         var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
-        var eventHandlerPath = $"{strategy.EventsDirectory}/Logic.tcl";
+
+        // events.tcl, et non events.d/local/Logic.tcl : c'est events.tcl qui charge les
+        // gestionnaires standards — dont ReflectorLogic.tcl — avant d'appliquer les
+        // surcharges locales. Pointer Logic.tcl directement laissait l'interpréteur de
+        // ReflectorLogic sans son propre namespace : SVXLink appelle
+        // ReflectorLogic::tg_selected, ::report_tg_status ou ::tg_command_activation, et
+        // toutes échouaient sur « invalid command name ». Aucune annonce de talkgroup
+        // n'était donc jouée. Notre Logic.tcl reste chargé : events.tcl le lit ensuite,
+        // au titre des surcharges de events.d/local.
+        var eventHandlerPath = ResolveEventsTclPath(strategy);
 
         if (config.ReflectorProtocol == ReflectorProtocol.V2)
         {
@@ -286,6 +426,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOST_PORT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "DEFAULT_TG");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_TIMEOUT");
@@ -294,6 +436,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_REM");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "TMP_MONITOR_TIMEOUT");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "QSY_PENDING_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "NODE_INFO_FILE");
 
             _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
                 config.Host, config.Callsign);
@@ -303,12 +446,24 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             // V3 protocol (SVXLink 25.05) — X.509 certificates, TYPE=Reflector
             // ReflectorLogic.so handles v3.0 protocol with PKI
             iniData["ReflectorLogic"]["TYPE"] = "Reflector";
-            iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
+            // L'ordre de HOSTS est la priorité : SVXLink part de HOST_PRIO (100) et
+            // ajoute HOST_PRIO_INC (1) à chaque entrée suivante. Rien de plus à écrire, et
+            // un salon à serveur unique produit exactement la configuration d'avant.
+            iniData["ReflectorLogic"]["HOSTS"] =
+                ReflectorHosts.Build(config.Host, config.Port, config.AdditionalHosts);
+
+            // Port par défaut des entrées qui n'en précisent pas.
+            iniData["ReflectorLogic"]["HOST_PORT"] = config.Port.ToString();
+
+            if (!string.IsNullOrWhiteSpace(config.DnsDomain))
+                iniData["ReflectorLogic"]["DNS_DOMAIN"] = config.DnsDomain.Trim();
+            else
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
             iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
             iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
             iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
-            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = "/var/lib/svxlink/pki";
+            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = SvxLinkPkiPaths.Directory;
             iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
             iniData["ReflectorLogic"]["DEFAULT_TG"] = config.DefaultTg.ToString();
             iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"] = config.TgSelectTimeout.ToString();
@@ -316,6 +471,21 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"] = config.MuteFirstTxRem ? "1" : "0";
             iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"] = config.TmpMonitorTimeout.ToString();
             iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"] = config.QsyPendingTimeout.ToString();
+
+            // Une valeur laissée au défaut de SVXLink n'est pas écrite : la configuration
+            // générée dit ce que l'opérateur a choisi, pas ce que le logiciel aurait fait
+            // de toute façon.
+            WriteIfNotDefault(iniData, "UDP_HEARTBEAT_INTERVAL", config.UdpHeartbeatInterval, 15);
+            WriteIfNotDefault(iniData, "ANNOUNCE_REMOTE_MIN_INTERVAL", config.AnnounceRemoteMinInterval, 0);
+
+            if (config.Verbose)
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "VERBOSE");
+            else
+                iniData["ReflectorLogic"]["VERBOSE"] = "0";
+
+            await WriteCertificateSubjectAsync(iniData, cancellationToken);
+
+            await WriteNodeInformationAsync(iniData, salon, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(config.CertEmail))
             {
@@ -372,11 +542,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     {
         var config = salon.Configuration;
         var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
-        // Linux paths: use string manipulation instead of Path.Combine to avoid OS-specific separators
-        var eventsDir = strategy.EventsDirectory.TrimEnd('/');
-        var eventsBasePath = eventsDir[..eventsDir.LastIndexOf('/')]; // remove /local
-        eventsBasePath = eventsBasePath[..eventsBasePath.LastIndexOf('/')]; // remove /events.d
-        var eventsTclPath = $"{eventsBasePath}/events.tcl";
+        var eventsTclPath = ResolveEventsTclPath(strategy);
 
         iniData["SimplexLogic"]["TYPE"] = "Simplex";
         iniData["SimplexLogic"]["RX"] = "Rx1";

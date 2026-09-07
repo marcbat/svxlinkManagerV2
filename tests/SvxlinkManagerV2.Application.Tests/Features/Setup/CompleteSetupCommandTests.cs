@@ -2,7 +2,9 @@ using FluentAssertions;
 using LanguageExt;
 using LanguageExt.UnitTesting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Features.Setup;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
@@ -21,6 +23,7 @@ public class CompleteSetupCommandTests
     private readonly IGeneralConfigurationRepository _generalConfigRepository;
     private readonly ISetupStatusService _setupStatusService;
     private readonly ILogger<CompleteSetupCommandHandler> _logger;
+    private readonly LocalReflectorOptions _localReflector;
     private readonly CompleteSetupCommandHandler _handler;
 
     public CompleteSetupCommandTests()
@@ -29,12 +32,14 @@ public class CompleteSetupCommandTests
         _generalConfigRepository = Substitute.For<IGeneralConfigurationRepository>();
         _setupStatusService = Substitute.For<ISetupStatusService>();
         _logger = Substitute.For<ILogger<CompleteSetupCommandHandler>>();
+        _localReflector = new LocalReflectorOptions { Host = "reflecteur.test", Port = 5399 };
 
         _handler = new CompleteSetupCommandHandler(
             _salonRepository,
             _generalConfigRepository,
             _setupStatusService,
-            _logger);
+            _logger,
+            Options.Create(_localReflector));
     }
 
     [Fact]
@@ -281,5 +286,41 @@ public class CompleteSetupCommandTests
             errors.Should().Contain(e => e.Code == "CONFIG_ERROR");
         });
         _setupStatusService.DidNotReceive().InvalidateCache();
+    }
+
+    /// <summary>
+    /// Régression #142 : le salon « Réflecteur Local » ne doit pas être figé sur l'adresse
+    /// de bouclage — dans la stack Docker le réflecteur est un autre conteneur, et le seul
+    /// salon V3 livré par défaut ne pouvait alors pas se connecter.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldSeedReflecteurLocalOnConfiguredHost()
+    {
+        // Arrange
+        var data = new SetupData
+        {
+            Callsign = "F5ABC",
+            SimplexCallsign = "F5ABC-L",
+            RxFrequency = 145.550m,
+            TxFrequency = 145.550m
+        };
+
+        var savedSalons = new List<SalonAggregate>();
+        _salonRepository.SaveAsync(Arg.Do<SalonAggregate>(savedSalons.Add), Arg.Any<CancellationToken>())
+            .Returns(unit.ToSuccess());
+        _generalConfigRepository.GetAsync(Arg.Any<CancellationToken>())
+            .Returns((GeneralConfigurationAggregate?)null);
+        _generalConfigRepository.SaveAsync(Arg.Any<GeneralConfigurationAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(unit.ToSuccess());
+
+        // Act
+        var result = await _handler.Handle(new CompleteSetupCommand(data), CancellationToken.None);
+
+        // Assert
+        result.ShouldBeSuccess();
+
+        var reflecteurLocal = savedSalons.Single(s => s.Name == "Réflecteur Local");
+        reflecteurLocal.Configuration.Host.Should().Be(_localReflector.Host);
+        reflecteurLocal.Configuration.Port.Should().Be(_localReflector.Port);
     }
 }

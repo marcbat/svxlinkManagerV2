@@ -1,7 +1,9 @@
-using LanguageExt;
+﻿using LanguageExt;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Events;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
+
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 
 namespace SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 
@@ -39,6 +41,18 @@ public class GeneralConfigurationAggregate : AggregateRoot
     public decimal DefaultTxFrequency { get; private set; } = 145.550m;
 
     /// <summary>
+    /// Identité portée par le certificat X.509 du nœud, reprise par tous les salons V3.
+    /// Jamais nulle : un sujet vide se traduit par l'absence de variables CERT_SUBJ_*.
+    /// </summary>
+    public CertificateSubject CertificateSubject { get; private set; } = CertificateSubject.Empty;
+
+    /// <summary>
+    /// Informations publiées au réflecteur (<c>NODE_INFO_FILE</c>), communes à tous les
+    /// salons V3. Jamais nulle : un contenu vide se traduit par un document minimal.
+    /// </summary>
+    public NodeInformation NodeInformation { get; private set; } = NodeInformation.Empty;
+
+    /// <summary>
     /// Constructeur par défaut requis pour Marten (rehydratation)
     /// </summary>
     public GeneralConfigurationAggregate() { }
@@ -50,7 +64,9 @@ public class GeneralConfigurationAggregate : AggregateRoot
         bool startReflectorOnStartup = false,
         bool startDefaultSalonOnStartup = false,
         decimal defaultRxFrequency = 145.550m,
-        decimal defaultTxFrequency = 145.550m)
+        decimal defaultTxFrequency = 145.550m,
+        CertificateSubject? certificateSubject = null,
+        NodeInformation? nodeInformation = null)
     {
         var aggregate = new GeneralConfigurationAggregate();
         var @event = new GeneralConfigurationCreated(
@@ -58,7 +74,9 @@ public class GeneralConfigurationAggregate : AggregateRoot
             startReflectorOnStartup,
             startDefaultSalonOnStartup,
             defaultRxFrequency,
-            defaultTxFrequency);
+            defaultTxFrequency,
+            certificateSubject ?? CertificateSubject.Empty,
+            nodeInformation ?? NodeInformation.Empty);
 
         aggregate.Apply(@event);
         aggregate.AddDomainEvent(@event);
@@ -73,13 +91,17 @@ public class GeneralConfigurationAggregate : AggregateRoot
         bool startReflectorOnStartup,
         bool startDefaultSalonOnStartup,
         decimal defaultRxFrequency = 145.550m,
-        decimal defaultTxFrequency = 145.550m)
+        decimal defaultTxFrequency = 145.550m,
+        CertificateSubject? certificateSubject = null,
+        NodeInformation? nodeInformation = null)
     {
         var @event = new GeneralConfigurationUpdated(
             startReflectorOnStartup,
             startDefaultSalonOnStartup,
             defaultRxFrequency,
-            defaultTxFrequency);
+            defaultTxFrequency,
+            certificateSubject ?? CertificateSubject.Empty,
+            nodeInformation ?? NodeInformation.Empty);
 
         Apply(@event);
         AddDomainEvent(@event);
@@ -99,6 +121,8 @@ public class GeneralConfigurationAggregate : AggregateRoot
         StartDefaultSalonOnStartup = @event.StartDefaultSalonOnStartup;
         DefaultRxFrequency = @event.DefaultRxFrequency;
         DefaultTxFrequency = @event.DefaultTxFrequency;
+        CertificateSubject = @event.CertificateSubject;
+        NodeInformation = @event.NodeInformation;
     }
 
     /// <summary>
@@ -110,6 +134,8 @@ public class GeneralConfigurationAggregate : AggregateRoot
         StartDefaultSalonOnStartup = @event.StartDefaultSalonOnStartup;
         DefaultRxFrequency = @event.DefaultRxFrequency;
         DefaultTxFrequency = @event.DefaultTxFrequency;
+        CertificateSubject = @event.CertificateSubject;
+        NodeInformation = @event.NodeInformation;
     }
 
     #endregion

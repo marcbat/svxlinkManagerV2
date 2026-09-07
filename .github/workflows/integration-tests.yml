@@ -1,0 +1,61 @@
+name: Tests d'intégration
+
+# Ces tests montent la stack Docker et compilent SVXLink 25.05 depuis les sources :
+# ils se comptent en dizaines de minutes. Ils ne peuvent donc pas vivre dans le job
+# de build, qui tourne à chaque push — d'où ce workflow séparé, limité aux branches
+# d'intégration et déclenchable à la demande.
+on:
+  push:
+    branches:
+      - develop
+      - release/**
+  workflow_dispatch:
+
+jobs:
+  integration:
+    name: Connexion au réflecteur en protocole V3
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Le projet de tests d'intégration cible net9.0, comme les autres projets tests/.
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Exécuter les tests d'intégration
+        env:
+          # Sans cette variable, les tests se déclarent ignorés : c'est ce qui permet
+          # à `dotnet test SvxlinkManagerV2.sln` de rester exécutable sans Docker.
+          SVXLINK_INTEGRATION_TESTS: '1'
+        run: |
+          start=$(date +%s)
+          dotnet test tests/SvxlinkManagerV2.Integration.Tests \
+            -c Release \
+            --logger "trx;LogFileName=SvxlinkManagerV2.Integration.Tests.trx" \
+            --logger "console;verbosity=detailed" \
+            --results-directory artifacts/test-results
+          status=$?
+          elapsed=$(( $(date +%s) - start ))
+          echo "Durée du job d'intégration : $((elapsed / 60)) min $((elapsed % 60)) s" >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Journaux de la stack en cas d'échec
+        if: failure()
+        run: docker compose -p svxlink-integration logs --no-color || true
+
+      - name: Nettoyer la stack
+        if: always()
+        run: docker compose -p svxlink-integration down -v --remove-orphans || true
+
+      - name: Publier les résultats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: artifacts/test-results
+          if-no-files-found: warn

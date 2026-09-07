@@ -78,10 +78,14 @@ ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install SVXLink runtime dependencies (both versions)
+#
+# openssl est déclaré explicitement : l'image aspnet le fournit aujourd'hui,
+# mais dev-ca-hook.sh — utilisé par le svxreflector piloté par l'application —
+# en dépend entièrement, et cette dépendance ne doit pas rester implicite.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsigc++-2.0-0v5 libgsm1 libpopt0 tcl8.6 libgcrypt20 \
     libspeex1 libasound2 libopus0 libcurl4 libssl3 libjsoncpp25 \
-    procps alsa-utils \
+    procps alsa-utils openssl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -126,10 +130,9 @@ RUN chmod +x /usr/local/bin/dev-ca-hook.sh
 # Copy .NET application
 WORKDIR /app
 COPY --from=dotnet-builder /app/publish .
-COPY deploy/linux/install-update.sh /app/install-update.sh
 
 # Create logs directory for the application
-RUN mkdir -p /app/logs && chmod 0755 /app/install-update.sh
+RUN mkdir -p /app/logs
 
 # Expose HTTP port
 EXPOSE 8080

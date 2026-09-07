@@ -35,9 +35,16 @@ ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install runtime dependencies
+#
+# openssl (l'outil en ligne de commande, distinct de la bibliothèque libssl3)
+# est indispensable : dev-ca-hook.sh, branché sur CERT_CA_HOOK, s'en sert pour
+# extraire le CN du CSR puis le signer. Sans lui aucun certificat n'est émis,
+# le réflecteur retombe sur l'authentification par challenge et toute connexion
+# en protocole V3 échoue en « Access denied ».
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsigc++-2.0-0v5 libgsm1 libpopt0 tcl8.6 libgcrypt20 \
     libspeex1 libasound2 libopus0 libcurl4 libssl3 libjsoncpp25 \
+    openssl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

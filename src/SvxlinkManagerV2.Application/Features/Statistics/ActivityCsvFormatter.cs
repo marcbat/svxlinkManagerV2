@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using SvxlinkManagerV2.Domain.Statistics;
 
@@ -59,6 +59,8 @@ public static class ActivityCsvFormatter
         ActivityEventType.ReflectorLinkLost => "Liaison perdue",
         ActivityEventType.ReflectorLinkFailed => "Liaison impossible",
         ActivityEventType.ReflectorOutage => "Liaison rétablie",
+        ActivityEventType.TalkGroupPeriod => "Temps sur talkgroup",
+        ActivityEventType.TalkGroupQsy => "QSY suivi",
         ActivityEventType.RxDistortion => "Écrêtage",
         ActivityEventType.ApplicationStarted => "Démarrage",
         ActivityEventType.ApplicationStopped => "Arrêt",

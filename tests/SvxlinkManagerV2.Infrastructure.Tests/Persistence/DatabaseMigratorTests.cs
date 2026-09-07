@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,7 +41,10 @@ public class DatabaseMigratorTests : IDisposable
         DatabaseMigrator.AddSalonTypeId,
         DatabaseMigrator.AddIdentitySchemaId,
         "20260830140047_AddAudioConfiguration",
-        "20260830173529_AddActivityHistory"
+        "20260830173529_AddActivityHistory",
+        "20260907113126_AddCertificateSubject",
+        "20260907115200_AddNodeInformation",
+        "20260907120123_AddTalkGroupToActivityEvents"
     ];
 
     private readonly SqliteConnection _connection;
@@ -201,6 +204,11 @@ public class DatabaseMigratorTests : IDisposable
         // sont postérieures à l'abandon d'EnsureCreated(), c'est Migrate() qui doit les créer.
         foreach (var table in new[] { "AudioConfigurations", "ActivityEvents", "SalonSessions" })
             context.Database.ExecuteSqlRaw($"DROP TABLE IF EXISTS \"{table}\";");
+
+        // Ni l'identité du certificat X.509 : la colonne est postérieure, c'est la migration
+        // AddCertificateSubject qui doit l'ajouter.
+        context.Database.ExecuteSqlRaw("ALTER TABLE \"GeneralConfigurations\" DROP COLUMN \"CertificateSubject\";");
+        context.Database.ExecuteSqlRaw("ALTER TABLE \"GeneralConfigurations\" DROP COLUMN \"NodeInformation\";");
 
         context.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsHistory\";");
     }

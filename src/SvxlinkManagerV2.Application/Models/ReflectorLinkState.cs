@@ -1,4 +1,4 @@
-namespace SvxlinkManagerV2.Application.Models;
+﻿namespace SvxlinkManagerV2.Application.Models;
 
 /// <summary>
 /// État de la liaison logique entre le nœud et le réflecteur.
@@ -40,8 +40,22 @@ public enum ReflectorLinkFailureReason
     /// <summary>L'hôte du réflecteur est injoignable (DNS, connexion refusée, timeout).</summary>
     HostUnreachable,
 
-    /// <summary>Le certificat X.509 du protocole V3 a été rejeté ou n'a pas pu être chargé.</summary>
+    /// <summary>
+    /// Le certificat X.509 <b>du nœud</b> a été rejeté, n'a pas pu être chargé ou ne
+    /// correspond plus à sa clé privée. Le remède est côté nœud : refaire signer une CSR.
+    /// </summary>
     CertificateRejected,
+
+    /// <summary>
+    /// Le certificat <b>du réflecteur</b> n'a pas pu être vérifié : le nœud ne fait pas
+    /// confiance à l'autorité qui l'a signé. Cas typique d'une CA régénérée côté serveur
+    /// alors que le nœud conserve son ancien <c>ca-bundle.crt</c>.
+    ///
+    /// Distinct de <see cref="CertificateRejected"/> parce que les remèdes sont opposés :
+    /// ici il faut faire oublier au nœud l'autorité qu'il connaît, pour qu'il retélécharge
+    /// celle du serveur.
+    /// </summary>
+    ServerCertificateUntrusted,
 
     /// <summary>Erreur de protocole entre le nœud et le réflecteur (versions incompatibles).</summary>
     ProtocolError,

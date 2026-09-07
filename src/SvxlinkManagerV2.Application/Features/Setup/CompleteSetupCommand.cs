@@ -1,6 +1,8 @@
 using LanguageExt;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
@@ -28,17 +30,20 @@ public class CompleteSetupCommandHandler
     private readonly IGeneralConfigurationRepository _generalConfigRepository;
     private readonly ISetupStatusService _setupStatusService;
     private readonly ILogger<CompleteSetupCommandHandler> _logger;
+    private readonly LocalReflectorOptions _localReflector;
 
     public CompleteSetupCommandHandler(
         ISalonRepository salonRepository,
         IGeneralConfigurationRepository generalConfigRepository,
         ISetupStatusService setupStatusService,
-        ILogger<CompleteSetupCommandHandler> logger)
+        ILogger<CompleteSetupCommandHandler> logger,
+        IOptions<LocalReflectorOptions> localReflectorOptions)
     {
         _salonRepository = salonRepository;
         _generalConfigRepository = generalConfigRepository;
         _setupStatusService = setupStatusService;
         _logger = logger;
+        _localReflector = localReflectorOptions.Value;
     }
 
     public async Task<Validation<Error, Unit>> Handle(
@@ -49,7 +54,7 @@ public class CompleteSetupCommandHandler
         var errors = new List<Error>();
 
         // 1. Seed des 7 salons avec les valeurs saisies par l'utilisateur
-        foreach (var (id, name, host, port, authKey, dtmfCode, protocol) in GetOriginalSalons())
+        foreach (var (id, name, host, port, authKey, dtmfCode, protocol) in GetOriginalSalons(_localReflector))
         {
             var configuration = new SvxLinkConfiguration(
                 Id: Guid.NewGuid(),
@@ -158,8 +163,11 @@ public class CompleteSetupCommandHandler
     /// <summary>
     /// Retourne les 7 salons originaux avec leurs GUIDs fixes (compatibilité migration legacy).
     /// Les 6 premiers sont des réflecteurs distants (protocole V2), le 7ème est le réflecteur local (protocole V3).
+    /// L'adresse du réflecteur local vient de la configuration : elle diffère selon l'environnement
+    /// (bouclage sur un nœud, nom de service dans la stack Docker).
     /// </summary>
-    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string? AuthKey, int? DtmfCode, ReflectorProtocol Protocol)> GetOriginalSalons()
+    private static IEnumerable<(Guid Id, string Name, string Host, int Port, string? AuthKey, int? DtmfCode, ReflectorProtocol Protocol)> GetOriginalSalons(
+        LocalReflectorOptions localReflector)
     {
         yield return (new Guid("235a4521-15a1-4e02-a540-91ee600452ac"), "Réseau des Répéteurs Francophones", "rrf2.f5nlg.ovh", 5300, "Magnifique123456789!", 96, ReflectorProtocol.V2);
         yield return (new Guid("1f2e87b8-d984-4c05-8a4a-ffad65c829a9"), "Salon Suisse Romand", "salonsuisseromand.hbspot.ch", 5300, "xD9wW5gO7yD9hN5o", 200, ReflectorProtocol.V2);
@@ -167,6 +175,6 @@ public class CompleteSetupCommandHandler
         yield return (new Guid("a749ffe5-16c7-45da-809d-c048908f115c"), "Salon Technique", "rrf3.f5nlg.ovh", 5301, "Magnifique123456789!", 98, ReflectorProtocol.V2);
         yield return (new Guid("d4c59d86-947c-4b1d-831a-807c1877d426"), "Salon Bavardage", "serveur.f1tzo.com", 5301, "FON-F1TZO", 100, ReflectorProtocol.V2);
         yield return (new Guid("9f99b18b-96ea-453d-b07a-7923c09c939f"), "Salon Local", "serveur.f1tzo.com", 5302, "FON-F1TZO", 101, ReflectorProtocol.V2);
-        yield return (new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"), "Réflecteur Local", "127.0.0.1", 5300, null, 210, ReflectorProtocol.V3);
+        yield return (new Guid("c7a3e2d1-4b8f-4e6a-9d2c-1f5b7e8a3c04"), "Réflecteur Local", localReflector.Host, localReflector.Port, null, 210, ReflectorProtocol.V3);
     }
 }

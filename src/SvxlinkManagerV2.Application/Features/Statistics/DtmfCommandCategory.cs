@@ -1,4 +1,4 @@
-using SvxlinkManagerV2.Domain.Aggregates.Salon;
+﻿using SvxlinkManagerV2.Domain.Aggregates.Salon;
 
 namespace SvxlinkManagerV2.Application.Features.Statistics;
 
@@ -18,6 +18,12 @@ public enum DtmfCommandCategory
 
     /// <summary>Module SVXLink (plage 1-19) : Perroquet, Aide.</summary>
     SvxLinkModule = 3,
+
+    /// <summary>
+    /// Commande talkgroup du protocole V3 (préfixe 35), routée par SVXLink vers
+    /// <c>ReflectorLogic</c> — cf. <see cref="DtmfTalkGroupCommands"/>.
+    /// </summary>
+    TalkGroupCommand = 5,
 
     /// <summary>
     /// Code sans destinataire : hors plages connues, ou dans la plage salon sans salon associé.
@@ -45,6 +51,11 @@ public static class DtmfCommandClassifier
         string rawCode,
         IReadOnlyDictionary<int, string> salonNamesByDtmfCode)
     {
+        // Testé avant la conversion numérique : « 35* » n'est pas un entier, et « 351240 »
+        // déborderait de la plage salon pour finir classé « sans destinataire ».
+        if (DtmfTalkGroupCommands.IsTalkGroupCommand(rawCode))
+            return (DtmfCommandCategory.TalkGroupCommand, "Commande talkgroup");
+
         if (!int.TryParse(rawCode?.Trim(), out var code))
             return (DtmfCommandCategory.Unknown, "Code non numérique");
 
@@ -74,6 +85,7 @@ public static class DtmfCommandClassifier
         DtmfCommandCategory.SystemCommand => "Commande système",
         DtmfCommandCategory.Announcement => "Annonce vocale",
         DtmfCommandCategory.SvxLinkModule => "Module SVXLink",
+        DtmfCommandCategory.TalkGroupCommand => "Commande talkgroup",
         _ => "Sans destinataire"
     };
 }

@@ -1,4 +1,4 @@
-using SvxlinkManagerV2.Application.Models;
+﻿using SvxlinkManagerV2.Application.Models;
 using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Application.Features.Statistics;
@@ -199,6 +199,40 @@ public record TimelineEntryDto(
 /// <param name="Dtmf">Commandes DTMF reçues.</param>
 /// <param name="Reliability">Tenue de la liaison réflecteur.</param>
 /// <param name="Timeline">Derniers événements, du plus récent au plus ancien.</param>
+/// <summary>
+/// Temps passé sur un talkgroup, sur la période retenue.
+/// </summary>
+/// <param name="TalkGroup">Numéro du talkgroup. <c>0</c> signifie « aucun talkgroup ».</param>
+/// <param name="TotalTime">Temps cumulé passé dessus.</param>
+/// <param name="PeriodCount">Nombre de fois où le nœud s'y est posé.</param>
+public record TalkGroupUsageDto(int TalkGroup, TimeSpan TotalTime, int PeriodCount)
+{
+    /// <summary>Libellé du talkgroup pour l'affichage.</summary>
+    public string Label => TalkGroup == 0 ? "aucun" : TalkGroup.ToString();
+}
+
+/// <summary>
+/// Activité par talkgroup, restituée pour les salons en protocole V3 seulement.
+/// </summary>
+/// <param name="IsApplicable">
+/// Un salon V2 ou le mode autonome n'ont pas de talkgroup : la section est alors masquée
+/// plutôt que remplie de zéros, qui laisseraient croire à une absence d'activité.
+/// </param>
+/// <param name="Usage">Talkgroups fréquentés, du plus au moins occupé.</param>
+/// <param name="QsyCount">Nombre de QSY suivis sur la période.</param>
+public record TalkGroupStatisticsDto(
+    bool IsApplicable,
+    IReadOnlyList<TalkGroupUsageDto> Usage,
+    int QsyCount)
+{
+    /// <summary>Aucune donnée de talkgroup à restituer.</summary>
+    public static readonly TalkGroupStatisticsDto NotApplicable = new(false, [], 0);
+
+    /// <summary>Temps cumulé sur l'ensemble des talkgroups.</summary>
+    public TimeSpan TotalTime =>
+        Usage.Aggregate(TimeSpan.Zero, (total, usage) => total + usage.TotalTime);
+}
+
 public record StatisticsDto(
     DateTimeOffset CollectedAt,
     StatisticsPeriod Period,
@@ -214,6 +248,7 @@ public record StatisticsDto(
     LocalActivityDto LocalActivity,
     DtmfStatisticsDto Dtmf,
     ReliabilityDto Reliability,
+    TalkGroupStatisticsDto TalkGroups,
     IReadOnlyList<TimelineEntryDto> Timeline)
 {
     /// <summary>Indique qu'aucune activité n'a été enregistrée sur la période.</summary>

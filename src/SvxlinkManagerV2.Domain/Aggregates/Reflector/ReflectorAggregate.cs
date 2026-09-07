@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using SvxlinkManagerV2.Domain.Aggregates.Reflector.Events;
 using SvxlinkManagerV2.Domain.Common;
 using static LanguageExt.Prelude;
@@ -154,8 +154,18 @@ public class ReflectorAggregate : AggregateRoot
             return Error.Validation("REFLECTOR_CONFIG_REQUIRED", "La configuration du reflector est obligatoire")
                 .ToFailure<string>();
 
-        if (!config.Contains("[GLOBAL]", StringComparison.OrdinalIgnoreCase))
-            return Error.Validation("REFLECTOR_CONFIG_INVALID", "La configuration doit contenir une section [GLOBAL]")
+        // Le démon refuse de démarrer sur une erreur de syntaxe, en boucle : enregistrer une
+        // configuration cassée mettrait le réflecteur hors service sans que rien ne l'annonce.
+        // Les avertissements, eux, ne bloquent pas — une section inconnue peut être une
+        // nouveauté de l'amont.
+        var errors = ReflectorConfigurationValidator.Validate(config)
+            .Where(issue => issue.Severity == ReflectorConfigurationSeverity.Error)
+            .ToList();
+
+        if (errors.Count > 0)
+            return Error.Validation(
+                "REFLECTOR_CONFIG_INVALID",
+                string.Join(" ", errors.Select(issue => $"Ligne {issue.Line} : {issue.Message}")))
                 .ToFailure<string>();
 
         return config.ToSuccess();
