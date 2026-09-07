@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -147,7 +147,7 @@ public class ReflectorLinkStateTrackerTests
     [InlineData("ReflectorLogic: Failed to load client certificate.")]
     [InlineData("ReflectorLogic: Received an empty certificate.")]
     [InlineData("*** ERROR[ReflectorLogic]: Failed to parse certificate PEM data from server")]
-    public void CertificateProblem_ShouldReportCertificateRejected(string message)
+    public void NodeCertificateProblem_ShouldReportCertificateRejected(string message)
     {
         var tracker = CreateTracker();
         tracker.BeginConnecting();
@@ -156,6 +156,84 @@ public class ReflectorLinkStateTrackerTests
 
         tracker.State.Status.Should().Be(ReflectorLinkStatus.Failed);
         tracker.State.Reason.Should().Be(ReflectorLinkFailureReason.CertificateRejected);
+    }
+
+    /// <summary>
+    /// Rotation de la CA côté réflecteur (volume PKI recréé) alors que le nœud conserve son
+    /// ancien ca-bundle.crt. Reproduit sur la stack Docker le 06/09/2026 : la liaison était
+    /// signalée « déconnectée » sans cause, alors que le remède est immédiat.
+    /// </summary>
+    [Fact]
+    public void ServerCertificateVerificationFailure_ShouldReportServerCertificateUntrusted()
+    {
+        const string message =
+            "*** ERROR[ReflectorLogic]: Certificate verification failed for reflector server";
+
+        var tracker = CreateTracker();
+        tracker.BeginConnecting();
+
+        Log(message);
+
+        tracker.State.Status.Should().Be(ReflectorLinkStatus.Failed);
+        tracker.State.Reason.Should().Be(ReflectorLinkFailureReason.ServerCertificateUntrusted);
+        tracker.State.Detail.Should().Be(message);
+    }
+
+    /// <summary>
+    /// Les deux familles de messages parlent de « certificate » mais appellent des remèdes
+    /// opposés : refaire signer le certificat du nœud d'un côté, oublier l'autorité
+    /// mémorisée de l'autre. Les confondre enverrait l'opérateur dans la mauvaise direction.
+    /// </summary>
+    [Fact]
+    public void ServerCertificateFailure_ShouldNotBeConfusedWithANodeCertificateFailure()
+    {
+        var tracker = CreateTracker();
+        tracker.BeginConnecting();
+
+        Log("*** ERROR[ReflectorLogic]: Certificate verification failed for reflector server");
+        var serverFailure = tracker.State.Reason;
+
+        Log("ReflectorLogic: Failed to load client certificate.");
+        var nodeFailure = tracker.State.Reason;
+
+        serverFailure.Should().Be(ReflectorLinkFailureReason.ServerCertificateUntrusted);
+        nodeFailure.Should().Be(ReflectorLinkFailureReason.CertificateRejected);
+    }
+
+    /// <summary>
+    /// Les lignes OpenSSL qui suivent l'échec ne portent pas le nom de la logique : elles
+    /// sont écartées en amont, et ne doivent donc pas effacer la cause déjà identifiée.
+    /// </summary>
+    [Fact]
+    public void RawOpenSslLines_ShouldNotOverwriteTheIdentifiedCause()
+    {
+        var tracker = CreateTracker();
+        tracker.BeginConnecting();
+
+        Log("*** ERROR[ReflectorLogic]: Certificate verification failed for reflector server");
+        Log("*** ERROR: OpenSSL 'sslDoHandshake' failed: 80C4...:error:0200008A:rsa routines:"
+            + "RSA_padding_check_PKCS1_type_1:invalid padding ... certificate verify failed ...");
+
+        tracker.State.Reason.Should().Be(ReflectorLinkFailureReason.ServerCertificateUntrusted);
+    }
+
+    /// <summary>
+    /// La reconnexion automatique de SVXLink suit immédiatement l'échec : la cause doit
+    /// rester lisible pendant les tentatives, sinon l'interface ne montre jamais rien.
+    /// </summary>
+    [Fact]
+    public void ServerCertificateFailure_ShouldSurviveTheAutomaticReconnectionAttempts()
+    {
+        var tracker = CreateTracker();
+        tracker.BeginConnecting();
+
+        // Séquence relevée telle quelle sur la stack Docker le 07/09/2026, après recréation
+        // du volume PKI du réflecteur.
+        Log("*** ERROR[ReflectorLogic]: Certificate verification failed for reflector server");
+        Log("ReflectorLogic: Disconnected from 172.18.0.2:5300: Protocol error");
+        Log("ReflectorLogic: Connection established to 172.18.0.2:5300 (primary)");
+
+        tracker.State.Reason.Should().Be(ReflectorLinkFailureReason.ServerCertificateUntrusted);
     }
 
     [Fact]

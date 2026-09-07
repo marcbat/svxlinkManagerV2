@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -209,7 +209,8 @@ public class ActivityRecorder : IActivityRecorder
         ReflectorLinkFailureReason.None => null,
         ReflectorLinkFailureReason.AuthenticationRejected => "authentification refusée",
         ReflectorLinkFailureReason.HostUnreachable => "hôte injoignable",
-        ReflectorLinkFailureReason.CertificateRejected => "certificat rejeté",
+        ReflectorLinkFailureReason.CertificateRejected => "certificat du nœud rejeté",
+        ReflectorLinkFailureReason.ServerCertificateUntrusted => "autorité du réflecteur inconnue",
         ReflectorLinkFailureReason.ProtocolError => "erreur de protocole",
         ReflectorLinkFailureReason.RemoteDisconnected => "fermeture par le réflecteur",
         ReflectorLinkFailureReason.HeartbeatTimeout => "plus de battement de cœur",

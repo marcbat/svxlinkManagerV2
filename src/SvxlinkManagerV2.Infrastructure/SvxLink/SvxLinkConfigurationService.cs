@@ -353,7 +353,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
             iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
             iniData["ReflectorLogic"]["DEFAULT_LANG"] = config.DefaultLang;
-            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = "/var/lib/svxlink/pki";
+            iniData["ReflectorLogic"]["CERT_PKI_DIR"] = SvxLinkPkiPaths.Directory;
             iniData["ReflectorLogic"]["EVENT_HANDLER"] = eventHandlerPath;
             iniData["ReflectorLogic"]["DEFAULT_TG"] = config.DefaultTg.ToString();
             iniData["ReflectorLogic"]["TG_SELECT_TIMEOUT"] = config.TgSelectTimeout.ToString();

@@ -5,6 +5,7 @@
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.SelectTalkGroup
+@using SvxlinkManagerV2.Application.Features.SvxLink.ResetReflectorTrust
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
 @using SvxlinkManagerV2.Application.Interfaces
@@ -77,9 +78,29 @@
             <div class="link-alert-title">@LinkStatusLabel : @LinkFailureLabel</div>
             <div class="link-alert-detail">
                 Le daemon SVXLink tourne, mais le nœud n'est pas relié au réflecteur.
+                @if (LinkRemedy is not null)
+                {
+                    <div class="link-alert-remedy">@LinkRemedy</div>
+                }
                 @if (!string.IsNullOrWhiteSpace(_linkState.Detail))
                 {
                     <code class="link-alert-log">@_linkState.Detail</code>
+                }
+                @if (CanResetTrust)
+                {
+                    <button class="btn btn-secondary btn-sm" style="margin-top:10px;"
+                            disabled="@_isResettingTrust"
+                            @onclick="ResetReflectorTrust">
+                        @if (_isResettingTrust)
+                        {
+                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">lock_reset</span>
+                        }
+                        Réinitialiser la confiance
+                    </button>
                 }
             </div>
         </div>
@@ -359,6 +380,12 @@
         margin-top: 4px;
     }
 
+    .link-alert-remedy {
+        margin-top: 6px;
+        color: var(--text);
+        font-weight: 600;
+    }
+
     .link-alert-log {
         display: block;
         margin-top: 6px;
@@ -500,6 +527,7 @@
     private int _selectedTalkGroup;
     private int? _customTalkGroup;
     private bool _isSelectingTalkGroup;
+    private bool _isResettingTrust;
 
     private PeriodicTimer? _statusTimer;
     private CancellationTokenSource? _cts;
@@ -904,13 +932,71 @@
     {
         ReflectorLinkFailureReason.AuthenticationRejected => "authentification refusée",
         ReflectorLinkFailureReason.HostUnreachable        => "hôte injoignable",
-        ReflectorLinkFailureReason.CertificateRejected    => "certificat rejeté",
+        ReflectorLinkFailureReason.CertificateRejected    => "certificat du nœud rejeté",
+        ReflectorLinkFailureReason.ServerCertificateUntrusted
+                                                          => "autorité de certification du réflecteur inconnue",
         ReflectorLinkFailureReason.ProtocolError          => "erreur de protocole",
         ReflectorLinkFailureReason.RemoteDisconnected     => "connexion fermée par le réflecteur",
         ReflectorLinkFailureReason.HeartbeatTimeout       => "plus de réponse du réflecteur",
         ReflectorLinkFailureReason.ConfigurationInvalid   => "configuration réflecteur incomplète",
         _                                                 => "cause non identifiée"
     };
+
+    /// <summary>
+    /// Conduite à tenir, quand la cause en admet une. Le reste des causes se règle hors du
+    /// nœud (adresse du réflecteur, indicatif déclaré côté serveur) : rien à proposer ici.
+    /// </summary>
+    private string? LinkRemedy => _linkState.Reason switch
+    {
+        ReflectorLinkFailureReason.ServerCertificateUntrusted =>
+            "Le réflecteur a changé d'autorité de certification. Faites oublier au nœud "
+            + "celle qu'il connaît : il retéléchargera la nouvelle et SVXLink redémarrera. "
+            + "Si le réflecteur a régénéré toute sa PKI, le certificat de ce nœud devra "
+            + "aussi être signé à nouveau par son administrateur.",
+        ReflectorLinkFailureReason.CertificateRejected =>
+            "Le certificat de ce nœud n'est plus valide. Il doit être signé à nouveau par "
+            + "l'administrateur du réflecteur.",
+        ReflectorLinkFailureReason.ConfigurationInvalid =>
+            "La configuration du salon actif est incomplète : vérifiez l'adresse du "
+            + "réflecteur et l'indicatif dans la fiche du salon.",
+        _ => null
+    };
+
+    private bool CanResetTrust =>
+        IsLinkFaulted && _linkState.Reason == ReflectorLinkFailureReason.ServerCertificateUntrusted;
+
+    private async Task ResetReflectorTrust()
+    {
+        _isResettingTrust = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new ResetReflectorTrustCommand());
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess(
+                        "Autorité de certification oubliée, SVXLink redémarre. La liaison "
+                        + "se rétablit dès que le nœud a retéléchargé la nouvelle autorité — "
+                        + "à moins que son propre certificat ne doive être signé à nouveau.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isResettingTrust = false;
+        }
+    }
 
     private string LinkTooltip => EffectiveLinkStatus switch
     {

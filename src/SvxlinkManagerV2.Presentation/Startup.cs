@@ -185,6 +185,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IConnectedNodesService, ConnectedNodesTracker>();
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
             services.AddSingleton<ITalkGroupStateService, TalkGroupTracker>();
+            services.AddSingleton<IReflectorTrustService, ReflectorTrustService>();
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISquelchStateService, SquelchStateTracker>();
