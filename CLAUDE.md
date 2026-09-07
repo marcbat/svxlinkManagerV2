@@ -155,11 +155,21 @@ Trois conséquences à retenir :
 
 **Le talkgroup sélectionné n'est pas rémanent.** Passé `TG_SELECT_TIMEOUT` sans activité, SVXLink journalise un `Selecting TG #0` et le nœud retombe hors talkgroup. C'est une raison de plus pour que l'état affiché vienne des logs et non de la commande émise.
 
-### Talkgroup courant (protocole V3)
+### Talkgroups (protocole V3)
 
-`ITalkGroupStateService` (implémenté par `TalkGroupTracker`, singleton) suit le talkgroup du nœud. Comme `ReflectorLinkStateTracker`, **il lit les logs plutôt que la commande émise** — et pour la même raison : le talkgroup change aussi sans que l'application l'ait demandé, par une commande DTMF composée sur la radio, un QSY décidé par le réflecteur, une bascule sur un talkgroup prioritaire, ou l'expiration de `TG_SELECT_TIMEOUT`. Le motif reconnu est `ReflectorLogic: Selecting TG #<n>`.
+`ITalkGroupStateService` (implémenté par `TalkGroupTracker`, singleton) suit l'état des talkgroups du nœud et le publie sous forme de `TalkGroupState` : talkgroup courant et précédent, **origine** de la sélection, surveillances temporaires, QSY en attente ou échoué. Comme `ReflectorLinkStateTracker`, **il lit le flux de logs plutôt que la commande émise** — et pour la même raison : le talkgroup change aussi sans que l'application l'ait demandé.
 
-`Current` vaut `null` quand la notion n'a pas de sens — salon V2, perroquet, mode autonome — et le tracker ignore alors les lignes résiduelles du daemon. Les commandes d'activation appellent `ApplyDefault(DefaultTg)` ou `MarkNotApplicable()`, comme elles le font déjà pour l'état de la liaison.
+**La source est l'instrumentation TCL, pas les libellés de log.** `Logic.tcl` porte un namespace `ReflectorLogic` qui **enveloppe** les procédures d'événement de SVXLink (`tg_selected`, `tg_qsy`, `tmp_monitor_add`…) et émet des lignes `TG_EVENT:<type>[:<valeur>…]`. Ces procédures sont une interface stable de l'amont, là où les messages de log changent d'une version à l'autre — et le projet en pilote deux.
+
+Trois précautions tiennent cette instrumentation :
+
+- **Envelopper, jamais remplacer.** La procédure d'origine est renommée `__svxmgr_orig_<nom>` puis appelée à la fin de la nôtre. La redéfinir supprimerait les annonces vocales de talkgroup et de QSY, qui vivent dans son corps. Le renommage sert aussi de garde contre un double enveloppement.
+- **Le fichier est chargé dans l'interpréteur de *chaque* logique.** Dans celui de `SimplexLogic`, ou sur SVXLink 19.09.2 qui ignore les talkgroups, ces procédures n'existent pas : la garde `[info procs]` fait alors du bloc un no-op.
+- **`EVENT_HANDLER` doit désigner `events.tcl`** (cf. pipeline DTMF), faute de quoi le namespace `ReflectorLogic` n'existe pas et rien n'est enveloppé.
+
+Le motif `ReflectorLogic: Selecting TG #<n>`, émis par le C++, est **conservé en repli** : lui seul reste disponible sur un nœud dont le `Logic.tcl` n'a pas encore été redéployé. Les deux sources décrivent le même appel à `selectTg` et ne peuvent pas se contredire ; le repli n'apporte simplement ni l'origine ni les surveillances.
+
+`TalkGroupState.NotApplicable` vaut pour un salon V2, un perroquet ou le mode autonome, et le tracker ignore alors les lignes résiduelles du daemon. Les commandes d'activation appellent `ApplyDefault(DefaultTg)` ou `MarkNotApplicable()`, comme elles le font déjà pour l'état de la liaison ; `ApplyDefault` remet aussi les surveillances temporaires à zéro, puisqu'elles appartiennent au daemon qui s'arrête.
 
 `SelectTalkGroupCommand` (`Features/Salons/SelectTalkGroup`) ne touche ni la base ni le daemon : elle compose `351<tg>` dans le PTY DTMF via `IDtmfPtyWriter`. **Son succès n'est que celui de l'émission** — c'est le tracker qui dit le talkgroup réellement courant. Le talkgroup sélectionné à chaud n'est donc pas persisté : le salon repart sur son `DEFAULT_TG` à la réactivation.
 

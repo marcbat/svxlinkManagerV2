@@ -113,3 +113,98 @@ proc reflector_connection_status_update {status} {
 }
 
 } ;# namespace eval Logic
+
+
+###############################################################################
+#
+# Instrumentation de la logique réflecteur (protocole V3).
+#
+# SVXLink appelle des procédures qualifiées par le nom de la logique :
+# ReflectorLogic::tg_selected, ::tg_qsy, ::tmp_monitor_add… Elles sont définies par
+# events.d/ReflectorLogic.tcl, chargé par events.tcl AVANT les surcharges locales.
+#
+# Chacune est ici *enveloppée*, jamais remplacée : la procédure d'origine est renommée
+# puis appelée à la fin. Les redéfinir simplement supprimerait les annonces vocales de
+# talkgroup et de QSY, qui vivent dans leur corps.
+#
+# Chaque événement est émis dans le flux de logs sous la forme
+#
+#   TG_EVENT:<type>[:<valeur>...]
+#
+# lue côté .NET par TalkGroupTracker. Cette voie est préférée au parsing des messages
+# de log en langue naturelle : ces procédures sont une interface stable de SVXLink,
+# alors que les libellés changent d'une version à l'autre — et le projet en pilote deux.
+#
+# Ce fichier est chargé dans l'interpréteur de *chaque* logique. Dans celui de
+# SimplexLogic, ou sur SVXLink 19.09.2 qui ignore les talkgroups, ces procédures
+# n'existent pas : la garde [info procs] fait alors de ce bloc un no-op.
+#
+###############################################################################
+
+namespace eval ReflectorLogic {
+
+#
+# Enveloppe une procédure existante de ce namespace.
+#
+#   name  - nom de la procédure à envelopper
+#   args  - liste des paramètres, à faire correspondre à la procédure d'origine
+#   emit  - corps qui émet la ligne TG_EVENT
+#
+# La procédure d'origine est renommée en __svxmgr_orig_<name>. La présence de ce nom
+# sert aussi de garde contre un double enveloppement.
+#
+proc __svxmgr_wrap {name params emit} {
+    set original ::ReflectorLogic::$name
+    set saved ::ReflectorLogic::__svxmgr_orig_$name
+
+    if {[info procs $original] eq ""} { return }
+    if {[info procs $saved] ne ""} { return }
+
+    rename $original $saved
+
+    set call $saved
+    foreach param $params { append call " $" $param }
+
+    proc $original $params "$emit\n    $call"
+}
+
+__svxmgr_wrap tg_selected {new_tg old_tg} \
+    {puts "TG_EVENT:selected:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_local_activation {new_tg old_tg} \
+    {puts "TG_EVENT:activation:local:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_remote_activation {new_tg old_tg} \
+    {puts "TG_EVENT:activation:remote:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_remote_prio_activation {new_tg old_tg} \
+    {puts "TG_EVENT:activation:priority:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_command_activation {new_tg old_tg} \
+    {puts "TG_EVENT:activation:command:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_default_activation {new_tg old_tg} \
+    {puts "TG_EVENT:activation:default:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_selection_timeout {new_tg old_tg} \
+    {puts "TG_EVENT:activation:timeout:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_qsy {new_tg old_tg} \
+    {puts "TG_EVENT:qsy:$new_tg:$old_tg"}
+
+__svxmgr_wrap tg_qsy_pending {tg} \
+    {puts "TG_EVENT:qsy_pending:$tg"}
+
+__svxmgr_wrap tg_qsy_ignored {tg} \
+    {puts "TG_EVENT:qsy_ignored:$tg"}
+
+__svxmgr_wrap tg_qsy_failed {} \
+    {puts "TG_EVENT:qsy_failed"}
+
+__svxmgr_wrap tmp_monitor_add {tg} \
+    {puts "TG_EVENT:monitor_add:$tg"}
+
+__svxmgr_wrap tmp_monitor_remove {tg} \
+    {puts "TG_EVENT:monitor_remove:$tg"}
+
+} ;# namespace eval ReflectorLogic

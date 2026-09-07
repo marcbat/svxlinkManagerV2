@@ -62,6 +62,10 @@
                         <span class="focus-detail-item">
                             <span class="material-symbols-outlined">groups</span>
                             Talkgroup @CurrentTalkGroupLabel
+                            @if (TalkGroupOriginLabel is { } origin)
+                            {
+                                <span>&nbsp;(@origin)</span>
+                            }
                         </span>
                     }
                 </div>
@@ -229,6 +233,30 @@
                     TG par défaut
                 </button>
             </div>
+
+            @if (_talkGroupState.TemporaryMonitors.Count > 0)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">hearing</span>
+                    Surveillance temporaire : @string.Join(", ", _talkGroupState.TemporaryMonitors).
+                </p>
+            }
+
+            @if (_talkGroupState.PendingQsy is { } pendingQsy)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">swap_horiz</span>
+                    QSY annoncé vers le talkgroup @pendingQsy, en attente d'être suivi.
+                </p>
+            }
+
+            @if (_talkGroupState.LastQsyFailed)
+            {
+                <p class="help-dtmf-hint" style="margin-top:10px;">
+                    <span class="material-symbols-outlined">error</span>
+                    Le dernier QSY demandé a échoué : aucun talkgroup actif, ou liaison coupée.
+                </p>
+            }
 
             <p class="help-dtmf-hint" style="margin-top:10px;">
                 <span class="material-symbols-outlined">info</span>
@@ -523,7 +551,7 @@
     private Guid? _selectedSalonId;
     private bool _isActivating;
     private bool _isDeactivating;
-    private int? _currentTalkGroup;
+    private TalkGroupState _talkGroupState = TalkGroupState.NotApplicable;
     private int _selectedTalkGroup;
     private int? _customTalkGroup;
     private bool _isSelectingTalkGroup;
@@ -551,16 +579,16 @@
 
         // Le talkgroup courant vient des logs : il change aussi sans que l'application
         // l'ait demandé (QSY du réflecteur, commande DTMF composée sur la radio).
-        _currentTalkGroup = TalkGroupStateService.Current;
-        _selectedTalkGroup = _currentTalkGroup ?? DefaultTalkGroup;
+        _talkGroupState = TalkGroupStateService.State;
+        _selectedTalkGroup = _talkGroupState.TalkGroup ?? DefaultTalkGroup;
         TalkGroupStateService.OnTalkGroupChanged += OnTalkGroupChanged;
     }
 
-    private void OnTalkGroupChanged(int? talkGroup)
+    private void OnTalkGroupChanged(TalkGroupState state)
     {
         InvokeAsync(() =>
         {
-            _currentTalkGroup = talkGroup;
+            _talkGroupState = state;
             StateHasChanged();
         });
     }
@@ -826,7 +854,23 @@
     private int DefaultTalkGroup => _activeSalon?.Configuration.DefaultTg ?? 0;
 
     private string CurrentTalkGroupLabel =>
-        _currentTalkGroup is { } tg ? (tg == 0 ? "aucun" : tg.ToString()) : "inconnu";
+        _talkGroupState.TalkGroup is { } tg ? (tg == 0 ? "aucun" : tg.ToString()) : "inconnu";
+
+    /// <summary>
+    /// Ce qui a provoqué la sélection courante. SVXLink distingue lui-même ces origines :
+    /// sans elles, un QSY décidé par le réflecteur ressemble à une manœuvre de l'opérateur.
+    /// </summary>
+    private string? TalkGroupOriginLabel => _talkGroupState.Origin switch
+    {
+        TalkGroupActivationOrigin.Local => "activité locale",
+        TalkGroupActivationOrigin.Remote => "activité distante",
+        TalkGroupActivationOrigin.Priority => "talkgroup prioritaire",
+        TalkGroupActivationOrigin.Command => "commande DTMF",
+        TalkGroupActivationOrigin.Default => "talkgroup par défaut",
+        TalkGroupActivationOrigin.Qsy => "QSY du réflecteur",
+        TalkGroupActivationOrigin.Timeout => "délai écoulé",
+        _ => null
+    };
 
     /// <summary>
     /// Talkgroups proposés : le TG par défaut du salon et ceux de MONITOR_TGS. Un TG hors
@@ -839,8 +883,12 @@
             var talkGroups = new List<int> { DefaultTalkGroup };
             talkGroups.AddRange(ParseMonitorTgs(_activeSalon?.Configuration.MonitorTgs));
 
-            if (_currentTalkGroup is { } current)
+            if (_talkGroupState.TalkGroup is { } current)
                 talkGroups.Add(current);
+
+            // Une surveillance temporaire ajoutée en DTMF doit rester atteignable depuis
+            // l'interface, sans quoi il faudrait retaper le numéro à la main.
+            talkGroups.AddRange(_talkGroupState.TemporaryMonitors);
 
             return talkGroups.Distinct().OrderBy(tg => tg);
         }
