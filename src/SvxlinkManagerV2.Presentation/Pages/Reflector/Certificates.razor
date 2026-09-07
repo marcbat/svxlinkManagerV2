@@ -1,0 +1,352 @@
+﻿@page "/reflector/certificats"
+@using SvxlinkManagerV2.Application.Features.Reflectors
+@using SvxlinkManagerV2.Application.Features.Reflectors.BlockNode
+@using SvxlinkManagerV2.Application.Features.Reflectors.GetPendingCertificateRequests
+@using SvxlinkManagerV2.Application.Features.Reflectors.GetReflectorStatus
+@using SvxlinkManagerV2.Application.Features.Reflectors.SignCertificateRequest
+@using SvxlinkManagerV2.Application.Interfaces
+@using SvxlinkManagerV2.Application.Models
+@using Microsoft.Extensions.Options
+@using SvxlinkManagerV2.Domain.Common
+@using LangExtError = LanguageExt.Common.Error
+
+@inject IMediator Mediator
+@inject IReflectorStatusService StatusService
+@inject IOptions<CertificateAuthorityOptions> CertificateAuthority
+@inject ToastService ToastService
+@implements IDisposable
+
+<!-- ── En-tête ─────────────────────────────────────────────── -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Certificats du réflecteur</h1>
+        <p class="page-subtitle">
+            Demandes de signature en attente et nœuds connectés au réflecteur local.
+        </p>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" @onclick="LoadAsync" disabled="@_isLoading">
+            <span class="material-symbols-outlined @(_isLoading ? "spin" : "")">refresh</span>
+            Rafraîchir
+        </button>
+    </div>
+</div>
+
+@if (CertificateAuthority.Value.AutoSign)
+{
+    <div class="alert-active" style="border-left-color: var(--danger);">
+        <span class="material-symbols-outlined">warning</span>
+        <div>
+            <strong>Auto-signature active</strong>
+            <span>
+                Toute demande est signée sans vérification, quel que soit l'indicatif.
+                Réservé au développement — à désactiver
+                (<code>@(CertificateAuthorityOptions.SectionName):AutoSign</code>) sur un
+                réflecteur joignable depuis l'extérieur.
+            </span>
+        </div>
+    </div>
+}
+
+<!-- ── Demandes en attente ─────────────────────────────────── -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="section-header">
+        <span class="material-symbols-outlined">approval</span>
+        Demandes en attente
+        @if (_pending.Count > 0)
+        {
+            <span class="badge badge-warning" style="margin-left:8px;">@_pending.Count</span>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="skeleton" style="height: 100px; border-radius: 8px;"></div>
+    }
+    else if (_pendingError is not null)
+    {
+        <div class="empty-state">
+            <span class="material-symbols-outlined">error</span>
+            <p>@_pendingError</p>
+        </div>
+    }
+    else if (_pending.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="material-symbols-outlined">check_circle</span>
+            <p>Aucune demande en attente.</p>
+        </div>
+    }
+    else
+    {
+        <div style="overflow-x:auto;">
+            <table class="help-dtmf-table">
+                <thead>
+                    <tr>
+                        <th>Indicatif</th>
+                        <th>Adresse déclarée</th>
+                        <th>Reçue le</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in _pending)
+                    {
+                        <tr>
+                            <td><strong>@request.Callsign</strong></td>
+                            <td>@(request.Email ?? "—")</td>
+                            <td>@request.ReceivedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td style="text-align:right;">
+                                <button class="btn btn-primary btn-sm"
+                                        disabled="@(_busyCallsign is not null)"
+                                        @onclick="() => SignAsync(request.Callsign)">
+                                    @if (_busyCallsign == request.Callsign)
+                                    {
+                                        <span class="material-symbols-outlined spin">progress_activity</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-symbols-outlined">verified</span>
+                                    }
+                                    Signer
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="help-dtmf-hint">
+            <span class="material-symbols-outlined">info</span>
+            Rien ne vérifie l'identité du demandeur : ne signez que les indicatifs que vous
+            attendez. Le nœud signé se reconnecte de lui-même en quelques secondes.
+        </p>
+    }
+</div>
+
+<!-- ── Nœuds connectés ─────────────────────────────────────── -->
+<div class="card">
+    <div class="section-header">
+        <span class="material-symbols-outlined">block</span>
+        Nœuds connectés
+    </div>
+
+    @if (!_status.IsAvailable)
+    {
+        <div class="empty-state">
+            <span class="material-symbols-outlined">monitoring</span>
+            <p>@(_status.Detail ?? "Statut du réflecteur en cours de lecture…")</p>
+        </div>
+    }
+    else if (_status.Nodes.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="material-symbols-outlined">hub</span>
+            <p>Aucun nœud connecté pour le moment.</p>
+        </div>
+    }
+    else
+    {
+        <div style="overflow-x:auto;">
+            <table class="help-dtmf-table">
+                <thead>
+                    <tr>
+                        <th>Indicatif</th>
+                        <th>Talkgroup</th>
+                        <th>Blocage</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var node in _status.Nodes)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@node.Callsign</strong>
+                                @if (node.IsTalker)
+                                {
+                                    <span class="badge badge-danger" style="margin-left:6px;">en émission</span>
+                                }
+                            </td>
+                            <td>@(node.TalkGroup == 0 ? "aucun" : node.TalkGroup.ToString())</td>
+                            <td>
+                                <select class="form-select" style="max-width:150px;"
+                                        value="@GetBlockSeconds(node.Callsign)"
+                                        @onchange="e => SetBlockSeconds(node.Callsign, e.Value?.ToString())">
+                                    @foreach (var duration in BlockDurations)
+                                    {
+                                        <option value="@duration.Seconds">@duration.Label</option>
+                                    }
+                                </select>
+                            </td>
+                            <td style="text-align:right;">
+                                <button class="btn btn-danger btn-sm"
+                                        disabled="@(_busyCallsign is not null)"
+                                        @onclick="() => BlockAsync(node.Callsign)">
+                                    @if (_busyCallsign == node.Callsign)
+                                    {
+                                        <span class="material-symbols-outlined spin">progress_activity</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-symbols-outlined">volume_off</span>
+                                    }
+                                    Museler
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="help-dtmf-hint">
+            <span class="material-symbols-outlined">info</span>
+            Museler un nœud l'empêche d'émettre sans le déconnecter : il continue d'écouter.
+            C'est la réponse à un micro resté coincé, pas une exclusion — le blocage se lève
+            de lui-même, et le réflecteur l'oublie à son redémarrage.
+        </p>
+    }
+</div>
+
+@code {
+    /// <summary>Durées proposées, du micro coincé qu'on libère vite à la soirée entière.</summary>
+    private static readonly (int Seconds, string Label)[] BlockDurations =
+    [
+        (300, "5 minutes"),
+        (900, "15 minutes"),
+        (3600, "1 heure"),
+        (14400, "4 heures")
+    ];
+
+    private IReadOnlyList<PendingCertificateRequest> _pending = [];
+    private ReflectorStatusSnapshot _status = ReflectorStatusSnapshot.Unknown;
+    private readonly Dictionary<string, int> _blockSeconds = new();
+    private string? _pendingError;
+    private string? _busyCallsign;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        StatusService.OnStatusChanged += OnStatusChanged;
+    }
+
+    public void Dispose() => StatusService.OnStatusChanged -= OnStatusChanged;
+
+    private void OnStatusChanged(ReflectorStatusSnapshot status)
+    {
+        InvokeAsync(() =>
+        {
+            _status = status;
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<LangExtError, IReadOnlyList<PendingCertificateRequest>>>(
+                new GetPendingCertificateRequestsQuery());
+
+            result.Match(
+                Succ: requests =>
+                {
+                    _pending = requests;
+                    _pendingError = null;
+                    return LanguageExt.Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    _pending = [];
+                    _pendingError = string.Join(", ", errors.Select(e => e.Message));
+                    return LanguageExt.Unit.Default;
+                });
+
+            _status = await Mediator.Send<ReflectorStatusSnapshot>(new GetReflectorStatusQuery());
+        }
+        catch (Exception ex)
+        {
+            _pendingError = $"Erreur : {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private int GetBlockSeconds(string callsign) =>
+        _blockSeconds.TryGetValue(callsign, out var seconds) ? seconds : BlockDurations[0].Seconds;
+
+    private void SetBlockSeconds(string callsign, string? value)
+    {
+        if (int.TryParse(value, out var seconds))
+            _blockSeconds[callsign] = seconds;
+    }
+
+    private async Task SignAsync(string callsign)
+    {
+        _busyCallsign = callsign;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(
+                new SignCertificateRequestCommand(callsign));
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess(
+                        $"Demande de {callsign} signée. Le nœud se reconnecte dans quelques secondes.");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                });
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _busyCallsign = null;
+        }
+
+        // La demande disparaît de pending_csrs/ dès que le démon l'a signée : c'est ce
+        // rechargement qui confirme que la signature a bien abouti.
+        await LoadAsync();
+    }
+
+    private async Task BlockAsync(string callsign)
+    {
+        var seconds = GetBlockSeconds(callsign);
+        _busyCallsign = callsign;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new BlockNodeCommand(callsign, seconds));
+
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess($"{callsign} ne peut plus émettre pendant {seconds / 60} minute(s).");
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                });
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _busyCallsign = null;
+        }
+    }
+}

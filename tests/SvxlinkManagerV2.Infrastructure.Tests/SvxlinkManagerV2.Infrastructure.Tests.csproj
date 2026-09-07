@@ -30,4 +30,13 @@
     <ProjectReference Include="..\..\src\SvxlinkManagerV2.Infrastructure\SvxlinkManagerV2.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!--
+    Demandes de signature capturées telles quelles sur la stack Docker : ce sont les tests
+    unitaires qui construisent des CSR avec l'API .NET, et rien ne garantirait sans cela que
+    la forme produite par SVXLink reste lisible.
+  -->
+  <ItemGroup>
+    <None Include="Reflector\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

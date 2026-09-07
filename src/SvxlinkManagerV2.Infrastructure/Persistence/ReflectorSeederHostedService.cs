@@ -139,6 +139,17 @@ public class ReflectorSeederHostedService : IHostedService
             # charge — il n'a rien à faire sur l'Internet public.
             HTTP_SRV_PORT=8888
 
+            # Pseudo-terminal de commandes runtime, par lequel l'application signe les
+            # demandes de certificat (CA SIGN) et bloque temporairement un nœud (NODE BLOCK).
+            # Sans lui, une demande déposée dans pending_csrs/ y reste indéfiniment et le
+            # nœud demandeur enchaîne les « Access denied » : le salon V3 livré par défaut
+            # serait inutilisable.
+            #
+            # Aucun CERT_CA_HOOK n'est déclaré : la signature est une décision humaine, prise
+            # depuis la page Certificats. Le hook de développement dev-ca-hook.sh signe, lui,
+            # n'importe quel indicatif — il n'a sa place que dans la stack Docker.
+            COMMAND_PTY=/tmp/reflector_ctrl
+
             [ROOT_CA]
             COMMON_NAME=SvxReflector Root CA
             COUNTRY=CH

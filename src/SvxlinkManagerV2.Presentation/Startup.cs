@@ -125,6 +125,8 @@ namespace SvxlinkManagerV2.Presentation
             // Adresse du réflecteur local, vers laquelle pointe le salon « Réflecteur Local »
             // seedé. Lue avant les seeders, qui en dépendent tous les deux.
             services.Configure<LocalReflectorOptions>(Configuration.GetSection(LocalReflectorOptions.SectionName));
+            services.Configure<CertificateAuthorityOptions>(
+                Configuration.GetSection(CertificateAuthorityOptions.SectionName));
 
             // Seeding des salons originaux
             services.AddHostedService<SalonSeederHostedService>();
@@ -190,6 +192,10 @@ namespace SvxlinkManagerV2.Presentation
             // Le poller est à la fois le singleton lu par la query et le service hébergé qui
             // l'alimente : une seule instance, sans quoi la page lirait un instantané que
             // personne ne met à jour.
+            services.AddSingleton<IReflectorCommandWriter, ReflectorCommandPtyWriter>();
+            services.AddSingleton<IPendingCertificateRequestReader, PendingCertificateRequestReader>();
+            services.AddHostedService<CertificateAutoSignHostedService>();
+
             services.AddSingleton<ReflectorStatusPoller>();
             services.AddSingleton<IReflectorStatusService>(sp => sp.GetRequiredService<ReflectorStatusPoller>());
             services.AddHostedService(sp => sp.GetRequiredService<ReflectorStatusPoller>());
