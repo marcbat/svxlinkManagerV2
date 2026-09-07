@@ -189,6 +189,12 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<ITalkGroupStateService, TalkGroupTracker>();
             services.AddSingleton<IReflectorTrustService, ReflectorTrustService>();
 
+            // Un seul service porte la lecture et la réinitialisation de la PKI du nœud :
+            // les deux travaillent sur les mêmes fichiers, nommés d'après l'indicatif.
+            services.AddSingleton<NodeCertificateService>();
+            services.AddSingleton<INodeCertificateReader>(sp => sp.GetRequiredService<NodeCertificateService>());
+            services.AddSingleton<INodeCertificateRequestResetter>(sp => sp.GetRequiredService<NodeCertificateService>());
+
             // Le poller est à la fois le singleton lu par la query et le service hébergé qui
             // l'alimente : une seule instance, sans quoi la page lirait un instantané que
             // personne ne met à jour.

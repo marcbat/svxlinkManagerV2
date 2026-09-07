@@ -182,7 +182,26 @@ Deux notions distinctes, à ne pas confondre :
 
 Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoignable ou certificat rejeté laissent le processus en vie sans que le nœud soit relié. **Les deux échecs de certificat sont distincts et leurs remèdes sont opposés** : `CertificateRejected` désigne le certificat *du nœud* (à faire signer à nouveau), `ServerCertificateUntrusted` l'autorité *du réflecteur* que le nœud ne reconnaît plus — typiquement une PKI régénérée côté serveur. Le second se répare depuis l'interface : `ResetReflectorTrustCommand` supprime le `ca-bundle.crt` de `CERT_PKI_DIR` (et lui seul) puis redémarre le daemon, seul moyen de rouvrir une session TLS et de retélécharger l'autorité.
 
-**Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
+**Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
+
+### Cycle de vie du certificat du nœud
+
+En V3, obtenir un certificat est un **processus asynchrone qui fait intervenir un tiers** : le nœud génère sa clé et sa demande, l'envoie au réflecteur, puis attend que le sysop la signe. L'attente peut durer des heures ou des jours, et l'application n'en montrait qu'un « échec de connexion » — de quoi conclure, à raison de son point de vue, que le logiciel ne marche pas.
+
+`INodeCertificateReader` déduit l'état de la présence des fichiers de `CERT_PKI_DIR`, nommés d'après l'indicatif du salon actif :
+
+| Fichiers présents | État | Ce que dit l'interface |
+|---|---|---|
+| aucun | `NotGenerated` | la clé est créée au premier démarrage en V3 |
+| `.key` + `.csr` | `PendingSignature` | **pas une panne** : la demande attend le sysop |
+| `.crt` | `Valid` / `Expiring` / `Expired` | sujet, émetteur, échéance |
+| `.crt` illisible | `Unreadable` | régénérer la remplacera |
+
+**La clé privée n'est jamais ouverte.** Sa présence est constatée, rien de plus : aucun chemin de ce code ne doit pouvoir la faire remonter jusqu'à une page web.
+
+**Régénérer la demande efface le `.csr` et le `.crt`, jamais le `.key`** — la clé est l'identité du nœud, et la renouveler n'apporte rien à une demande à refaire signer. Le redémarrage de SVXLink qui suit est indispensable : le processus en cours garderait sinon en mémoire le certificat effacé.
+
+C'est aussi le remède qui manquait au cas `ServerCertificateUntrusted` : après une régénération de PKI côté réflecteur, oublier l'autorité ne suffit pas, le certificat du nœud est lui aussi signé par l'ancienne. L'action est volontairement à confirmation explicite — le nœud reste hors ligne jusqu'à la nouvelle signature, immédiate sur le réflecteur local, dépendante d'un tiers ailleurs.
 
 ### Signature des certificats du réflecteur local
 

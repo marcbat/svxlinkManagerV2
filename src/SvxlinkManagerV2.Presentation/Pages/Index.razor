@@ -5,6 +5,8 @@
 @using SvxlinkManagerV2.Application.Features.Salons.ActivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.DeactivateSalon
 @using SvxlinkManagerV2.Application.Features.Salons.SelectTalkGroup
+@using SvxlinkManagerV2.Application.Features.Salons.GetNodeCertificate
+@using SvxlinkManagerV2.Application.Features.Salons.RegenerateCertificateRequest
 @using SvxlinkManagerV2.Application.Features.SvxLink.ResetReflectorTrust
 @using SvxlinkManagerV2.Application.Features.SA818.GetSA818Configuration
 @using SvxlinkManagerV2.Application.Features.SA818
@@ -192,6 +194,81 @@
             </button>
         </div>
     </div>
+
+    <!-- Certificat du nœud (protocole V3 uniquement) -->
+    @if (SupportsTalkGroups && _certificate.Status != NodeCertificateStatus.NotApplicable)
+    {
+        <div class="card">
+            <div class="section-header">
+                <span class="material-symbols-outlined">verified_user</span>
+                Certificat du nœud
+                <span class="badge @CertificateBadgeCss" style="margin-left:8px;">@CertificateStatusLabel</span>
+            </div>
+
+            <p class="help-dtmf-hint" style="margin-top:0;">
+                <span class="material-symbols-outlined">@CertificateIcon</span>
+                @CertificateExplanation
+            </p>
+
+            @if (_certificate.Status is NodeCertificateStatus.Valid
+                or NodeCertificateStatus.Expiring or NodeCertificateStatus.Expired)
+            {
+                <div class="focus-active-details" style="margin-top:6px;">
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">badge</span>
+                        @_certificate.Subject
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">approval</span>
+                        Émis par @_certificate.Issuer
+                    </span>
+                    <span class="focus-detail-item">
+                        <span class="material-symbols-outlined">event</span>
+                        Valable jusqu'au @_certificate.NotAfter?.ToString("dd/MM/yyyy")
+                        @if (_certificate.DaysUntilExpiry is { } days)
+                        {
+                            <span>&nbsp;(@(days >= 0 ? $"{days} jour(s)" : "expiré"))</span>
+                        }
+                    </span>
+                </div>
+            }
+
+            <div class="actions-stack" style="margin-top:10px;">
+                @if (_confirmRegenerate)
+                {
+                    <span style="color:var(--danger);font-weight:600;">
+                        Le nœud perdra son certificat et restera hors ligne jusqu'à ce que le
+                        sysop du réflecteur signe la nouvelle demande. Confirmer ?
+                    </span>
+                    <button class="btn btn-danger btn-sm"
+                            disabled="@_isRegeneratingCertificate"
+                            @onclick="RegenerateCertificateRequest">
+                        @if (_isRegeneratingCertificate)
+                        {
+                            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined">restart_alt</span>
+                        }
+                        Oui, régénérer
+                    </button>
+                    <button class="btn btn-secondary btn-sm"
+                            disabled="@_isRegeneratingCertificate"
+                            @onclick="() => _confirmRegenerate = false">
+                        Annuler
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _confirmRegenerate = true">
+                        <span class="material-symbols-outlined">autorenew</span>
+                        Régénérer la demande
+                    </button>
+                }
+            </div>
+        </div>
+    }
 
     <!-- Talkgroup (protocole V3 uniquement) -->
     @if (SupportsTalkGroups)
@@ -618,6 +695,9 @@
     private int? _customTalkGroup;
     private bool _isSelectingTalkGroup;
     private bool _isResettingTrust;
+    private NodeCertificateState _certificate = NodeCertificateState.NotApplicable;
+    private bool _isRegeneratingCertificate;
+    private bool _confirmRegenerate;
 
     private PeriodicTimer? _statusTimer;
     private CancellationTokenSource? _cts;
@@ -829,6 +909,16 @@
             }
 
             _linkState = LinkStateService.State;
+
+            try
+            {
+                _certificate = await Mediator.Send<NodeCertificateState>(new GetNodeCertificateQuery());
+            }
+            catch (Exception ex)
+            {
+                _certificate = NodeCertificateState.NotApplicable;
+                loadErrors.Add($"certificat du nœud: {ex.Message}");
+            }
         }
         finally
         {
@@ -1001,6 +1091,90 @@
         finally
         {
             _isSelectingTalkGroup = false;
+        }
+    }
+
+    private string CertificateStatusLabel => _certificate.Status switch
+    {
+        NodeCertificateStatus.NotGenerated => "pas encore généré",
+        NodeCertificateStatus.PendingSignature => "en attente de signature",
+        NodeCertificateStatus.Valid => "valide",
+        NodeCertificateStatus.Expiring => "expire bientôt",
+        NodeCertificateStatus.Expired => "expiré",
+        _ => "illisible"
+    };
+
+    private string CertificateBadgeCss => _certificate.Status switch
+    {
+        NodeCertificateStatus.Valid => "badge-success",
+        NodeCertificateStatus.PendingSignature or NodeCertificateStatus.Expiring => "badge-warning",
+        NodeCertificateStatus.Expired or NodeCertificateStatus.Unreadable => "badge-danger",
+        _ => "badge-muted"
+    };
+
+    private string CertificateIcon => _certificate.Status switch
+    {
+        NodeCertificateStatus.Valid => "check_circle",
+        NodeCertificateStatus.PendingSignature => "hourglass_top",
+        _ => "info"
+    };
+
+    /// <summary>
+    /// L'attente de signature est le cas que l'application montrait comme un échec de
+    /// connexion : le dire explicitement est tout l'objet de cette section.
+    /// </summary>
+    private string CertificateExplanation => _certificate.Status switch
+    {
+        NodeCertificateStatus.NotGenerated =>
+            "Le nœud n'a pas encore généré sa clé. Elle est créée au premier démarrage de "
+            + "SVXLink sur un salon en protocole V3.",
+        NodeCertificateStatus.PendingSignature =>
+            "La demande de signature a été transmise au réflecteur et attend la décision de "
+            + "son sysop. Ce n'est pas une panne : l'attente peut durer des heures ou des "
+            + "jours, et le nœud se connectera de lui-même une fois la demande signée."
+            + (_certificate.RequestedAt is { } requested
+                ? $" Demande déposée le {requested:dd/MM/yyyy à HH:mm}."
+                : string.Empty),
+        NodeCertificateStatus.Valid =>
+            "Le nœud dispose d'un certificat valide.",
+        NodeCertificateStatus.Expiring =>
+            $"Le certificat expire dans moins de {NodeCertificateState.ExpiryWarningDays} jours. "
+            + "Régénérez la demande sans attendre : la signature dépend du sysop du réflecteur.",
+        NodeCertificateStatus.Expired =>
+            "Le certificat a expiré et le réflecteur le refusera. Régénérez la demande.",
+        _ => "Le certificat est présent mais illisible. Régénérer la demande le remplacera."
+    };
+
+    private async Task RegenerateCertificateRequest()
+    {
+        _isRegeneratingCertificate = true;
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(new RegenerateCertificateRequestCommand());
+            result.Match(
+                Succ: _ =>
+                {
+                    ToastService.ShowSuccess(
+                        "Nouvelle demande de signature déposée. Le nœud restera hors ligne "
+                        + "jusqu'à ce que le sysop du réflecteur la signe.");
+                    _confirmRegenerate = false;
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Unit.Default;
+                }
+            );
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            _isRegeneratingCertificate = false;
         }
     }
 
