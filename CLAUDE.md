@@ -184,6 +184,18 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Statistiques par talkgroup
+
+L'activité est ventilée par talkgroup pour les salons V3, sur le schéma déjà en place pour la liaison réflecteur : `ActivityEvent` porte une dimension `TalkGroup`, et **l'intervalle est écrit à sa fin**, avec sa durée déjà calculée. La lecture n'a jamais à appairer un début et une fin, et un arrêt brutal ne laisse pas d'enregistrement à moitié constitué.
+
+`IActivityRecorder.PendingTalkGroup` expose l'intervalle **encore ouvert**, que la base ignore : sans ce rattrapage, un nœud posé depuis trois jours sur le même talkgroup y afficherait un temps nul. C'est la même correction que celle appliquée à la disponibilité de la liaison.
+
+Deux natures d'événement cohabitent : `TalkGroupPeriod`, de durée, écrit à chaque changement ; et `TalkGroupQsy`, ponctuel, enregistré quand le tracker publie une origine `Qsy` — c'est le réflecteur qui a déplacé la conversation, pas l'opérateur qui a choisi. Compter les QSY à partir des seules périodes serait impossible : l'origine appartient au talkgroup entrant, pas à celui qu'on quitte.
+
+**Le talkgroup 0 est suivi comme les autres** — il signifie « aucun talkgroup », ce qui n'est pas l'absence de la notion. C'est cette distinction qui permet de masquer entièrement la section pour un salon V2 ou en mode autonome, plutôt que d'afficher des zéros qui laisseraient croire à une absence d'activité.
+
+Contraintes de la page respectées : aucune dépendance JavaScript, barres calculées côté serveur via `CssValue`, agrégation par talkgroup déléguée à SQLite. **Toute nouvelle nature d'événement doit recevoir un libellé français** dans `ActivityCsvFormatter` et `GetStatisticsQuery` — un test le vérifie.
+
 ### Redondance de serveurs réflecteur
 
 Un salon V3 peut désigner plusieurs serveurs, ou un domaine DNS, et le nœud bascule tout seul si le principal tombe — auparavant il restait hors ligne jusqu'à une intervention.

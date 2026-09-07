@@ -1,4 +1,4 @@
-namespace SvxlinkManagerV2.Domain.Statistics;
+﻿namespace SvxlinkManagerV2.Domain.Statistics;
 
 /// <summary>
 /// Événement ponctuel de l'historique d'activité : un passage entendu, une commande DTMF,
@@ -43,6 +43,14 @@ public class ActivityEvent
     /// <summary>Complément textuel : code DTMF composé, cause d'une perte de liaison.</summary>
     public string? Detail { get; private set; }
 
+    /// <summary>
+    /// Talkgroup sur lequel le nœud était posé, <c>null</c> hors protocole V3.
+    /// <c>0</c> signifie « aucun talkgroup », ce qui n'est pas la même chose que l'absence
+    /// de la notion : le distinguer permet de ne rien afficher pour un salon V2 plutôt qu'un
+    /// zéro trompeur.
+    /// </summary>
+    public int? TalkGroup { get; private set; }
+
     private ActivityEvent() { }
 
     /// <summary>
@@ -56,6 +64,7 @@ public class ActivityEvent
     /// <param name="callsign">Indicatif entendu, pour un passage distant.</param>
     /// <param name="duration">Durée de l'événement, pour ceux qui en ont une.</param>
     /// <param name="detail">Complément textuel.</param>
+    /// <param name="talkGroup">Talkgroup concerné, pour un salon V3.</param>
     public static ActivityEvent Create(
         ActivityEventType type,
         DateTimeOffset occurredAt,
@@ -63,7 +72,8 @@ public class ActivityEvent
         string? salonName = null,
         string? callsign = null,
         TimeSpan? duration = null,
-        string? detail = null)
+        string? detail = null,
+        int? talkGroup = null)
     {
         var local = occurredAt.ToLocalTime();
 
@@ -79,7 +89,8 @@ public class ActivityEvent
             Callsign = string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(),
             // Une durée négative n'a pas de sens et fausserait tous les cumuls : elle est ramenée à zéro.
             DurationSeconds = duration is { } d ? (int)Math.Max(0, Math.Round(d.TotalSeconds)) : null,
-            Detail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim()
+            Detail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim(),
+            TalkGroup = talkGroup
         };
     }
 }

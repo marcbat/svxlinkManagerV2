@@ -1,7 +1,9 @@
-using LanguageExt;
+﻿using LanguageExt;
 using SvxlinkManagerV2.Application.Models;
 using SvxlinkManagerV2.Domain.Common;
 using SvxlinkManagerV2.Domain.Statistics;
+
+using SvxlinkManagerV2.Application.Features.Statistics;
 
 namespace SvxlinkManagerV2.Application.Interfaces;
 
@@ -105,6 +107,14 @@ public interface IActivityRepository
     /// <summary>Répartition des passages entendus par jour de semaine et heure locale.</summary>
     /// <param name="fromUtc">Début de la période, en UTC.</param>
     /// <param name="cancellationToken">Token d'annulation.</param>
+    /// <summary>
+    /// Temps cumulé par talkgroup depuis <paramref name="fromUtc"/>, du plus occupé au moins
+    /// occupé. Le regroupement est délégué à SQLite, comme les autres agrégations.
+    /// </summary>
+    Task<IReadOnlyList<TalkGroupUsageDto>> GetTalkGroupUsageAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<HourlyActivityCell>> GetHourlyActivityAsync(
         DateTimeOffset fromUtc,
         CancellationToken cancellationToken = default);

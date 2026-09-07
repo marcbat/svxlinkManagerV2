@@ -1,4 +1,4 @@
-using SvxlinkManagerV2.Application.Models;
+﻿using SvxlinkManagerV2.Application.Models;
 using SvxlinkManagerV2.Domain.Statistics;
 
 namespace SvxlinkManagerV2.Application.Interfaces;
@@ -59,6 +59,7 @@ public interface IActivityRecorder
         string? callsign = null,
         TimeSpan? duration = null,
         string? detail = null,
+        int? talkGroup = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -69,4 +70,23 @@ public interface IActivityRecorder
     /// <param name="state">Nouvel état de la liaison.</param>
     /// <param name="cancellationToken">Token d'annulation.</param>
     Task RecordLinkStateAsync(ReflectorLinkState state, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Talkgroup en cours et instant depuis lequel le nœud s'y trouve, <c>null</c> hors
+    /// protocole V3 ou tant qu'aucun talkgroup n'a été observé.
+    ///
+    /// L'intervalle en cours n'est pas encore en base : les événements de durée sont écrits à
+    /// leur fin. Sans ce rattrapage, un nœud posé depuis trois jours sur le même talkgroup y
+    /// afficherait un temps nul.
+    /// </summary>
+    (int TalkGroup, DateTimeOffset Since)? PendingTalkGroup { get; }
+
+    /// <summary>
+    /// Enregistre un changement de talkgroup : clôt l'intervalle précédent en écrivant sa
+    /// durée, et ouvre le suivant. C'est le recorder qui tient l'intervalle, l'appelant se
+    /// contente de lui transmettre l'état publié par le tracker.
+    /// </summary>
+    /// <param name="talkGroup">Nouveau talkgroup, <c>null</c> si la notion ne s'applique plus.</param>
+    /// <param name="cancellationToken">Token d'annulation.</param>
+    Task RecordTalkGroupAsync(int? talkGroup, CancellationToken cancellationToken = default);
 }

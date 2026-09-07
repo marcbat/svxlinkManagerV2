@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.Extensions.Options;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Models;
@@ -95,6 +95,7 @@ public class GetStatisticsQueryHandler : IRequestHandler<GetStatisticsQuery, Sta
             LocalActivity: local,
             Dtmf: dtmf,
             Reliability: reliability,
+            TalkGroups: await BuildTalkGroupsAsync(eventSummaries, from, now, cancellationToken),
             Timeline: await BuildTimelineAsync(from, cancellationToken));
     }
 
@@ -176,6 +177,56 @@ public class GetStatisticsQueryHandler : IRequestHandler<GetStatisticsQuery, Sta
             .OrderByDescending(o => o.Count)
             .ToList()
             .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Ventile l'activité par talkgroup, en ajoutant l'intervalle encore ouvert.
+    /// </summary>
+    /// <remarks>
+    /// Les événements de durée sont écrits à leur fin : sans ce rattrapage, un nœud posé
+    /// depuis trois jours sur le même talkgroup y afficherait un temps nul. C'est la même
+    /// correction que celle appliquée à la disponibilité de la liaison.
+    ///
+    /// La section est déclarée inapplicable dès qu'aucun temps de talkgroup n'a jamais été
+    /// enregistré et qu'aucun intervalle n'est ouvert : un salon V2 ou le mode autonome
+    /// n'affichent alors rien, plutôt que des zéros qui laisseraient croire à une absence
+    /// d'activité.
+    /// </remarks>
+    private async Task<TalkGroupStatisticsDto> BuildTalkGroupsAsync(
+        IReadOnlyDictionary<ActivityEventType, ActivityEventSummary> eventSummaries,
+        DateTimeOffset from,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var usage = (await _repository.GetTalkGroupUsageAsync(from, cancellationToken)).ToList();
+
+        if (_recorder.PendingTalkGroup is { } pending)
+        {
+            var since = pending.Since > from ? pending.Since : from;
+            var openDuration = now - since;
+
+            var existing = usage.FindIndex(u => u.TalkGroup == pending.TalkGroup);
+            if (existing >= 0)
+                usage[existing] = usage[existing] with
+                {
+                    TotalTime = usage[existing].TotalTime + openDuration,
+                    PeriodCount = usage[existing].PeriodCount + 1
+                };
+            else
+                usage.Add(new TalkGroupUsageDto(pending.TalkGroup, openDuration, 1));
+        }
+
+        if (usage.Count == 0)
+            return TalkGroupStatisticsDto.NotApplicable;
+
+        var qsyCount = eventSummaries.TryGetValue(ActivityEventType.TalkGroupQsy, out var qsy)
+            ? qsy.Count
+            : 0;
+
+        return new TalkGroupStatisticsDto(
+            IsApplicable: true,
+            Usage: usage.OrderByDescending(u => u.TotalTime).ThenBy(u => u.TalkGroup).ToList().AsReadOnly(),
+            QsyCount: qsyCount);
     }
 
     private async Task<TrafficDto> BuildTrafficAsync(
@@ -355,6 +406,8 @@ public class GetStatisticsQueryHandler : IRequestHandler<GetStatisticsQuery, Sta
         ActivityEventType.ReflectorLinkLost => $"Liaison réflecteur perdue{Suffix(activityEvent.Detail)}",
         ActivityEventType.ReflectorLinkFailed => $"Liaison réflecteur impossible{Suffix(activityEvent.Detail)}",
         ActivityEventType.ReflectorOutage => "Liaison réflecteur rétablie",
+        ActivityEventType.TalkGroupPeriod => "Temps passé sur un talkgroup",
+        ActivityEventType.TalkGroupQsy => "QSY suivi vers un autre talkgroup",
         ActivityEventType.RxDistortion => "Écrêtage de l'audio en réception",
         ActivityEventType.ApplicationStarted => "Démarrage de l'application",
         ActivityEventType.ApplicationStopped => "Arrêt de l'application",

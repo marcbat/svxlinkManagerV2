@@ -365,6 +365,9 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                     b.Property<string>("SalonName")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("TalkGroup")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
@@ -553,6 +556,9 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                             b1.Property<Guid>("SalonAggregateId")
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("AdditionalHosts")
+                                .HasColumnType("TEXT");
+
                             b1.Property<int>("AnnounceRemoteMinInterval")
                                 .HasColumnType("INTEGER");
 
@@ -582,6 +588,9 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
 
                             b1.Property<int>("DefaultTg")
                                 .HasColumnType("INTEGER");
+
+                            b1.Property<string>("DnsDomain")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Host")
                                 .IsRequired()

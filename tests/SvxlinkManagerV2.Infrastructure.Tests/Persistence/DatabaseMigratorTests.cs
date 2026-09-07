@@ -43,7 +43,8 @@ public class DatabaseMigratorTests : IDisposable
         "20260830140047_AddAudioConfiguration",
         "20260830173529_AddActivityHistory",
         "20260907113126_AddCertificateSubject",
-        "20260907115200_AddNodeInformation"
+        "20260907115200_AddNodeInformation",
+        "20260907120123_AddTalkGroupToActivityEvents"
     ];
 
     private readonly SqliteConnection _connection;
