@@ -174,6 +174,26 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Statut du réflecteur local (API HTTP)
+
+SVXLink 25.05 expose l'état complet des nœuds connectés sur le serveur HTTP du réflecteur, activé par `HTTP_SRV_PORT`. C'est l'interface prévue par l'amont pour la supervision — l'outil officiel `svxreflector-status` ne fait rien d'autre que la lire — et elle donne ce que les logs ne donnent pas : le talkgroup de chaque nœud, ses talkgroups surveillés, sa version de protocole.
+
+```json
+{"nodes":{"HB9GXP3-H":{"isTalker":false,"machineArch":"x86_64","monitoredTGs":[240,2404],
+ "projVer":"25.05","protoVer":{"majorVer":3,"minorVer":0},"restrictedTG":true,
+ "sw":"SvxLink","swVer":"1.9.0","tg":0}}}
+```
+
+`ReflectorStatusPoller` (singleton **et** service hébergé — une seule instance, sinon la page lirait un instantané que personne n'alimente) interroge `/status` toutes les 5 s et publie un `ReflectorStatusSnapshot`. La page `/reflector` le lit par `GetReflectorStatusQuery` et s'abonne à `OnStatusChanged` : **elle ne parle jamais au serveur HTTP elle-même**, un serveur que sa propre documentation décrit comme simple, non audité et sensible à la charge.
+
+Points à connaître :
+
+- **Le port vient du fichier de configuration, pas de la base.** `HTTP_SRV_PORT` est relu dans `/etc/svxlink/svxreflector.conf` à chaque cycle : c'est ce fichier que charge le démon, et une modification prend effet sans redémarrer l'application. Un réflecteur configuré avant cette fonctionnalité n'a pas la clé — l'interface le dit et donne la ligne à ajouter, plutôt que d'afficher un réflecteur désert.
+- **Chaque indisponibilité est nommée** (`DaemonStopped`, `PortNotConfigured`, `Unreachable`, `Invalid`). Afficher « aucun nœud connecté » alors que le démon est arrêté serait un mensonge. `Invalid` se distingue d'une liste vide : un réflecteur qui tourne sans nœud est un cas normal.
+- **L'hôte interrogé vient de `LocalReflectorOptions`** — boucle locale en production, nom du service dans la stack Docker. L'état du *processus* n'est vérifié (`pgrep`) que si l'hôte est local : ailleurs le réflecteur vit dans un autre conteneur, et c'est l'absence de réponse HTTP qui fait foi.
+- **SVXLink lie ce port sur toutes les interfaces** (`Async::TcpServer` construit sans adresse — non configurable). Il n'est pas publié dans `docker-compose.yml`, mais sur une machine exposée **il doit être fermé au pare-feu** : la manpage demande explicitement de ne pas l'exposer.
+- La configuration par défaut du réflecteur vit dans `ReflectorSeederHostedService.GetDefaultReflectorConfig()`, désormais **publique et utilisée aussi par la page** `/reflector` : elle en tenait une copie, et une clé ajoutée d'un côté manquait de l'autre.
+
 ### Supervision système
 
 `ISystemMetricsService` (implémenté par `LinuxSystemMetricsService`, dans `Infrastructure/Monitoring`) est **l'unique lecteur** de `/proc`, `/sys` et de l'espace disque. En découlent deux consommateurs :

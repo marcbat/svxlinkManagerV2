@@ -186,6 +186,13 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IReflectorLinkStateService, ReflectorLinkStateTracker>();
             services.AddSingleton<ITalkGroupStateService, TalkGroupTracker>();
             services.AddSingleton<IReflectorTrustService, ReflectorTrustService>();
+
+            // Le poller est à la fois le singleton lu par la query et le service hébergé qui
+            // l'alimente : une seule instance, sans quoi la page lirait un instantané que
+            // personne ne met à jour.
+            services.AddSingleton<ReflectorStatusPoller>();
+            services.AddSingleton<IReflectorStatusService>(sp => sp.GetRequiredService<ReflectorStatusPoller>());
+            services.AddHostedService(sp => sp.GetRequiredService<ReflectorStatusPoller>());
             services.AddSingleton<IDtmfCommandTracker, DtmfCommandTracker>();
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISquelchStateService, SquelchStateTracker>();

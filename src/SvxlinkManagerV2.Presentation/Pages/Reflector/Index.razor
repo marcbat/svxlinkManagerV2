@@ -1,15 +1,19 @@
-@page "/reflector"
+﻿@page "/reflector"
 @using SvxlinkManagerV2.Application.Features.Reflectors.ActivateReflector
 @using SvxlinkManagerV2.Application.Features.Reflectors.CreateReflector
 @using SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector
 @using SvxlinkManagerV2.Application.Features.Reflectors.GetAllReflectors
+@using SvxlinkManagerV2.Application.Features.Reflectors.GetReflectorStatus
 @using SvxlinkManagerV2.Application.Features.Reflectors.UpdateReflectorConfiguration
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Reflector
 @using SvxlinkManagerV2.Domain.Common
+@using SvxlinkManagerV2.Application.Models
+@using SvxlinkManagerV2.Infrastructure.Persistence
 
 @inject IMediator Mediator
 @inject IReflectorDaemonService DaemonService
+@inject IReflectorStatusService StatusService
 @inject ToastService ToastService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -125,6 +129,95 @@
 }
 else
 {
+    <div class="card">
+        <div class="section-header">
+            <span class="material-symbols-outlined">monitoring</span>
+            Nœuds connectés
+            @if (_status.IsAvailable)
+            {
+                <span class="badge badge-accent" style="margin-left:8px;">@_status.Nodes.Count</span>
+            }
+        </div>
+
+        @if (_status.IsAvailable && _status.Nodes.Count > 0)
+        {
+            <div style="overflow-x:auto;">
+                <table class="help-dtmf-table">
+                    <thead>
+                        <tr>
+                            <th>Indicatif</th>
+                            <th>Talkgroup</th>
+                            <th>Surveillés</th>
+                            <th>Logiciel</th>
+                            <th>Protocole</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var node in _status.Nodes)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="material-symbols-outlined"
+                                          style="font-size:16px;vertical-align:middle;@(node.IsTalker ? "color:var(--danger);" : "color:var(--text-muted);")">
+                                        @(node.IsTalker ? "radio" : "radio_button_checked")
+                                    </span>
+                                    <strong>@node.Callsign</strong>
+                                    @if (node.IsTalker)
+                                    {
+                                        <span class="badge badge-danger" style="margin-left:6px;">en émission</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge badge-accent">@FormatTalkGroup(node.TalkGroup)</span>
+                                    @if (node.RestrictedTalkGroup)
+                                    {
+                                        <span class="badge badge-muted" style="margin-left:6px;" title="Talkgroup imposé par le réflecteur">imposé</span>
+                                    }
+                                </td>
+                                <td>@FormatMonitored(node.MonitoredTalkGroups)</td>
+                                <td>@FormatSoftware(node)</td>
+                                <td>@(node.ProtocolVersion?.ToString() ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="help-dtmf-hint">
+                <span class="material-symbols-outlined">info</span>
+                Deux nœuds sur des talkgroups différents ne s'entendent pas, même connectés au
+                même réflecteur.
+                @if (_status.RetrievedAtUtc is { } at)
+                {
+                    <span> Dernière lecture : @at.ToLocalTime().ToString("HH:mm:ss").</span>
+                }
+            </p>
+        }
+        else if (_status.IsAvailable)
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined">hub</span>
+                <p>Aucun nœud connecté pour le moment.</p>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined">monitoring</span>
+                <p>
+                    @(_status.Detail ?? "Statut du réflecteur en cours de lecture…")
+                    @if (_status.Availability == ReflectorStatusAvailability.PortNotConfigured)
+                    {
+                        <br />
+                        <span>
+                            Ajoutez <code>HTTP_SRV_PORT=8888</code> à la section <code>[GLOBAL]</code>
+                            ci-dessous, puis redémarrez le réflecteur.
+                        </span>
+                    }
+                </p>
+            </div>
+        }
+    </div>
+
     <div class="alert-info">
         <span class="material-symbols-outlined">info</span>
         <div>
@@ -169,30 +262,13 @@ else
     private ElementReference _configEditorTextarea;
     private DotNetObjectReference<Index>? _dotNetRef;
 
-    private const string DefaultConfig =
-        "[GLOBAL]\r\n" +
-        "TIMESTAMP_FORMAT=\"%c\"\r\n" +
-        "LISTEN_PORT=5300\r\n" +
-        "ACCEPT_CALLSIGN=.*\r\n" +
-        "CODECS=OPUS\r\n" +
-        "CERT_PKI_DIR=/var/lib/svxlink/pki\r\n" +
-        "\r\n" +
-        "[ROOT_CA]\r\n" +
-        "COMMON_NAME=SvxReflector Root CA\r\n" +
-        "COUNTRY=CH\r\n" +
-        "\r\n" +
-        "[ISSUING_CA]\r\n" +
-        "COMMON_NAME=SvxReflector Issuing CA\r\n" +
-        "COUNTRY=CH\r\n" +
-        "\r\n" +
-        "[SERVER_CERT]\r\n" +
-        "COMMON_NAME=svxreflector\r\n" +
-        "SUBJECT_ALT_NAME=DNS:localhost,IP:127.0.0.1\r\n" +
-        "\r\n" +
-        "[TG#0]\r\n" +
-        "AUTO_QSY_AFTER=0\r\n" +
-        "ALLOW=.*\r\n" +
-        "SHOW_ACTIVITY=1\r\n";
+/// <summary>
+    /// Configuration du réflecteur créé au premier affichage. Reprise du seeder : en tenir
+    /// une copie ici avait déjà divergé, et une clé ajoutée d'un côté manquait de l'autre.
+    /// </summary>
+    private static readonly string DefaultConfig = ReflectorSeederHostedService.GetDefaultReflectorConfig();
+
+    private ReflectorStatusSnapshot _status = ReflectorStatusSnapshot.Unknown;
 
     protected override async Task OnInitializedAsync()
     {
@@ -225,11 +301,40 @@ else
             // Vérifier l'état du daemon
             var runningResult = await DaemonService.IsRunningAsync();
             _isActive = runningResult.Match(Succ: v => v, Fail: _ => false);
+
+            // Le statut est poussé par le service d'interrogation : la page ne parle jamais
+            // au serveur HTTP du réflecteur elle-même.
+            _status = await Mediator.Send<ReflectorStatusSnapshot>(new GetReflectorStatusQuery());
+            StatusService.OnStatusChanged += OnStatusChanged;
         }
         finally
         {
             _isLoading = false;
         }
+    }
+
+    private void OnStatusChanged(ReflectorStatusSnapshot status)
+    {
+        InvokeAsync(() =>
+        {
+            _status = status;
+            StateHasChanged();
+        });
+    }
+
+    private static string FormatTalkGroup(int talkGroup) =>
+        talkGroup == 0 ? "aucun" : talkGroup.ToString();
+
+    private static string FormatMonitored(IReadOnlyList<int> talkGroups) =>
+        talkGroups.Count == 0 ? "—" : string.Join(", ", talkGroups);
+
+    private static string FormatSoftware(ReflectorNodeStatus node)
+    {
+        var parts = new[] { node.Software, node.ProjectVersion ?? node.SoftwareVersion }
+            .Where(part => !string.IsNullOrWhiteSpace(part));
+
+        var text = string.Join(" ", parts);
+        return string.IsNullOrWhiteSpace(text) ? "—" : text;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -375,6 +480,10 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        // Le poller est un singleton : un circuit qui reste abonné après sa fermeture
+        // maintiendrait le composant en vie et redessinerait dans le vide.
+        StatusService.OnStatusChanged -= OnStatusChanged;
+
         if (_isEditorInitialized)
         {
             try
