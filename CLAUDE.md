@@ -184,6 +184,18 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Redondance de serveurs réflecteur
+
+Un salon V3 peut désigner plusieurs serveurs, ou un domaine DNS, et le nœud bascule tout seul si le principal tombe — auparavant il restait hors ligne jusqu'à une intervention.
+
+**L'ordre de la liste est la priorité.** SVXLink tente les entrées de `HOSTS` dans l'ordre : `HOST_PRIO` vaut 100 pour la première, `HOST_PRIO_INC` ajoute 1 à chaque suivante. Ces deux variables ne sont donc **pas exposées** : demander à l'opérateur de saisir des nombres de priorité reviendrait à lui faire réécrire ce que SVXLink déduit de l'ordre.
+
+`HOST_PORT` reçoit le port du serveur principal et sert de défaut aux entrées qui n'en précisent pas. Le serveur principal est toujours en tête, et les doublons sont écartés — le déclarer deux fois lui donnerait deux priorités et le ferait retenter en boucle avant de passer au suivant.
+
+`DNS_DOMAIN` active la découverte par enregistrements SRV `_svxreflector._tcp.<domaine>` : le réseau décide alors des serveurs, de leur ordre et de leur poids, sans reconfigurer les nœuds.
+
+Ces champs vivent dans `SvxLinkConfiguration`, donc dans le JSON de l'owned entity : **aucune migration**. La validation (`ReflectorHosts`) est portée par le domaine et refuse une saisie qui produirait une configuration inacceptable pour le démon ; les attributs du formulaire y délèguent plutôt que de redire la règle. Un salon V2 ne connaît que `HOST` et `PORT` : rien de tout cela n'y est écrit.
+
 ### Informations publiées au réflecteur (NODE_INFO_FILE)
 
 Un nœud V3 peut publier ses caractéristiques au réflecteur, qui les expose dans ses annuaires et tableaux de bord. Sans cela le nœud n'y est qu'un indicatif. `NodeInformationWriter` écrit ce document à chaque activation d'un salon V3, et `NODE_INFO_FILE` le déclare — c'est une **projection de la configuration**, pas un état à préserver.

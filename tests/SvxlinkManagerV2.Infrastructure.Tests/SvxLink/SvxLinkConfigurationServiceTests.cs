@@ -157,6 +157,97 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["LinkToReflector"]["TIMEOUT"].Should().Be("0");
     }
 
+    #region Redondance de serveurs
+
+    /// <summary>
+    /// Un salon à serveur unique doit produire exactement la configuration d'avant : c'est
+    /// la garantie qu'aucun salon existant ne change de comportement.
+    /// </summary>
+    [Fact]
+    public async Task GenerateAsync_WithASingleServer_ShouldKeepTheHistoricalHosts()
+    {
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_hosts_single.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section["HOSTS"].Should().Be($"{salon.Configuration.Host}:{salon.Configuration.Port}");
+        section.ContainsKey("DNS_DOMAIN").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithAdditionalServers_ShouldListThemInOrder()
+    {
+        var salon = CreateTestSalonV3WithServers(additionalHosts: "secours.example.org:5301, tertiaire.example.org");
+        var outputPath = GetTestOutputPath("svxlink_hosts_multiple.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var hosts = IniFile.Parse(outputPath)["ReflectorLogic"]["HOSTS"];
+        hosts.Should().Be($"{salon.Configuration.Host}:{salon.Configuration.Port}"
+                          + ",secours.example.org:5301,tertiaire.example.org:5300");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldDeclareTheDefaultPortForEntriesWithoutOne()
+    {
+        var salon = CreateTestSalonV3WithServers(additionalHosts: "secours.example.org");
+        var outputPath = GetTestOutputPath("svxlink_hosts_port.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        IniFile.Parse(outputPath)["ReflectorLogic"]["HOST_PORT"]
+            .Should().Be(salon.Configuration.Port.ToString());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithADnsDomain_ShouldDeclareIt()
+    {
+        var salon = CreateTestSalonV3WithServers(dnsDomain: "exemple.org");
+        var outputPath = GetTestOutputPath("svxlink_hosts_dns.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        IniFile.Parse(outputPath)["ReflectorLogic"]["DNS_DOMAIN"].Should().Be("exemple.org");
+    }
+
+    /// <summary>
+    /// SVXLink 19.09.2 ne connaît que HOST et PORT : lui écrire une liste le laisserait sans
+    /// serveur du tout.
+    /// </summary>
+    [Fact]
+    public async Task GenerateAsync_WithAV2Salon_ShouldNotDeclareAnyRedundancy()
+    {
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_hosts_v2.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section.ContainsKey("HOSTS").Should().BeFalse();
+        section.ContainsKey("HOST_PORT").Should().BeFalse();
+        section.ContainsKey("DNS_DOMAIN").Should().BeFalse();
+        section["HOST"].Should().Be(salon.Configuration.Host);
+    }
+
+    private SalonAggregate CreateTestSalonV3WithServers(
+        string? additionalHosts = null,
+        string? dnsDomain = null)
+    {
+        var config = CreateTestSalonV3().Configuration with
+        {
+            AdditionalHosts = additionalHosts,
+            DnsDomain = dnsDomain
+        };
+
+        return SalonAggregate.Create(Guid.NewGuid(), "Salon V3", false, config).Match(
+            Succ: aggregate => aggregate,
+            Fail: errors => throw new InvalidOperationException(string.Join(", ", errors)));
+    }
+
+    #endregion
+
     #region Paramètres V3 supplémentaires
 
     /// <summary>

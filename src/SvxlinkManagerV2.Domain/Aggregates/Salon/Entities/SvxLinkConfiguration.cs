@@ -84,6 +84,19 @@ public record SvxLinkConfiguration(
     /// SVXLink, qui n'est alors pas écrite.
     /// </summary>
     bool Verbose = true,
+    /// <summary>
+    /// Serveurs réflecteur additionnels, <c>hôte[:port]</c> séparés par des virgules
+    /// (<c>HOSTS</c>). L'ordre est la priorité : SVXLink tente le serveur principal, puis
+    /// chaque suivant. Un port omis reprend celui du serveur principal.
+    /// </summary>
+    string? AdditionalHosts = null,
+    /// <summary>
+    /// Domaine de découverte automatique par enregistrements SRV
+    /// <c>_svxreflector._tcp.&lt;domaine&gt;</c> (<c>DNS_DOMAIN</c>). Chaque enregistrement
+    /// porte hôte, port, priorité et poids : le réseau décide alors de l'ordre, sans
+    /// reconfigurer les nœuds.
+    /// </summary>
+    string? DnsDomain = null,
     // Section ModuleParrot (Parrot salon only)
     /// <summary>
     /// Audio FIFO buffer length in seconds (ModuleParrot). Default: 60.

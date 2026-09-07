@@ -426,6 +426,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOST_PORT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "DEFAULT_TG");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_TIMEOUT");
@@ -444,7 +446,19 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             // V3 protocol (SVXLink 25.05) — X.509 certificates, TYPE=Reflector
             // ReflectorLogic.so handles v3.0 protocol with PKI
             iniData["ReflectorLogic"]["TYPE"] = "Reflector";
-            iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
+            // L'ordre de HOSTS est la priorité : SVXLink part de HOST_PRIO (100) et
+            // ajoute HOST_PRIO_INC (1) à chaque entrée suivante. Rien de plus à écrire, et
+            // un salon à serveur unique produit exactement la configuration d'avant.
+            iniData["ReflectorLogic"]["HOSTS"] =
+                ReflectorHosts.Build(config.Host, config.Port, config.AdditionalHosts);
+
+            // Port par défaut des entrées qui n'en précisent pas.
+            iniData["ReflectorLogic"]["HOST_PORT"] = config.Port.ToString();
+
+            if (!string.IsNullOrWhiteSpace(config.DnsDomain))
+                iniData["ReflectorLogic"]["DNS_DOMAIN"] = config.DnsDomain.Trim();
+            else
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
             iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
             iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
