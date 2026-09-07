@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 using SvxlinkManagerV2.Application.Features.Reflectors;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Models;
-using SvxlinkManagerV2.Infrastructure.Common;
 
 namespace SvxlinkManagerV2.Infrastructure.Reflector;
 
@@ -31,12 +30,6 @@ namespace SvxlinkManagerV2.Infrastructure.Reflector;
 /// </remarks>
 public class ReflectorStatusPoller : IReflectorStatusService, IHostedService, IDisposable
 {
-    /// <summary>Configuration réellement chargée par le démon, écrite à l'activation du réflecteur.</summary>
-    internal const string DefaultConfigPath = "/etc/svxlink/svxreflector.conf";
-
-    /// <summary>Clé de la section <c>[GLOBAL]</c> qui active le serveur HTTP de statut.</summary>
-    internal const string HttpPortKey = "HTTP_SRV_PORT";
-
     /// <summary>
     /// Cadence d'interrogation. Assez lente pour rester négligeable devant le trafic audio,
     /// assez rapide pour qu'un talker apparaisse pendant qu'il parle.
@@ -49,7 +42,7 @@ public class ReflectorStatusPoller : IReflectorStatusService, IHostedService, ID
     private readonly ILogger<ReflectorStatusPoller> _logger;
     private readonly IReflectorDaemonService _daemonService;
     private readonly HttpClient _httpClient;
-    private readonly string _configPath;
+    private readonly ReflectorConfigurationFile _configuration;
     private readonly string _host;
     private readonly object _lock = new();
 
@@ -77,7 +70,7 @@ public class ReflectorStatusPoller : IReflectorStatusService, IHostedService, ID
         _host = localReflector.Value.Host;
         _httpClient = httpClient ?? new HttpClient();
         _httpClient.Timeout = RequestTimeout;
-        _configPath = configPath ?? DefaultConfigPath;
+        _configuration = new ReflectorConfigurationFile(configPath);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -147,7 +140,7 @@ public class ReflectorStatusPoller : IReflectorStatusService, IHostedService, ID
         if (port is null)
             return ReflectorStatusSnapshot.Unavailable(
                 ReflectorStatusAvailability.PortNotConfigured,
-                $"La configuration du réflecteur ne déclare pas {HttpPortKey} dans [GLOBAL].");
+                $"La configuration du réflecteur ne déclare pas {ReflectorConfigurationFile.HttpPortKey} dans [GLOBAL].");
 
         string body;
         try
@@ -195,19 +188,11 @@ public class ReflectorStatusPoller : IReflectorStatusService, IHostedService, ID
     {
         try
         {
-            if (!File.Exists(_configPath))
-                return null;
-
-            var value = IniFile.Parse(_configPath)["GLOBAL"][HttpPortKey];
-
-            return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var port)
-                   && port is > 0 and <= 65535
-                ? port
-                : null;
+            return _configuration.ReadPort(ReflectorConfigurationFile.HttpPortKey);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Lecture de {Key} impossible dans {Path}", HttpPortKey, _configPath);
+            _logger.LogWarning(ex, "Lecture de {Key} impossible", ReflectorConfigurationFile.HttpPortKey);
             return null;
         }
     }

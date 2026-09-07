@@ -182,7 +182,51 @@ Deux notions distinctes, à ne pas confondre :
 
 Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoignable ou certificat rejeté laissent le processus en vie sans que le nœud soit relié. **Les deux échecs de certificat sont distincts et leurs remèdes sont opposés** : `CertificateRejected` désigne le certificat *du nœud* (à faire signer à nouveau), `ServerCertificateUntrusted` l'autorité *du réflecteur* que le nœud ne reconnaît plus — typiquement une PKI régénérée côté serveur. Le second se répare depuis l'interface : `ResetReflectorTrustCommand` supprime le `ca-bundle.crt` de `CERT_PKI_DIR` (et lui seul) puis redémarre le daemon, seul moyen de rouvrir une session TLS et de retélécharger l'autorité.
 
-**Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
+**Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
+
+### Cycle de vie du certificat du nœud
+
+En V3, obtenir un certificat est un **processus asynchrone qui fait intervenir un tiers** : le nœud génère sa clé et sa demande, l'envoie au réflecteur, puis attend que le sysop la signe. L'attente peut durer des heures ou des jours, et l'application n'en montrait qu'un « échec de connexion » — de quoi conclure, à raison de son point de vue, que le logiciel ne marche pas.
+
+`INodeCertificateReader` déduit l'état de la présence des fichiers de `CERT_PKI_DIR`, nommés d'après l'indicatif du salon actif :
+
+| Fichiers présents | État | Ce que dit l'interface |
+|---|---|---|
+| aucun | `NotGenerated` | la clé est créée au premier démarrage en V3 |
+| `.key` + `.csr` | `PendingSignature` | **pas une panne** : la demande attend le sysop |
+| `.crt` | `Valid` / `Expiring` / `Expired` | sujet, émetteur, échéance |
+| `.crt` illisible | `Unreadable` | régénérer la remplacera |
+
+**La clé privée n'est jamais ouverte.** Sa présence est constatée, rien de plus : aucun chemin de ce code ne doit pouvoir la faire remonter jusqu'à une page web.
+
+**Régénérer la demande efface le `.csr` et le `.crt`, jamais le `.key`** — la clé est l'identité du nœud, et la renouveler n'apporte rien à une demande à refaire signer. Le redémarrage de SVXLink qui suit est indispensable : le processus en cours garderait sinon en mémoire le certificat effacé.
+
+C'est aussi le remède qui manquait au cas `ServerCertificateUntrusted` : après une régénération de PKI côté réflecteur, oublier l'autorité ne suffit pas, le certificat du nœud est lui aussi signé par l'ancienne. L'action est volontairement à confirmation explicite — le nœud reste hors ligne jusqu'à la nouvelle signature, immédiate sur le réflecteur local, dépendante d'un tiers ailleurs.
+
+### Signature des certificats du réflecteur local
+
+En protocole V3, un nœud dépose une demande de signature (CSR) et **ne peut pas se connecter tant qu'elle n'est pas signée**. Sans mécanisme de signature, la demande reste dans `pending_csrs/` et le nœud enchaîne les `Access denied` indéfiniment — vérifié sur la stack le 07/09/2026 en retirant le hook. La configuration par défaut du réflecteur déclare donc `COMMAND_PTY`, sans quoi le salon V3 livré par défaut serait structurellement inutilisable.
+
+**Deux canaux, deux rôles.** Ce qui se **lit** passe par le système de fichiers, ce qui s'**ordonne** passe par le PTY :
+
+| Besoin | Canal | Pourquoi |
+|---|---|---|
+| Lister les demandes | `<CERT_PKI_DIR>/pending_csrs/` | `CA PENDING` répond « Not yet implemented » en 25.05 |
+| Signer, bloquer | `COMMAND_PTY` | seule voie d'action ; le PTY est en écriture, ses réponses partent au journal |
+
+**Le jeu de commandes réel n'est pas celui de la manpage.** Le binaire 25.05 répond `Usage: CA PENDING|SIGN <callsign>|LS|RM <callsign>` — les `CA LS/LSC/LSP` documentés en amont n'existent pas. C'est le message d'usage du binaire qui fait foi.
+
+**`openssl` n'est pas une dépendance de production.** Le réflecteur signe avec sa propre autorité, en interne. Seul `dev-ca-hook.sh` a besoin du binaire, et il est réservé au développement. La lecture des demandes est faite par .NET (`CertificateRequest.LoadSigningRequestPem`), le Subject Alternative Name étant décodé en ASN.1 — son énumération par `X509SubjectAlternativeNameExtension` n'existe qu'à partir de .NET 9, et les projets sources ciblent net8.0.
+
+**Un indicatif venu d'une demande est une entrée non fiable.** Il est fourni par un tiers et part dans un PTY que le démon lit ligne par ligne : `ReflectorCallsign.IsValid` le restreint à `[A-Za-z0-9/-]`, et `ReflectorCommandPtyWriter` refuse toute commande contenant un saut de ligne. Sans cela, `CA SIGN <indicatif>` pourrait en devenir deux.
+
+**L'auto-signature n'est pas une case à cocher.** Elle vit dans la section `ReflectorCertificateAuthority` des appsettings, à `false` par défaut, et `CertificateAutoSignHostedService` ne démarre que si elle est explicitement activée. Elle signe **n'importe quel** indicatif : sur un réflecteur joignable de l'extérieur, l'activer revient à l'ouvrir à tout venant. La friction d'un fichier à éditer est celle que mérite ce réglage — et c'est aussi pourquoi le hook shell de développement n'est pas livré sur la cible de production.
+
+**Dans la stack Docker, l'application ne peut pas signer.** Le PTY appartient à l'espace de noms `/dev/pts` du conteneur `svxreflector`. La stack garde donc `CERT_CA_HOOK` pour rester utilisable sans intervention ; commenter ce hook fait apparaître les demandes en attente, et la signature s'éprouve alors à la main :
+
+```bash
+docker exec svxreflector sh -c 'printf "CA SIGN HB9GXP3-H\n" > /tmp/reflector_ctrl'
+```
 
 ### Nœuds connectés et leur talkgroup
 
