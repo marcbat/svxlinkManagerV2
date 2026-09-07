@@ -113,6 +113,86 @@ else
                     </div>
                 </div>
 
+                <!-- Informations publiées au réflecteur (protocole V3) -->
+                <div class="settings-card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">public</span>
+                        Informations publiées au réflecteur (protocole V3)
+                    </div>
+
+                    <p class="settings-hint">
+                        Publiées au réflecteur, ces informations décrivent le nœud dans les
+                        annuaires et tableaux de bord qui les exploitent. Sans elles, le nœud n'y
+                        est qu'un indicatif. Fréquences, tonalités et talkgroup sont repris
+                        automatiquement du salon actif.
+                    </p>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Lieu</span>
+                            <span class="filter-desc">Ville ou zone couverte</span>
+                        </div>
+                        <InputText @bind-Value="_model.NodeLocation" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Nature du nœud</span>
+                            <span class="filter-desc">Relais, simplex, hotspot ou passerelle</span>
+                        </div>
+                        <InputSelect @bind-Value="_model.NodeClass" class="form-select">
+                            <option value="@NodeClass.Simplex">Simplex</option>
+                            <option value="@NodeClass.Repeater">Relais</option>
+                            <option value="@NodeClass.Hotspot">Hotspot</option>
+                            <option value="@NodeClass.Bridge">Passerelle</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Sysop</span>
+                            <span class="filter-desc">Indicatifs des responsables, séparés par des espaces</span>
+                        </div>
+                        <InputText @bind-Value="_model.NodeSysop" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Locator</span>
+                            <span class="filter-desc">Maidenhead, par exemple JN36BX</span>
+                        </div>
+                        <InputText @bind-Value="_model.NodeLocator" class="form-control" maxlength="8" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Latitude</span>
+                            <span class="filter-desc">Degrés décimaux, positif vers le nord</span>
+                        </div>
+                        <InputNumber @bind-Value="_model.NodeLatitude" class="form-control" step="0.00001" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Longitude</span>
+                            <span class="filter-desc">Degrés décimaux, positif vers l'est</span>
+                        </div>
+                        <InputNumber @bind-Value="_model.NodeLongitude" class="form-control" step="0.00001" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Ne pas publier ce nœud</span>
+                            <span class="filter-desc">
+                                Le réflecteur est prévenu que le nœud demande à ne pas figurer dans
+                                les annuaires
+                            </span>
+                        </div>
+                        <InputCheckbox @bind-Value="_model.NodeHidden" class="toggle-input" id="chk-node-hidden" />
+                        <label class="toggle-switch" for="chk-node-hidden"></label>
+                    </div>
+                </div>
+
                 <!-- Identité portée par le certificat X.509 (protocole V3) -->
                 <div class="settings-card">
                     <div class="section-header">
@@ -1090,6 +1170,15 @@ else
             _model.CertificateLocality = subject.Locality;
             _model.CertificateStateOrProvince = subject.StateOrProvince;
             _model.CertificateCountry = subject.Country;
+
+            var node = config.NodeInformation;
+            _model.NodeLocation = node.Location;
+            _model.NodeClass = node.Class;
+            _model.NodeSysop = node.Sysop;
+            _model.NodeLocator = node.Locator;
+            _model.NodeLatitude = node.Latitude;
+            _model.NodeLongitude = node.Longitude;
+            _model.NodeHidden = node.Hidden;
         }
 
         _systemControlAvailability = await Mediator.Send<SystemControlAvailabilityDto>(
@@ -1164,7 +1253,15 @@ else
                     _model.CertificateOrganization,
                     _model.CertificateLocality,
                     _model.CertificateStateOrProvince,
-                    _model.CertificateCountry));
+                    _model.CertificateCountry),
+                new NodeInformation(
+                    _model.NodeLocation,
+                    _model.NodeClass,
+                    _model.NodeSysop,
+                    _model.NodeLatitude,
+                    _model.NodeLongitude,
+                    _model.NodeLocator,
+                    _model.NodeHidden));
 
             var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
@@ -1393,5 +1490,14 @@ else
         public string? CertificateLocality { get; set; }
         public string? CertificateStateOrProvince { get; set; }
         public string? CertificateCountry { get; set; }
+
+        // Informations publiées au réflecteur (NODE_INFO_FILE).
+        public string? NodeLocation { get; set; }
+        public NodeClass NodeClass { get; set; } = NodeClass.Simplex;
+        public string? NodeSysop { get; set; }
+        public string? NodeLocator { get; set; }
+        public double? NodeLatitude { get; set; }
+        public double? NodeLongitude { get; set; }
+        public bool NodeHidden { get; set; }
     }
 }

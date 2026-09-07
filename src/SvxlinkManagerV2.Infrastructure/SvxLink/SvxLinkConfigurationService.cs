@@ -20,27 +20,37 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly ISvxLinkStrategyResolver _strategyResolver;
     private readonly IGeneralConfigurationRepository _generalConfigurationRepository;
+    private readonly INodeInformationWriter _nodeInformationWriter;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
     private const string SvxLinkConfigDir = "/etc/svxlink";
+
+    /// <summary>
+    /// Document décrivant le nœud, publié au réflecteur (<c>NODE_INFO_FILE</c>).
+    /// Il vit à côté de svxlink.conf, dont il est une projection.
+    /// </summary>
+    internal const string NodeInfoFileName = "node_info.json";
 
     // Constructeur pour l'injection de dépendances
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
         ISvxLinkStrategyResolver strategyResolver,
-        IGeneralConfigurationRepository generalConfigurationRepository)
-        : this(logger, strategyResolver, generalConfigurationRepository, null) { }
+        IGeneralConfigurationRepository generalConfigurationRepository,
+        INodeInformationWriter nodeInformationWriter)
+        : this(logger, strategyResolver, generalConfigurationRepository, nodeInformationWriter, null) { }
 
     // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
         ISvxLinkStrategyResolver strategyResolver,
         IGeneralConfigurationRepository generalConfigurationRepository,
+        INodeInformationWriter nodeInformationWriter,
         string? templatePath)
     {
         _logger = logger;
         _strategyResolver = strategyResolver;
         _generalConfigurationRepository = generalConfigurationRepository;
+        _nodeInformationWriter = nodeInformationWriter;
         _templatePath = templatePath;
     }
 
@@ -286,6 +296,40 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
     /// <summary>
+    /// Publie les informations du nœud et déclare le fichier dans <c>NODE_INFO_FILE</c>.
+    /// </summary>
+    /// <remarks>
+    /// L'échec d'écriture ne fait pas échouer la génération : un nœud anonyme dans les
+    /// annuaires reste un nœud qui fonctionne, alors qu'un salon qui refuse de s'activer
+    /// pour cette raison serait une régression franche. La clé n'est alors pas déclarée,
+    /// SVXLink n'ayant rien à lire.
+    /// </remarks>
+    private async Task WriteNodeInformationAsync(
+        IniFile iniData,
+        SalonAggregate salon,
+        CancellationToken cancellationToken)
+    {
+        var path = $"{SvxLinkConfigDir}/{NodeInfoFileName}";
+        var result = await _nodeInformationWriter.WriteAsync(salon, path, cancellationToken);
+
+        result.Match(
+            Succ: _ =>
+            {
+                iniData["ReflectorLogic"]["NODE_INFO_FILE"] = path;
+                return LanguageExt.Unit.Default;
+            },
+            Fail: errors =>
+            {
+                _logger.LogWarning(
+                    "Informations du nœud non publiées, le salon s'active sans : {Errors}",
+                    string.Join(", ", errors.Select(e => e.Message)));
+
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "NODE_INFO_FILE");
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    /// <summary>
     /// Écrit la variable si sa valeur s'écarte de celle que SVXLink applique par défaut,
     /// et l'efface du template sinon.
     /// </summary>
@@ -382,6 +426,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_PKI_DIR");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "CERT_EMAIL");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOSTS");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "HOST_PORT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "DEFAULT_TG");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "MONITOR_TGS");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "TG_SELECT_TIMEOUT");
@@ -390,6 +436,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "MUTE_FIRST_TX_REM");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "TMP_MONITOR_TIMEOUT");
             RemoveKeyIfPresent(iniData, "ReflectorLogic", "QSY_PENDING_TIMEOUT");
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", "NODE_INFO_FILE");
 
             _logger.LogDebug("Section [ReflectorLogic] mise à jour en mode V2 (Host: {Host}, Callsign: {Callsign})",
                 config.Host, config.Callsign);
@@ -399,7 +446,19 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             // V3 protocol (SVXLink 25.05) — X.509 certificates, TYPE=Reflector
             // ReflectorLogic.so handles v3.0 protocol with PKI
             iniData["ReflectorLogic"]["TYPE"] = "Reflector";
-            iniData["ReflectorLogic"]["HOSTS"] = $"{config.Host}:{config.Port}";
+            // L'ordre de HOSTS est la priorité : SVXLink part de HOST_PRIO (100) et
+            // ajoute HOST_PRIO_INC (1) à chaque entrée suivante. Rien de plus à écrire, et
+            // un salon à serveur unique produit exactement la configuration d'avant.
+            iniData["ReflectorLogic"]["HOSTS"] =
+                ReflectorHosts.Build(config.Host, config.Port, config.AdditionalHosts);
+
+            // Port par défaut des entrées qui n'en précisent pas.
+            iniData["ReflectorLogic"]["HOST_PORT"] = config.Port.ToString();
+
+            if (!string.IsNullOrWhiteSpace(config.DnsDomain))
+                iniData["ReflectorLogic"]["DNS_DOMAIN"] = config.DnsDomain.Trim();
+            else
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "DNS_DOMAIN");
             iniData["ReflectorLogic"]["CALLSIGN"] = config.Callsign;
             iniData["ReflectorLogic"]["AUDIO_CODEC"] = "OPUS";
             iniData["ReflectorLogic"]["JITTER_BUFFER_DELAY"] = config.JitterBufferDelay.ToString();
@@ -425,6 +484,8 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
                 iniData["ReflectorLogic"]["VERBOSE"] = "0";
 
             await WriteCertificateSubjectAsync(iniData, cancellationToken);
+
+            await WriteNodeInformationAsync(iniData, salon, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(config.CertEmail))
             {

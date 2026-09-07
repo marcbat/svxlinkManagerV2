@@ -1,4 +1,4 @@
-namespace SvxlinkManagerV2.Domain.Statistics;
+﻿namespace SvxlinkManagerV2.Domain.Statistics;
 
 /// <summary>
 /// Nature d'un événement ponctuel enregistré dans l'historique d'activité.
@@ -41,5 +41,17 @@ public enum ActivityEventType
     /// le nœud est resté délié. Une interruption ne se connaît qu'une fois terminée :
     /// la perte, elle, est déjà enregistrée sur le moment par <see cref="ReflectorLinkLost"/>.
     /// </summary>
-    ReflectorOutage = 9
+    ReflectorOutage = 9,
+
+    /// <summary>
+    /// Temps passé sur un talkgroup, écrit à la fin de l'intervalle avec sa durée.
+    /// Protocole V3 uniquement : la notion n'existe pas ailleurs.
+    /// </summary>
+    TalkGroupPeriod = 10,
+
+    /// <summary>
+    /// QSY suivi : le réflecteur a déplacé la conversation vers un autre talkgroup et le
+    /// nœud l'a suivi. Événement ponctuel, sans durée.
+    /// </summary>
+    TalkGroupQsy = 11
 }

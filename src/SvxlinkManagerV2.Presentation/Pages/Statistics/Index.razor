@@ -1,4 +1,4 @@
-@page "/statistiques"
+﻿@page "/statistiques"
 @*
     Namespace explicite : sans lui, le dossier « Statistics » générerait le namespace
     SvxlinkManagerV2.Presentation.Pages.Statistics, qui masquerait la feature
@@ -424,6 +424,42 @@ else
                 }
             }
         </div>
+
+        <!-- ── Talkgroups (protocole V3 uniquement) ────────────── -->
+        @if (_stats.TalkGroups.IsApplicable)
+        {
+            <div class="card">
+                <div class="section-header">
+                    <span class="material-symbols-outlined">groups</span>
+                    Talkgroups
+                    @if (_stats.TalkGroups.QsyCount > 0)
+                    {
+                        <span class="badge badge-accent" style="margin-left:8px;">
+                            @_stats.TalkGroups.QsyCount QSY suivi(s)
+                        </span>
+                    }
+                </div>
+
+                @foreach (var talkGroup in _stats.TalkGroups.Usage)
+                {
+                    <div class="usage-row">
+                        <div class="usage-header">
+                            <span class="usage-name">Talkgroup @talkGroup.Label</span>
+                            <span class="usage-value">@FormatDuration(talkGroup.TotalTime)</span>
+                        </div>
+                        <div class="metric-bar">
+                            <div class="metric-bar-fill"
+                                 style="width:@CssValue.Percent(SharePercent(talkGroup))"></div>
+                        </div>
+                    </div>
+                }
+
+                <p class="card-note">
+                    Temps passé sur chaque talkgroup, l'intervalle en cours compris. Deux nœuds sur
+                    des talkgroups différents ne s'entendent pas, même reliés au même réflecteur.
+                </p>
+            </div>
+        }
 
         <!-- ── Fiabilité de la liaison ─────────────────────────── -->
         <div class="card">
@@ -981,6 +1017,20 @@ else
     /// Durée en français, tronquée au niveau de détail utile : les jours effacent
     /// les secondes, qui n'apprendraient rien sur un cumul de plusieurs heures.
     /// </summary>
+    /// <summary>
+    /// Part d'un talkgroup dans le temps total, pour la largeur de sa barre.
+    /// </summary>
+    /// <remarks>
+    /// Calculée côté serveur : la page n'introduit aucune dépendance JavaScript, et
+    /// <c>CssValue</c> force le point décimal — une culture à virgule produirait une
+    /// déclaration CSS que le navigateur rejette en silence.
+    /// </remarks>
+    private double SharePercent(TalkGroupUsageDto usage)
+    {
+        var total = _stats!.TalkGroups.TotalTime.TotalSeconds;
+        return total <= 0 ? 0 : usage.TotalTime.TotalSeconds / total * 100;
+    }
+
     private static string FormatDuration(TimeSpan duration)
     {
         if (duration <= TimeSpan.Zero)

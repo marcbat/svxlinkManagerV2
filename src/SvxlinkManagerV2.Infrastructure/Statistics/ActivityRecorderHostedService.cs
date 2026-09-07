@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +27,7 @@ public class ActivityRecorderHostedService : IHostedService
     private readonly IConnectedNodesService _connectedNodes;
     private readonly IDtmfCommandTracker _dtmfTracker;
     private readonly IReflectorLinkStateService _linkState;
+    private readonly ITalkGroupStateService _talkGroupState;
     private readonly IRxDistortionService _distortion;
     private readonly ISquelchStateService _squelch;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -44,6 +45,7 @@ public class ActivityRecorderHostedService : IHostedService
         IConnectedNodesService connectedNodes,
         IDtmfCommandTracker dtmfTracker,
         IReflectorLinkStateService linkState,
+        ITalkGroupStateService talkGroupState,
         IRxDistortionService distortion,
         ISquelchStateService squelch,
         IServiceScopeFactory scopeFactory,
@@ -53,6 +55,7 @@ public class ActivityRecorderHostedService : IHostedService
         _connectedNodes = connectedNodes;
         _dtmfTracker = dtmfTracker;
         _linkState = linkState;
+        _talkGroupState = talkGroupState;
         _distortion = distortion;
         _squelch = squelch;
         _scopeFactory = scopeFactory;
@@ -68,6 +71,7 @@ public class ActivityRecorderHostedService : IHostedService
         _connectedNodes.OnReset += OnNodesReset;
         _dtmfTracker.OnDtmfCommandReceived += OnDtmfCommandReceived;
         _linkState.OnStateChanged += OnLinkStateChanged;
+        _talkGroupState.OnTalkGroupChanged += OnTalkGroupChanged;
         _distortion.OnDistortionDetected += OnDistortionDetected;
         _squelch.OnSquelchClosed += OnSquelchClosed;
 
@@ -83,11 +87,15 @@ public class ActivityRecorderHostedService : IHostedService
         _connectedNodes.OnReset -= OnNodesReset;
         _dtmfTracker.OnDtmfCommandReceived -= OnDtmfCommandReceived;
         _linkState.OnStateChanged -= OnLinkStateChanged;
+        _talkGroupState.OnTalkGroupChanged -= OnTalkGroupChanged;
         _distortion.OnDistortionDetected -= OnDistortionDetected;
         _squelch.OnSquelchClosed -= OnSquelchClosed;
 
         // Arrêt propre : la période de liaison en cours est écrite avec sa vraie durée,
         // et la session est close à l'heure exacte — pas rattrapée au démarrage suivant.
+        // L'intervalle de talkgroup en cours est clos avant tout le reste : sans cela le
+        // temps passé depuis le dernier changement serait perdu à chaque arrêt.
+        await _recorder.RecordTalkGroupAsync(null, cancellationToken);
         await _recorder.RecordLinkStateAsync(ReflectorLinkState.Inactive, cancellationToken);
         await _recorder.RecordEventAsync(ActivityEventType.ApplicationStopped, cancellationToken: cancellationToken);
         await _recorder.CloseCurrentSessionAsync(cancellationToken);
@@ -164,6 +172,31 @@ public class ActivityRecorderHostedService : IHostedService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Historique d'activité : échec de l'enregistrement du code DTMF {Command}", command);
+        }
+    }
+
+    /// <summary>
+    /// Un changement de talkgroup clôt l'intervalle précédent et en ouvre un nouveau.
+    /// </summary>
+    /// <remarks>
+    /// Le tracker publie <c>null</c> hors protocole V3 : l'intervalle en cours se ferme
+    /// alors, et rien ne s'ouvre — un salon V2 ne produit aucun temps de talkgroup, plutôt
+    /// qu'un zéro trompeur.
+    /// </remarks>
+    private async void OnTalkGroupChanged(TalkGroupState state)
+    {
+        try
+        {
+            await _recorder.RecordTalkGroupAsync(state.TalkGroup);
+
+            // Un QSY suivi est un événement ponctuel distinct du temps passé : c'est le
+            // réflecteur qui a déplacé la conversation, pas l'opérateur qui a choisi.
+            if (state.Origin == TalkGroupActivationOrigin.Qsy && state.TalkGroup is { } talkGroup)
+                await _recorder.RecordEventAsync(ActivityEventType.TalkGroupQsy, talkGroup: talkGroup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de l'enregistrement du changement de talkgroup");
         }
     }
 

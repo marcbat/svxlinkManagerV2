@@ -4,6 +4,7 @@
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities
 @using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums
 @using SvxlinkManagerV2.Domain.Common
+@using SvxlinkManagerV2.Presentation.Services
 
 @inject IMediator Mediator
 @inject NavigationManager Nav
@@ -218,6 +219,28 @@
                             <ValidationMessage For="() => _model.QsyPendingTimeout" class="field-error" />
                         </div>
                     </div>
+
+                    <details class="form-group" style="margin-top:12px;">
+                        <summary style="cursor:pointer;font-weight:600;">Serveurs additionnels et découverte DNS</summary>
+
+                        <p class="form-hint" style="margin-top:10px;">
+                            Plusieurs réflecteurs francophones exploitent plusieurs serveurs. Le nœud bascule
+                            alors tout seul en cas de panne du principal — sans cela, il reste hors ligne
+                            jusqu'à une intervention. <strong>L'ordre de la liste est la priorité.</strong>
+                        </p>
+
+                        <div class="form-group">
+                            <label class="form-label">Serveurs additionnels <span class="info-tip" data-tip="Un ou plusieurs hôte:port séparés par des virgules, essayés dans l'ordre après le serveur principal. Un port omis reprend celui du serveur principal."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputText class="form-control" @bind-Value="_model.AdditionalHosts" placeholder="rrf3.f5nlg.ovh:5300, secours.example.org" />
+                            <ValidationMessage For="() => _model.AdditionalHosts" class="field-error" />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Domaine de découverte DNS <span class="info-tip" data-tip="Domaine publiant des enregistrements SRV _svxreflector._tcp. Le réseau décide alors des serveurs, de leur ordre et de leur poids, sans reconfigurer les nœuds."><span class="material-symbols-outlined">help</span></span></label>
+                            <InputText class="form-control" @bind-Value="_model.DnsDomain" placeholder="exemple.org" />
+                            <ValidationMessage For="() => _model.DnsDomain" class="field-error" />
+                        </div>
+                    </details>
 
                     <div class="form-row-2">
                         <div class="form-group">
@@ -587,7 +610,9 @@
                 // d'écrire quoi que ce soit dans la configuration générée.
                 UdpHeartbeatInterval:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.UdpHeartbeatInterval : 15,
                 AnnounceRemoteMinInterval: _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.AnnounceRemoteMinInterval : 0,
-                Verbose:                   _model.ReflectorProtocol != ReflectorProtocol.V3 || _model.Verbose
+                Verbose:                   _model.ReflectorProtocol != ReflectorProtocol.V3 || _model.Verbose,
+                AdditionalHosts:           _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.AdditionalHosts : null,
+                DnsDomain:                 _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.DnsDomain : null
             );
 
             var command = new CreateSalonCommand(
@@ -717,6 +742,14 @@
 
         /// <summary>Journalisation des entrées et sorties du réflecteur.</summary>
         public bool Verbose { get; set; } = true;
+
+        /// <summary>Serveurs additionnels, hôte[:port] séparés par des virgules.</summary>
+        [ReflectorHosts]
+        public string? AdditionalHosts { get; set; }
+
+        /// <summary>Domaine de découverte SRV, en complément ou à la place d'une liste.</summary>
+        [ReflectorDnsDomain]
+        public string? DnsDomain { get; set; }
 
         [System.ComponentModel.DataAnnotations.Range(-1, int.MaxValue, ErrorMessage = "Le QSY pending timeout doit être supérieur ou égal à -1.")]
         public int QsyPendingTimeout { get; set; } = -1;

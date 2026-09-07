@@ -17,7 +17,8 @@ public record CreateOrUpdateGeneralConfigurationCommand(
     bool StartDefaultSalonOnStartup,
     decimal DefaultRxFrequency = 145.550m,
     decimal DefaultTxFrequency = 145.550m,
-    CertificateSubject? CertificateSubject = null) : IRequest<Validation<Error, Unit>>;
+    CertificateSubject? CertificateSubject = null,
+    NodeInformation? NodeInformation = null) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour CreateOrUpdateGeneralConfigurationCommand.
@@ -49,7 +50,8 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
                 command.StartDefaultSalonOnStartup,
                 command.DefaultRxFrequency,
                 command.DefaultTxFrequency,
-                command.CertificateSubject);
+                command.CertificateSubject,
+                command.NodeInformation);
 
             return await createResult.MatchAsync(
                 async aggregate =>
@@ -69,7 +71,8 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
             command.StartDefaultSalonOnStartup,
             command.DefaultRxFrequency,
             command.DefaultTxFrequency,
-            command.CertificateSubject);
+            command.CertificateSubject,
+            command.NodeInformation);
 
         return await updateResult.MatchAsync(
             async _ =>

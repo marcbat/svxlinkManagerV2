@@ -31,6 +31,8 @@ public class ActivityRecorder : IActivityRecorder
     private ReflectorLinkStatus _linkStatus = ReflectorLinkStatus.Inactive;
     private DateTimeOffset? _linkUpSince;
     private DateTimeOffset? _linkLostAt;
+    private int? _talkGroup;
+    private DateTimeOffset? _talkGroupSince;
 
     public ActivityRecorder(
         IServiceScopeFactory scopeFactory,
@@ -43,6 +45,50 @@ public class ActivityRecorder : IActivityRecorder
     public DateTimeOffset? PendingLinkUpSince
     {
         get { lock (_lock) return _linkUpSince; }
+    }
+
+    public (int TalkGroup, DateTimeOffset Since)? PendingTalkGroup
+    {
+        get
+        {
+            lock (_lock)
+                return _talkGroup is { } talkGroup && _talkGroupSince is { } since
+                    ? (talkGroup, since)
+                    : null;
+        }
+    }
+
+    public async Task RecordTalkGroupAsync(int? talkGroup, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        int? closedTalkGroup = null;
+        TimeSpan? closedDuration = null;
+
+        lock (_lock)
+        {
+            if (talkGroup == _talkGroup)
+                return;
+
+            if (_talkGroup is { } previous && _talkGroupSince is { } since)
+            {
+                closedTalkGroup = previous;
+                closedDuration = now - since;
+            }
+
+            _talkGroup = talkGroup;
+            _talkGroupSince = talkGroup.HasValue ? now : null;
+        }
+
+        // L'intervalle est écrit à sa fin, avec sa durée déjà calculée : la lecture n'a
+        // jamais à appairer un début et une fin, et un arrêt brutal ne laisse pas
+        // d'enregistrement à moitié constitué.
+        if (closedTalkGroup is { } closed && closedDuration is { } duration)
+            await RecordEventAsync(
+                ActivityEventType.TalkGroupPeriod,
+                duration: duration,
+                talkGroup: closed,
+                cancellationToken: cancellationToken);
     }
 
     public async Task RecordSessionStartAsync(
@@ -83,6 +129,7 @@ public class ActivityRecorder : IActivityRecorder
         string? callsign = null,
         TimeSpan? duration = null,
         string? detail = null,
+        int? talkGroup = null,
         CancellationToken cancellationToken = default)
     {
         Guid? salonId;
@@ -100,7 +147,8 @@ public class ActivityRecorder : IActivityRecorder
             salonName,
             callsign,
             duration,
-            detail);
+            detail,
+            talkGroup);
 
         await ExecuteAsync(
             repository => repository.AddEventAsync(activityEvent, cancellationToken),

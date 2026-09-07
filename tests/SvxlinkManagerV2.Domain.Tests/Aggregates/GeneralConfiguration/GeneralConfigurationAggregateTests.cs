@@ -208,7 +208,8 @@ public class GeneralConfigurationAggregateTests
             startDefaultSalonOnStartup: true,
             defaultRxFrequency: 144.800m,
             defaultTxFrequency: 144.200m,
-            certificateSubject: CertificateSubject.Empty);
+            certificateSubject: CertificateSubject.Empty,
+            nodeInformation: NodeInformation.Empty);
 
         // Act
         aggregate.Apply(evt);
@@ -231,7 +232,8 @@ public class GeneralConfigurationAggregateTests
             startDefaultSalonOnStartup: true,
             defaultRxFrequency: 430.500m,
             defaultTxFrequency: 430.500m,
-            certificateSubject: CertificateSubject.Empty);
+            certificateSubject: CertificateSubject.Empty,
+            nodeInformation: NodeInformation.Empty);
 
         // Act
         aggregate.Apply(evt);

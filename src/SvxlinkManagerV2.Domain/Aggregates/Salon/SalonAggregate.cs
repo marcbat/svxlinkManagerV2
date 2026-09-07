@@ -1,4 +1,4 @@
-using LanguageExt;
+﻿using LanguageExt;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Events;
@@ -468,6 +468,22 @@ public class SalonAggregate : AggregateRoot
                 errors.Add(Error.Validation(
                     "SALON_DEFAULT_TG_INVALID",
                     "DEFAULT_TG doit être supérieur ou égal à 0"));
+            }
+
+            // Ces entrées partent dans HOSTS et DNS_DOMAIN : une saisie mal formée y
+            // produirait une configuration que le démon refuserait au démarrage.
+            if (!ReflectorHosts.IsValid(config.AdditionalHosts))
+            {
+                errors.Add(Error.Validation(
+                    "SALON_ADDITIONAL_HOSTS_INVALID",
+                    "Les serveurs additionnels doivent être de la forme hôte[:port], séparés par des virgules"));
+            }
+
+            if (!ReflectorHosts.IsValidDomain(config.DnsDomain))
+            {
+                errors.Add(Error.Validation(
+                    "SALON_DNS_DOMAIN_INVALID",
+                    "Le domaine de découverte DNS n'est pas un nom de domaine valide"));
             }
 
             if (!string.IsNullOrWhiteSpace(config.MonitorTgs))

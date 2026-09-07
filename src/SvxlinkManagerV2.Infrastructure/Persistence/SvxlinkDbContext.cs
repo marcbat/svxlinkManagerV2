@@ -41,6 +41,7 @@ public class SvxlinkDbContext : IdentityDbContext<IdentityUser>
             // certificat compte sept champs facultatifs, et en ajouter un ne devra pas
             // coûter une migration de plus.
             entity.OwnsOne(e => e.CertificateSubject, subject => subject.ToJson());
+            entity.OwnsOne(e => e.NodeInformation, info => info.ToJson());
         });
         modelBuilder.Entity<AudioConfigurationAggregate>().Ignore(e => e.DomainEvents);
 

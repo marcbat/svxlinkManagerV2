@@ -209,6 +209,7 @@ namespace SvxlinkManagerV2.Presentation
             services.AddSingleton<IRxDistortionService, RxDistortionTracker>();
             services.AddSingleton<ISquelchStateService, SquelchStateTracker>();
             services.AddSingleton<ISvxLinkDaemonService, SvxLinkDaemonService>();
+            services.AddScoped<INodeInformationWriter, NodeInformationWriter>();
             services.AddScoped<ISvxLinkConfigurationService, SvxLinkConfigurationService>();
             services.AddSingleton<ISvxLinkConfigurationReader, SvxLinkConfigurationReader>();
             services.AddScoped<ISalonAnnouncementService, SalonAnnouncementService>();
