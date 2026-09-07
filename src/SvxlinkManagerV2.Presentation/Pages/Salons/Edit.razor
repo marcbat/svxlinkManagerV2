@@ -1,4 +1,4 @@
-@page "/salons/{Id:guid}/editer"
+﻿@page "/salons/{Id:guid}/editer"
 @using SvxlinkManagerV2.Application.Features.Salons.GetSalonById
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateSalonConfiguration
 @using SvxlinkManagerV2.Application.Features.Salons.UpdateDtmfCode
@@ -272,6 +272,33 @@ else if (_salon is not null)
                                              disabled="@_salonIsActive" />
                                 <ValidationMessage For="() => _model.QsyPendingTimeout" class="field-error" />
                             </div>
+                        </div>
+
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label class="form-label">UDP Heartbeat Interval (s) <span class="info-tip" data-tip="Intervalle des messages de présence UDP. À baisser en cas de déconnexions répétées par expiration de présence, typiquement sur une liaison 4G ou un faisceau radio. 15 = valeur par défaut de SVXLink, non écrite dans la configuration."><span class="material-symbols-outlined">help</span></span></label>
+                                <InputNumber class="form-control" @bind-Value="_model.UdpHeartbeatInterval" />
+                                <ValidationMessage For="() => _model.UdpHeartbeatInterval" class="field-error" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Annonce TG distant — intervalle min. (s) <span class="info-tip" data-tip="Intervalle minimal entre deux annonces du même talkgroup activé à distance. Évite qu'un TG qui s'active en boucle fasse parler le nœud sans arrêt. 0 = laisser SVXLink décider."><span class="material-symbols-outlined">help</span></span></label>
+                                <InputNumber class="form-control" @bind-Value="_model.AnnounceRemoteMinInterval" />
+                                <ValidationMessage For="() => _model.AnnounceRemoteMinInterval" class="field-error" />
+                            </div>
+                        </div>
+
+                        <div class="toggles-group">
+                            <label class="toggle-row">
+                                <div class="toggle-info">
+                                    <span class="toggle-label">Journaliser les entrées et sorties</span>
+                                    <span class="toggle-desc">
+                                        Désactivez sur un réflecteur très fréquenté : ces lignes noient le reste,
+                                        et le tampon de logs plafonne à 1000 lignes
+                                    </span>
+                                </div>
+                                <InputCheckbox @bind-Value="_model.Verbose" class="toggle-input" id="chk-verbose" />
+                                <label class="toggle-switch" for="chk-verbose"></label>
+                            </label>
                         </div>
 
                         <div class="toggles-group">
@@ -634,6 +661,9 @@ else if (_salon is not null)
         _model.MuteFirstTxLoc     = cfg.MuteFirstTxLoc;
         _model.MuteFirstTxRem     = cfg.MuteFirstTxRem;
         _model.TmpMonitorTimeout  = cfg.TmpMonitorTimeout;
+        _model.UdpHeartbeatInterval      = cfg.UdpHeartbeatInterval;
+        _model.AnnounceRemoteMinInterval = cfg.AnnounceRemoteMinInterval;
+        _model.Verbose                   = cfg.Verbose;
         _model.QsyPendingTimeout  = cfg.QsyPendingTimeout;
         _model.SimplexCallsign    = cfg.SimplexCallsign;
         _model.ShortIdentInterval = cfg.ShortIdentInterval;
@@ -695,7 +725,12 @@ else if (_salon is not null)
                 MuteFirstTxLoc:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxLoc : true,
                 MuteFirstTxRem:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.MuteFirstTxRem : false,
                 TmpMonitorTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.TmpMonitorTimeout : 3600,
-                QsyPendingTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.QsyPendingTimeout : -1
+                QsyPendingTimeout:   _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.QsyPendingTimeout : -1,
+                // Hors V3 ces variables n'existent pas : les valeurs par défaut évitent
+                // d'écrire quoi que ce soit dans la configuration générée.
+                UdpHeartbeatInterval:      _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.UdpHeartbeatInterval : 15,
+                AnnounceRemoteMinInterval: _model.ReflectorProtocol == ReflectorProtocol.V3 ? _model.AnnounceRemoteMinInterval : 0,
+                Verbose:                   _model.ReflectorProtocol != ReflectorProtocol.V3 || _model.Verbose
             );
 
             var command = new UpdateSalonConfigurationCommand(
@@ -803,6 +838,15 @@ else if (_salon is not null)
 
         [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue, ErrorMessage = "Le TMP monitor timeout doit être supérieur ou égal à 0.")]
         public int TmpMonitorTimeout { get; set; } = 3600;
+
+        /// <summary>Intervalle des messages de présence UDP. 15 est le défaut de SVXLink.</summary>
+        public int UdpHeartbeatInterval { get; set; } = 15;
+
+        /// <summary>Intervalle minimal entre annonces d'un TG distant. 0 laisse SVXLink décider.</summary>
+        public int AnnounceRemoteMinInterval { get; set; }
+
+        /// <summary>Journalisation des entrées et sorties du réflecteur.</summary>
+        public bool Verbose { get; set; } = true;
 
         [System.ComponentModel.DataAnnotations.Range(-1, int.MaxValue, ErrorMessage = "Le QSY pending timeout doit être supérieur ou égal à -1.")]
         public int QsyPendingTimeout { get; set; } = -1;

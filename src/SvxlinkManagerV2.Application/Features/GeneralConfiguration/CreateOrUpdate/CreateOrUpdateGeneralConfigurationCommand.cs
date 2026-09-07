@@ -1,9 +1,10 @@
-using LanguageExt;
+﻿using LanguageExt;
 using MediatR;
 using Unit = LanguageExt.Unit;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 using SvxlinkManagerV2.Domain.Common;
 
 namespace SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate;
@@ -15,7 +16,8 @@ public record CreateOrUpdateGeneralConfigurationCommand(
     bool StartReflectorOnStartup,
     bool StartDefaultSalonOnStartup,
     decimal DefaultRxFrequency = 145.550m,
-    decimal DefaultTxFrequency = 145.550m) : IRequest<Validation<Error, Unit>>;
+    decimal DefaultTxFrequency = 145.550m,
+    CertificateSubject? CertificateSubject = null) : IRequest<Validation<Error, Unit>>;
 
 /// <summary>
 /// Handler pour CreateOrUpdateGeneralConfigurationCommand.
@@ -46,7 +48,8 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
                 command.StartReflectorOnStartup,
                 command.StartDefaultSalonOnStartup,
                 command.DefaultRxFrequency,
-                command.DefaultTxFrequency);
+                command.DefaultTxFrequency,
+                command.CertificateSubject);
 
             return await createResult.MatchAsync(
                 async aggregate =>
@@ -65,7 +68,8 @@ public class CreateOrUpdateGeneralConfigurationCommandHandler
             command.StartReflectorOnStartup,
             command.StartDefaultSalonOnStartup,
             command.DefaultRxFrequency,
-            command.DefaultTxFrequency);
+            command.DefaultTxFrequency,
+            command.CertificateSubject);
 
         return await updateResult.MatchAsync(
             async _ =>

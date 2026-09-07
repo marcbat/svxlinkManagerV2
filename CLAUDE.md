@@ -184,6 +184,24 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. C'est `RegenerateCertificateRequestCommand`, à confirmation explicite, qui porte cette seconde moitié — voir le cycle de vie du certificat du nœud ci-dessous. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Paramètres V3 du salon et identité du certificat
+
+Trois réglages de comportement vivent dans `SvxLinkConfiguration`, donc dans le JSON de l'owned entity — **aucune migration n'est nécessaire pour en ajouter** :
+
+| Variable | Défaut SVXLink | Quand y toucher |
+|---|---|---|
+| `UDP_HEARTBEAT_INTERVAL` | 15 s | déconnexions répétées par expiration de présence UDP, typiquement en 4G ou sur un faisceau |
+| `ANNOUNCE_REMOTE_MIN_INTERVAL` | non défini | un talkgroup qui s'active en boucle fait parler le nœud sans arrêt |
+| `VERBOSE` | actif | réflecteur très fréquenté, dont les entrées/sorties noient le tampon de 1000 lignes |
+
+**Une valeur laissée au défaut de SVXLink n'est pas écrite** dans la configuration générée, et la clé est retirée du template si elle s'y trouvait : le fichier dit ce que l'opérateur a choisi, pas ce que le logiciel aurait fait de toute façon.
+
+L'identité du certificat (`CERT_SUBJ_GN`, `SN`, `OU`, `O`, `L`, `ST`, `C`) relève du **nœud**, pas du salon : elle vit dans `GeneralConfigurationAggregate` et est reprise par tous les salons V3. `SvxLinkConfigurationService` la lit donc par `IGeneralConfigurationRepository`. Les champs vides ne sont pas écrits — SVXLink construit alors un sujet réduit au Common Name — et **les anciennes valeurs sont effacées à chaque génération**, sans quoi un champ vidé par l'opérateur survivrait dans le fichier et continuerait d'être signé.
+
+Elle est stockée en JSON (`OwnsOne(...).ToJson()`) comme la configuration des salons : une seule migration, et aucune pour les sept champs suivants. **Toute migration ajoutée impose en revanche deux gestes** — l'inscrire dans `AllMigrations` de `DatabaseMigratorTests`, et retirer sa colonne de la base héritée reconstituée par `SeedLegacyDatabase`, qui part du schéma courant et défait ce qui lui est postérieur. Sans le second, la migration s'applique sur une colonne déjà présente et échoue.
+
+Modifier ces valeurs change le sujet de la demande de signature : le certificat existant devient caduc. L'interface le dit, et la section « Certificat du nœud » du tableau de bord offre la régénération.
+
 ### Cycle de vie du certificat du nœud
 
 En V3, obtenir un certificat est un **processus asynchrone qui fait intervenir un tiers** : le nœud génère sa clé et sa demande, l'envoie au réflecteur, puis attend que le sysop la signe. L'attente peut durer des heures ou des jours, et l'application n'en montrait qu'un « échec de connexion » — de quoi conclure, à raison de son point de vue, que le logiciel ne marche pas.
@@ -202,6 +220,20 @@ En V3, obtenir un certificat est un **processus asynchrone qui fait intervenir u
 **Régénérer la demande efface le `.csr` et le `.crt`, jamais le `.key`** — la clé est l'identité du nœud, et la renouveler n'apporte rien à une demande à refaire signer. Le redémarrage de SVXLink qui suit est indispensable : le processus en cours garderait sinon en mémoire le certificat effacé.
 
 C'est aussi le remède qui manquait au cas `ServerCertificateUntrusted` : après une régénération de PKI côté réflecteur, oublier l'autorité ne suffit pas, le certificat du nœud est lui aussi signé par l'ancienne. L'action est volontairement à confirmation explicite — le nœud reste hors ligne jusqu'à la nouvelle signature, immédiate sur le réflecteur local, dépendante d'un tiers ailleurs.
+
+### Configuration du réflecteur local
+
+La configuration vit en INI brut dans `ReflectorAggregate.Config`, éditée telle quelle sur la page `/reflector`. Trois mécanismes l'encadrent.
+
+**Le modèle par défaut est livré complet.** `ReflectorSeederHostedService.GetDefaultReflectorConfig()` déclare, commentés en français : `HTTP_SRV_PORT` et `COMMAND_PTY` (lots 3 et 4), `TG_FOR_V1_CLIENTS` — sans lequel **un nœud V2 reste muet** dès qu'un talkgroup est utilisé —, `RANDOM_QSY_RANGE` — sans lequel le QSY aléatoire et `AUTO_QSY_AFTER` ne fonctionnent pas —, et la protection `SQL_TIMEOUT` / `SQL_TIMEOUT_BLOCKTIME` contre un émetteur bloqué.
+
+`RANDOM_QSY_RANGE` suit la convention `<MCC>9900:100` : `2289900:100` en Suisse, `2089900:100` en France. `TG_FOR_V1_CLIENTS` désigne le TG 240, le même que la stack de test — sur un réflecteur local le numéro est libre, mais un seul chiffre dans tout le projet évite les malentendus. **Le talkgroup désigné doit exister** : la section `[TG#240]` accompagne la variable.
+
+**Le seeder ne met jamais à jour une configuration existante** — il sort dès qu'un réflecteur est en base. C'est arrivé trois lots de suite : chaque clé ajoutée au modèle manquait aux installations déjà en service, et la fonctionnalité correspondante s'y dégradait en silence. `ReflectorRecommendedSettings` est désormais la liste de référence, partagée par le modèle et par le diagnostic de la page ; `ApplyRecommendedSettingsCommand` ajoute à une configuration existante ce qu'elle ne déclare pas. **Y ajouter une entrée suffit** pour qu'une installation ancienne se la voie proposer.
+
+La fusion est **textuelle** (`ReflectorConfigurationMerger`), délibérément : `IniFile` ne conserve pas les commentaires des sections, et réécrire le fichier à partir de lui effacerait toutes les notes de l'opérateur. Rien n'est jamais modifié ni supprimé — seules des lignes manquantes sont ajoutées en fin de section, précédées de leur justification.
+
+**La syntaxe est validée avant enregistrement.** `IniFile.ParseContent` est tolérant et ignore en silence ce qu'il ne comprend pas ; le démon, lui, répond `Illegal value syntax on line N` et **redémarre en boucle**. `ReflectorConfigurationValidator` signale la ligne fautive pendant la saisie, et `ReflectorAggregate` refuse d'enregistrer une configuration qui mettrait le réflecteur hors service. Les sections inconnues ne sont qu'un avertissement : SVXLink en ajoute d'une version à l'autre.
 
 ### Signature des certificats du réflecteur local
 

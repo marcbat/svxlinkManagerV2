@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
@@ -20,6 +22,7 @@ public class SvxLinkConfigurationServiceTests : IDisposable
     private readonly SvxLinkConfigurationService _service;
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly ISvxLinkStrategyResolver _strategyResolver;
+    private readonly IGeneralConfigurationRepository _generalConfigurationRepository;
     private readonly string _testOutputDirectory;
     private readonly List<string> _filesToCleanup;
     private readonly string _templatePath;
@@ -38,7 +41,14 @@ public class SvxLinkConfigurationServiceTests : IDisposable
             new SvxLinkModernStrategy()
         });
 
-        _service = new SvxLinkConfigurationService(_logger, _strategyResolver, _templatePath);
+        // Configuration générale absente par défaut : aucune variable CERT_SUBJ_* n'est
+        // alors écrite, ce qui est l'état d'un nœud qui n'a pas renseigné son identité.
+        _generalConfigurationRepository = Substitute.For<IGeneralConfigurationRepository>();
+        _generalConfigurationRepository.GetAsync(Arg.Any<CancellationToken>())
+            .Returns((GeneralConfigurationAggregate?)null);
+
+        _service = new SvxLinkConfigurationService(
+            _logger, _strategyResolver, _generalConfigurationRepository, _templatePath);
         
         // Créer un répertoire temporaire pour les tests
         _testOutputDirectory = Path.Combine(Path.GetTempPath(), $"svxlink-test-{Guid.NewGuid()}");
@@ -136,6 +146,159 @@ public class SvxLinkConfigurationServiceTests : IDisposable
         iniData["LinkToReflector"]["DEFAULT_ACTIVE"].Should().Be("1");
         iniData["LinkToReflector"]["TIMEOUT"].Should().Be("0");
     }
+
+    #region Paramètres V3 supplémentaires
+
+    /// <summary>
+    /// La configuration générée dit ce que l'opérateur a choisi, pas ce que SVXLink aurait
+    /// fait de toute façon : une valeur laissée au défaut n'est pas écrite.
+    /// </summary>
+    [Fact]
+    public async Task GenerateAsync_WithDefaultValues_ShouldNotWriteTheOptionalV3Settings()
+    {
+        var salon = CreateTestSalonV3();
+        var outputPath = GetTestOutputPath("svxlink_v3_defaults.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section.ContainsKey("UDP_HEARTBEAT_INTERVAL").Should().BeFalse();
+        section.ContainsKey("ANNOUNCE_REMOTE_MIN_INTERVAL").Should().BeFalse();
+        section.ContainsKey("VERBOSE").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithATunedHeartbeat_ShouldWriteIt()
+    {
+        // Le remède documenté aux déconnexions par expiration de présence UDP.
+        var salon = CreateTestSalonV3WithSettings(udpHeartbeatInterval: 5);
+        var outputPath = GetTestOutputPath("svxlink_v3_heartbeat.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        IniFile.Parse(outputPath)["ReflectorLogic"]["UDP_HEARTBEAT_INTERVAL"].Should().Be("5");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithAnAnnouncementInterval_ShouldWriteIt()
+    {
+        var salon = CreateTestSalonV3WithSettings(announceRemoteMinInterval: 120);
+        var outputPath = GetTestOutputPath("svxlink_v3_announce.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        IniFile.Parse(outputPath)["ReflectorLogic"]["ANNOUNCE_REMOTE_MIN_INTERVAL"].Should().Be("120");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithVerboseDisabled_ShouldWriteZero()
+    {
+        var salon = CreateTestSalonV3WithSettings(verbose: false);
+        var outputPath = GetTestOutputPath("svxlink_v3_verbose.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        IniFile.Parse(outputPath)["ReflectorLogic"]["VERBOSE"].Should().Be("0");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithAV2Salon_ShouldNotWriteTheV3Settings()
+    {
+        var salon = CreateTestSalon();
+        var outputPath = GetTestOutputPath("svxlink_v2_no_v3_settings.conf");
+
+        await _service.GenerateAsync(salon, outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section.ContainsKey("UDP_HEARTBEAT_INTERVAL").Should().BeFalse();
+        section.ContainsKey("ANNOUNCE_REMOTE_MIN_INTERVAL").Should().BeFalse();
+        section.ContainsKey("VERBOSE").Should().BeFalse();
+        section.ContainsKey("CERT_SUBJ_GN").Should().BeFalse();
+    }
+
+    #endregion
+
+    #region Identité du certificat
+
+    [Fact]
+    public async Task GenerateAsync_WithACertificateSubject_ShouldWriteEveryFilledField()
+    {
+        GivenCertificateSubject(new CertificateSubject(
+            GivenName: "Marc", Surname: "Battaglia", Organization: "Radio-club",
+            Locality: "Genève", Country: "CH"));
+
+        var outputPath = GetTestOutputPath("svxlink_v3_subject.conf");
+        await _service.GenerateAsync(CreateTestSalonV3(), outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section["CERT_SUBJ_GN"].Should().Be("Marc");
+        section["CERT_SUBJ_SN"].Should().Be("Battaglia");
+        section["CERT_SUBJ_O"].Should().Be("Radio-club");
+        section["CERT_SUBJ_L"].Should().Be("Genève");
+        section["CERT_SUBJ_C"].Should().Be("CH");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldOmitTheEmptyCertificateFields()
+    {
+        // Un sujet partiel est légitime : SVXLink construit alors un sujet réduit.
+        GivenCertificateSubject(new CertificateSubject(GivenName: "Marc"));
+
+        var outputPath = GetTestOutputPath("svxlink_v3_subject_partial.conf");
+        await _service.GenerateAsync(CreateTestSalonV3(), outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section["CERT_SUBJ_GN"].Should().Be("Marc");
+        section.ContainsKey("CERT_SUBJ_SN").Should().BeFalse();
+        section.ContainsKey("CERT_SUBJ_C").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Un champ effacé par l'opérateur doit disparaître du fichier : sans ce nettoyage,
+    /// l'ancienne valeur survivrait dans le template et continuerait d'être signée.
+    /// </summary>
+    [Fact]
+    public async Task GenerateAsync_WhenAFieldIsCleared_ShouldRemoveItFromTheConfiguration()
+    {
+        GivenCertificateSubject(new CertificateSubject(GivenName: "Marc", Surname: "Battaglia"));
+        var outputPath = GetTestOutputPath("svxlink_v3_subject_cleared.conf");
+        await _service.GenerateAsync(CreateTestSalonV3(), outputPath);
+
+        GivenCertificateSubject(new CertificateSubject(GivenName: "Marc"));
+        await _service.GenerateAsync(CreateTestSalonV3(), outputPath);
+
+        var section = IniFile.Parse(outputPath)["ReflectorLogic"];
+        section["CERT_SUBJ_GN"].Should().Be("Marc");
+        section.ContainsKey("CERT_SUBJ_SN").Should().BeFalse();
+    }
+
+    private void GivenCertificateSubject(CertificateSubject subject)
+    {
+        var configuration = GeneralConfigurationAggregate.Create(certificateSubject: subject).Match(
+            Succ: aggregate => aggregate,
+            Fail: errors => throw new InvalidOperationException(string.Join(", ", errors)));
+
+        _generalConfigurationRepository.GetAsync(Arg.Any<CancellationToken>()).Returns(configuration);
+    }
+
+    private SalonAggregate CreateTestSalonV3WithSettings(
+        int udpHeartbeatInterval = 15,
+        int announceRemoteMinInterval = 0,
+        bool verbose = true)
+    {
+        var config = CreateTestSalonV3().Configuration with
+        {
+            UdpHeartbeatInterval = udpHeartbeatInterval,
+            AnnounceRemoteMinInterval = announceRemoteMinInterval,
+            Verbose = verbose
+        };
+
+        return SalonAggregate.Create(Guid.NewGuid(), "Salon V3", false, config).Match(
+            Succ: aggregate => aggregate,
+            Fail: errors => throw new InvalidOperationException(string.Join(", ", errors)));
+    }
+
+    #endregion
 
     [Theory]
     [InlineData(false, "/opt/svxlink-legacy/share/svxlink/events.tcl")]

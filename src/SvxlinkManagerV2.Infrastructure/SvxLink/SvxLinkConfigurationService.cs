@@ -2,6 +2,7 @@
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
+using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities;
 using SvxlinkManagerV2.Domain.Aggregates.Salon;
 using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 using SvxlinkManagerV2.Infrastructure.Common;
@@ -18,6 +19,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
 {
     private readonly ILogger<SvxLinkConfigurationService> _logger;
     private readonly ISvxLinkStrategyResolver _strategyResolver;
+    private readonly IGeneralConfigurationRepository _generalConfigurationRepository;
     private readonly string? _templatePath;
     private const string TemplateFileName = "svxlink.conf";
     private const string SvxLinkConfigDir = "/etc/svxlink";
@@ -25,17 +27,20 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     // Constructeur pour l'injection de dépendances
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
-        ISvxLinkStrategyResolver strategyResolver)
-        : this(logger, strategyResolver, null) { }
+        ISvxLinkStrategyResolver strategyResolver,
+        IGeneralConfigurationRepository generalConfigurationRepository)
+        : this(logger, strategyResolver, generalConfigurationRepository, null) { }
 
     // Constructeur complet pour les tests (passage du chemin du template)
     public SvxLinkConfigurationService(
         ILogger<SvxLinkConfigurationService> logger,
         ISvxLinkStrategyResolver strategyResolver,
+        IGeneralConfigurationRepository generalConfigurationRepository,
         string? templatePath)
     {
         _logger = logger;
         _strategyResolver = strategyResolver;
+        _generalConfigurationRepository = generalConfigurationRepository;
         _templatePath = templatePath;
     }
 
@@ -75,7 +80,7 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
                 // Mode Reflector : SimplexLogic + ReflectorLogic
                 UpdateGlobalSection(iniData, salon);
                 UpdateLinkSection(iniData, salon);
-                UpdateReflectorLogicSection(iniData, salon);
+                await UpdateReflectorLogicSectionAsync(iniData, salon, cancellationToken);
                 UpdateSimplexLogicSection(iniData, salon);
             }
             UpdateReceiverSection(iniData, salon);
@@ -281,6 +286,49 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
     /// Gère les deux protocoles : V3 (25.05+, certificats X.509) et V2 (19.09.2, AUTH_KEY).
     /// </summary>
     /// <summary>
+    /// Écrit la variable si sa valeur s'écarte de celle que SVXLink applique par défaut,
+    /// et l'efface du template sinon.
+    /// </summary>
+    private static void WriteIfNotDefault(IniFile iniData, string key, int value, int defaultValue)
+    {
+        if (value == defaultValue)
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+        else
+            iniData["ReflectorLogic"][key] = value.ToString();
+    }
+
+    /// <summary>
+    /// Reporte l'identité du nœud (<c>CERT_SUBJ_*</c>) depuis la configuration générale.
+    /// </summary>
+    /// <remarks>
+    /// Ces valeurs relèvent du nœud et non du salon : elles sont communes à tous les salons
+    /// V3. Les champs vides ne sont pas écrits, ce qui laisse SVXLink construire un sujet
+    /// réduit au Common Name. Les anciennes valeurs sont retirées à chaque génération, sans
+    /// quoi un champ effacé par l'opérateur survivrait dans le fichier.
+    /// </remarks>
+    private async Task WriteCertificateSubjectAsync(IniFile iniData, CancellationToken cancellationToken)
+    {
+        var subject = (await _generalConfigurationRepository.GetAsync(cancellationToken))?.CertificateSubject
+                      ?? CertificateSubject.Empty;
+
+        foreach (var (key, _) in CertificateSubject.Empty.ToConfigurationEntries())
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+
+        foreach (var key in AllCertificateSubjectKeys)
+            RemoveKeyIfPresent(iniData, "ReflectorLogic", key);
+
+        foreach (var (key, value) in subject.ToConfigurationEntries())
+            iniData["ReflectorLogic"][key] = value;
+    }
+
+    /// <summary>Toutes les variables d'identité, pour pouvoir effacer celles qui ne sont plus renseignées.</summary>
+    private static readonly string[] AllCertificateSubjectKeys =
+    [
+        "CERT_SUBJ_GN", "CERT_SUBJ_SN", "CERT_SUBJ_OU",
+        "CERT_SUBJ_O", "CERT_SUBJ_L", "CERT_SUBJ_ST", "CERT_SUBJ_C"
+    ];
+
+    /// <summary>
     /// Chemin du gestionnaire d'événements TCL racine de l'installation SVXLink visée.
     /// Toutes les logiques doivent le désigner : c'est lui qui charge <c>events.d/*.tcl</c>
     /// puis les surcharges de <c>events.d/local/*.tcl</c>, dont le Logic.tcl de l'application.
@@ -298,7 +346,10 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
         return $"{eventsBasePath}/events.tcl";
     }
 
-    private void UpdateReflectorLogicSection(IniFile iniData, SalonAggregate salon)
+    private async Task UpdateReflectorLogicSectionAsync(
+        IniFile iniData,
+        SalonAggregate salon,
+        CancellationToken cancellationToken)
     {
         var config = salon.Configuration;
         var strategy = _strategyResolver.Resolve(config.ReflectorProtocol);
@@ -361,6 +412,19 @@ public class SvxLinkConfigurationService : ISvxLinkConfigurationService
             iniData["ReflectorLogic"]["MUTE_FIRST_TX_REM"] = config.MuteFirstTxRem ? "1" : "0";
             iniData["ReflectorLogic"]["TMP_MONITOR_TIMEOUT"] = config.TmpMonitorTimeout.ToString();
             iniData["ReflectorLogic"]["QSY_PENDING_TIMEOUT"] = config.QsyPendingTimeout.ToString();
+
+            // Une valeur laissée au défaut de SVXLink n'est pas écrite : la configuration
+            // générée dit ce que l'opérateur a choisi, pas ce que le logiciel aurait fait
+            // de toute façon.
+            WriteIfNotDefault(iniData, "UDP_HEARTBEAT_INTERVAL", config.UdpHeartbeatInterval, 15);
+            WriteIfNotDefault(iniData, "ANNOUNCE_REMOTE_MIN_INTERVAL", config.AnnounceRemoteMinInterval, 0);
+
+            if (config.Verbose)
+                RemoveKeyIfPresent(iniData, "ReflectorLogic", "VERBOSE");
+            else
+                iniData["ReflectorLogic"]["VERBOSE"] = "0";
+
+            await WriteCertificateSubjectAsync(iniData, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(config.CertEmail))
             {

@@ -1,4 +1,4 @@
-using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
+﻿using SvxlinkManagerV2.Domain.Aggregates.Salon.Enums;
 
 namespace SvxlinkManagerV2.Domain.Aggregates.Salon.Entities;
 
@@ -63,6 +63,27 @@ public record SvxLinkConfiguration(
     bool MuteFirstTxRem = false,
     int TmpMonitorTimeout = 3600,
     int QsyPendingTimeout = -1,
+    /// <summary>
+    /// Intervalle des messages de présence UDP, en secondes (<c>UDP_HEARTBEAT_INTERVAL</c>).
+    /// La documentation SVXLink en fait le remède aux déconnexions répétées par expiration
+    /// de présence : sur une liaison instable — 4G, faisceau radio — c'est le premier
+    /// réglage à baisser. 15 est la valeur par défaut de SVXLink, qui n'est alors pas écrite.
+    /// </summary>
+    int UdpHeartbeatInterval = 15,
+    /// <summary>
+    /// Intervalle minimal entre deux annonces du même talkgroup activé à distance, en
+    /// secondes (<c>ANNOUNCE_REMOTE_MIN_INTERVAL</c>). Sans lui, un talkgroup qui s'active en
+    /// boucle fait parler le nœud sans arrêt, au détriment du trafic local. 0 laisse SVXLink
+    /// décider et n'écrit rien.
+    /// </summary>
+    int AnnounceRemoteMinInterval = 0,
+    /// <summary>
+    /// Journalisation des entrées et sorties du réflecteur (<c>VERBOSE</c>). Les désactiver
+    /// est utile sur un réflecteur très fréquenté, où ces lignes noient le reste — le tampon
+    /// de logs de l'application plafonne à 1000 lignes. Vrai est la valeur par défaut de
+    /// SVXLink, qui n'est alors pas écrite.
+    /// </summary>
+    bool Verbose = true,
     // Section ModuleParrot (Parrot salon only)
     /// <summary>
     /// Audio FIFO buffer length in seconds (ModuleParrot). Default: 60.

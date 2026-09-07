@@ -1,4 +1,4 @@
-@page "/settings"
+﻿@page "/settings"
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.DownloadApplicationUpdate
 @using SvxlinkManagerV2.Application.Features.ApplicationUpdate.GetApplicationUpdateWorkflowStatus
@@ -6,6 +6,7 @@
 @using SvxlinkManagerV2.Application.Features.Diagnostics
 @using SvxlinkManagerV2.Application.Features.Diagnostics.CreateDiagnosticArchive
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.CreateOrUpdate
+@using SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities
 @using SvxlinkManagerV2.Application.Features.GeneralConfiguration.Get
 @using SvxlinkManagerV2.Application.Features.SystemControl
 @using SvxlinkManagerV2.Application.Features.SystemControl.GetSystemControlAvailability
@@ -109,6 +110,82 @@ else
                                 <InputNumber @bind-Value="_model.DefaultTxFrequency" class="form-control freq-input" min="30" max="3000" step="0.001" />
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Identité portée par le certificat X.509 (protocole V3) -->
+                <div class="settings-card">
+                    <div class="section-header">
+                        <span class="material-symbols-outlined">badge</span>
+                        Identité du certificat (protocole V3)
+                    </div>
+
+                    <p class="settings-hint">
+                        Ces informations composent le sujet du certificat X.509 du nœud, commun à
+                        tous les salons en protocole V3. Certains sysops de réflecteur exigent de
+                        les voir pour accepter de signer une demande. Tout champ laissé vide est
+                        simplement omis.
+                    </p>
+                    <p class="settings-hint settings-hint--warning">
+                        <span class="material-symbols-outlined">warning</span>
+                        Les modifier change le sujet de la demande : le certificat existant devient
+                        caduc et devra être signé à nouveau par le sysop du réflecteur.
+                    </p>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Prénom</span>
+                            <span class="filter-desc">CERT_SUBJ_GN</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateGivenName" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Nom</span>
+                            <span class="filter-desc">CERT_SUBJ_SN</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateSurname" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Organisation</span>
+                            <span class="filter-desc">CERT_SUBJ_O — radio-club, association…</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateOrganization" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Unité organisationnelle</span>
+                            <span class="filter-desc">CERT_SUBJ_OU</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateOrganizationalUnit" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Ville</span>
+                            <span class="filter-desc">CERT_SUBJ_L</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateLocality" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Canton, région ou département</span>
+                            <span class="filter-desc">CERT_SUBJ_ST</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateStateOrProvince" class="form-control" />
+                    </div>
+
+                    <div class="filter-row">
+                        <div class="filter-info">
+                            <span class="filter-name">Pays</span>
+                            <span class="filter-desc">CERT_SUBJ_C — code ISO 3166 à deux lettres (CH, FR…)</span>
+                        </div>
+                        <InputText @bind-Value="_model.CertificateCountry" class="form-control" maxlength="2" />
                     </div>
                 </div>
 
@@ -1004,6 +1081,15 @@ else
             _model.StartDefaultSalonOnStartup = config.StartDefaultSalonOnStartup;
             _model.DefaultRxFrequency = config.DefaultRxFrequency;
             _model.DefaultTxFrequency = config.DefaultTxFrequency;
+
+            var subject = config.CertificateSubject;
+            _model.CertificateGivenName = subject.GivenName;
+            _model.CertificateSurname = subject.Surname;
+            _model.CertificateOrganizationalUnit = subject.OrganizationalUnit;
+            _model.CertificateOrganization = subject.Organization;
+            _model.CertificateLocality = subject.Locality;
+            _model.CertificateStateOrProvince = subject.StateOrProvince;
+            _model.CertificateCountry = subject.Country;
         }
 
         _systemControlAvailability = await Mediator.Send<SystemControlAvailabilityDto>(
@@ -1070,7 +1156,15 @@ else
                 _model.StartReflectorOnStartup,
                 _model.StartDefaultSalonOnStartup,
                 _model.DefaultRxFrequency,
-                _model.DefaultTxFrequency);
+                _model.DefaultTxFrequency,
+                new CertificateSubject(
+                    _model.CertificateGivenName,
+                    _model.CertificateSurname,
+                    _model.CertificateOrganizationalUnit,
+                    _model.CertificateOrganization,
+                    _model.CertificateLocality,
+                    _model.CertificateStateOrProvince,
+                    _model.CertificateCountry));
 
             var result = await Mediator.Send<Validation<Error, Unit>>(command);
 
@@ -1290,5 +1384,14 @@ else
         public bool StartDefaultSalonOnStartup { get; set; }
         public decimal DefaultRxFrequency { get; set; } = 145.550m;
         public decimal DefaultTxFrequency { get; set; } = 145.550m;
+
+        // Identité portée par le certificat X.509 du nœud (CERT_SUBJ_*).
+        public string? CertificateGivenName { get; set; }
+        public string? CertificateSurname { get; set; }
+        public string? CertificateOrganizationalUnit { get; set; }
+        public string? CertificateOrganization { get; set; }
+        public string? CertificateLocality { get; set; }
+        public string? CertificateStateOrProvince { get; set; }
+        public string? CertificateCountry { get; set; }
     }
 }

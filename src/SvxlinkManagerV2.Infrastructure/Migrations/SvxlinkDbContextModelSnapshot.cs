@@ -465,12 +465,57 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.GeneralConfigurationAggregate", b =>
+                {
+                    b.OwnsOne("SvxlinkManagerV2.Domain.Aggregates.GeneralConfiguration.Entities.CertificateSubject", "CertificateSubject", b1 =>
+                        {
+                            b1.Property<Guid>("GeneralConfigurationAggregateId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Country")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("GivenName")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Locality")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Organization")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("OrganizationalUnit")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("StateOrProvince")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Surname")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("GeneralConfigurationAggregateId");
+
+                            b1.ToTable("GeneralConfigurations");
+
+                            b1.ToJson("CertificateSubject");
+
+                            b1.WithOwner()
+                                .HasForeignKey("GeneralConfigurationAggregateId");
+                        });
+
+                    b.Navigation("CertificateSubject")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SvxlinkManagerV2.Domain.Aggregates.Salon.SalonAggregate", b =>
                 {
                     b.OwnsOne("SvxlinkManagerV2.Domain.Aggregates.Salon.Entities.SvxLinkConfiguration", "Configuration", b1 =>
                         {
                             b1.Property<Guid>("SalonAggregateId")
                                 .HasColumnType("TEXT");
+
+                            b1.Property<int>("AnnounceRemoteMinInterval")
+                                .HasColumnType("INTEGER");
 
                             b1.Property<string>("AuthKey")
                                 .HasColumnType("TEXT");
@@ -580,6 +625,12 @@ namespace SvxlinkManagerV2.Infrastructure.Migrations
 
                             b1.Property<decimal>("TxFrequency")
                                 .HasColumnType("TEXT");
+
+                            b1.Property<int>("UdpHeartbeatInterval")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("Verbose")
+                                .HasColumnType("INTEGER");
 
                             b1.HasKey("SalonAggregateId");
 
