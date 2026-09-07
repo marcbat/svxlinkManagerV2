@@ -203,6 +203,20 @@ En V3, obtenir un certificat est un **processus asynchrone qui fait intervenir u
 
 C'est aussi le remède qui manquait au cas `ServerCertificateUntrusted` : après une régénération de PKI côté réflecteur, oublier l'autorité ne suffit pas, le certificat du nœud est lui aussi signé par l'ancienne. L'action est volontairement à confirmation explicite — le nœud reste hors ligne jusqu'à la nouvelle signature, immédiate sur le réflecteur local, dépendante d'un tiers ailleurs.
 
+### Configuration du réflecteur local
+
+La configuration vit en INI brut dans `ReflectorAggregate.Config`, éditée telle quelle sur la page `/reflector`. Trois mécanismes l'encadrent.
+
+**Le modèle par défaut est livré complet.** `ReflectorSeederHostedService.GetDefaultReflectorConfig()` déclare, commentés en français : `HTTP_SRV_PORT` et `COMMAND_PTY` (lots 3 et 4), `TG_FOR_V1_CLIENTS` — sans lequel **un nœud V2 reste muet** dès qu'un talkgroup est utilisé —, `RANDOM_QSY_RANGE` — sans lequel le QSY aléatoire et `AUTO_QSY_AFTER` ne fonctionnent pas —, et la protection `SQL_TIMEOUT` / `SQL_TIMEOUT_BLOCKTIME` contre un émetteur bloqué.
+
+`RANDOM_QSY_RANGE` suit la convention `<MCC>9900:100` : `2289900:100` en Suisse, `2089900:100` en France. `TG_FOR_V1_CLIENTS` désigne le TG 240, le même que la stack de test — sur un réflecteur local le numéro est libre, mais un seul chiffre dans tout le projet évite les malentendus. **Le talkgroup désigné doit exister** : la section `[TG#240]` accompagne la variable.
+
+**Le seeder ne met jamais à jour une configuration existante** — il sort dès qu'un réflecteur est en base. C'est arrivé trois lots de suite : chaque clé ajoutée au modèle manquait aux installations déjà en service, et la fonctionnalité correspondante s'y dégradait en silence. `ReflectorRecommendedSettings` est désormais la liste de référence, partagée par le modèle et par le diagnostic de la page ; `ApplyRecommendedSettingsCommand` ajoute à une configuration existante ce qu'elle ne déclare pas. **Y ajouter une entrée suffit** pour qu'une installation ancienne se la voie proposer.
+
+La fusion est **textuelle** (`ReflectorConfigurationMerger`), délibérément : `IniFile` ne conserve pas les commentaires des sections, et réécrire le fichier à partir de lui effacerait toutes les notes de l'opérateur. Rien n'est jamais modifié ni supprimé — seules des lignes manquantes sont ajoutées en fin de section, précédées de leur justification.
+
+**La syntaxe est validée avant enregistrement.** `IniFile.ParseContent` est tolérant et ignore en silence ce qu'il ne comprend pas ; le démon, lui, répond `Illegal value syntax on line N` et **redémarre en boucle**. `ReflectorConfigurationValidator` signale la ligne fautive pendant la saisie, et `ReflectorAggregate` refuse d'enregistrer une configuration qui mettrait le réflecteur hors service. Les sections inconnues ne sont qu'un avertissement : SVXLink en ajoute d'une version à l'autre.
+
 ### Signature des certificats du réflecteur local
 
 En protocole V3, un nœud dépose une demande de signature (CSR) et **ne peut pas se connecter tant qu'elle n'est pas signée**. Sans mécanisme de signature, la demande reste dans `pending_csrs/` et le nœud enchaîne les `Access denied` indéfiniment — vérifié sur la stack le 07/09/2026 en retirant le hook. La configuration par défaut du réflecteur déclare donc `COMMAND_PTY`, sans quoi le salon V3 livré par défaut serait structurellement inutilisable.

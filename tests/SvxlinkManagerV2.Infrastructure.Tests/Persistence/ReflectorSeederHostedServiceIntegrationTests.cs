@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -119,6 +119,84 @@ public class ReflectorSeederHostedServiceIntegrationTests : IAsyncLifetime
         config.Should().Contain("[ISSUING_CA]");
         config.Should().Contain("[SERVER_CERT]");
         config.Should().Contain("[TG#0]");
+    }
+
+    /// <summary>
+    /// Sans TG_FOR_V1_CLIENTS, un nœud en protocole V2 ne peut participer à aucun talkgroup
+    /// et reste muet dès qu'un talkgroup est utilisé — ce qui arrive dès qu'un nœud V3 est
+    /// présent. Le talkgroup désigné doit exister, sans quoi la variable ne pointe sur rien.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ConfigShouldLetLegacyNodesJoinATalkGroup()
+    {
+        var service = new ReflectorSeederHostedService(_scopeFactory, _logger, _environment);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var config = (await _repository.GetAllAsync())[0].Config;
+        config.Should().Contain($"TG_FOR_V1_CLIENTS={ReflectorRecommendedSettings.LegacyClientsTalkGroup}");
+        config.Should().Contain($"[TG#{ReflectorRecommendedSettings.LegacyClientsTalkGroup}]");
+    }
+
+    /// <summary>
+    /// Sans RANDOM_QSY_RANGE, le QSY aléatoire — et donc AUTO_QSY_AFTER — ne fonctionne pas.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ConfigShouldMakeRandomQsyWork()
+    {
+        var service = new ReflectorSeederHostedService(_scopeFactory, _logger, _environment);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var config = (await _repository.GetAllAsync())[0].Config;
+        config.Should().Contain($"RANDOM_QSY_RANGE={ReflectorRecommendedSettings.RandomQsyRange}");
+    }
+
+    /// <summary>
+    /// Le modèle et le diagnostic proposé aux installations existantes doivent dire la même
+    /// chose : un réflecteur fraîchement seedé ne doit rien avoir à compléter.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ConfigShouldDeclareEveryRecommendedSetting()
+    {
+        var service = new ReflectorSeederHostedService(_scopeFactory, _logger, _environment);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var config = (await _repository.GetAllAsync())[0].Config;
+        ReflectorRecommendedSettings.MissingFrom(config).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Le démon refuse de démarrer sur la moindre erreur de syntaxe, en boucle : livrer un
+    /// modèle qu'il rejetterait rendrait le réflecteur inutilisable dès l'installation.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ConfigShouldBeSyntacticallyValid()
+    {
+        var service = new ReflectorSeederHostedService(_scopeFactory, _logger, _environment);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var config = (await _repository.GetAllAsync())[0].Config;
+        ReflectorConfigurationValidator.Validate(config).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Le délimiteur fermant d'une chaîne brute C# décide de l'indentation retirée : mal
+    /// aligné, il préfixe chaque ligne d'espaces que le démon pourrait refuser.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ConfigShouldNotBeIndented()
+    {
+        var service = new ReflectorSeederHostedService(_scopeFactory, _logger, _environment);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var config = (await _repository.GetAllAsync())[0].Config;
+        config.Split('\n')
+            .Where(line => line.Trim().Length > 0)
+            .Should().OnlyContain(line => !line.StartsWith(" ") && !line.StartsWith("\t"));
     }
 
     [Fact]

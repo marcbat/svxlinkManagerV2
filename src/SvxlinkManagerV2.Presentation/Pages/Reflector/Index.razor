@@ -4,6 +4,7 @@
 @using SvxlinkManagerV2.Application.Features.Reflectors.DeactivateReflector
 @using SvxlinkManagerV2.Application.Features.Reflectors.GetAllReflectors
 @using SvxlinkManagerV2.Application.Features.Reflectors.GetReflectorStatus
+@using SvxlinkManagerV2.Application.Features.Reflectors.ApplyRecommendedSettings
 @using SvxlinkManagerV2.Application.Features.Reflectors.UpdateReflectorConfiguration
 @using SvxlinkManagerV2.Application.Interfaces
 @using SvxlinkManagerV2.Domain.Aggregates.Reflector
@@ -218,6 +219,74 @@ else
         }
     </div>
 
+    @if (_missingSettings.Count > 0)
+    {
+        <div class="alert-unsaved">
+            <span class="material-symbols-outlined">tips_and_updates</span>
+            <div>
+                <strong>@_missingSettings.Count réglage(s) recommandé(s) absent(s)</strong>
+                <span>
+                    Cette configuration a été créée avant que ces réglages n'existent. Les
+                    ajouter ne modifie ni ne supprime rien de ce qu'elle contient déjà.
+                </span>
+                <ul class="reflector-advice">
+                    @foreach (var setting in _missingSettings)
+                    {
+                        <li>
+                            <code>@setting.Key=@setting.Value</code>
+                            <span>@setting.Rationale</span>
+                        </li>
+                    }
+                </ul>
+                <button class="btn btn-primary btn-sm" style="margin-top:8px;"
+                        disabled="@(_isActive || _isApplyingSettings)"
+                        @onclick="ApplyRecommendedSettingsAsync">
+                    @if (_isApplyingSettings)
+                    {
+                        <span class="material-symbols-outlined spin">sync</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined">playlist_add</span>
+                    }
+                    Ajouter ces réglages
+                </button>
+                @if (_isActive)
+                {
+                    <span style="margin-left:8px;">Arrêtez le réflecteur pour les ajouter.</span>
+                }
+            </div>
+        </div>
+    }
+
+    @if (_configIssues.Count > 0)
+    {
+        <div class="alert-active" style="border-left-color: @(HasConfigErrors ? "var(--danger)" : "var(--warning)");">
+            <span class="material-symbols-outlined">@(HasConfigErrors ? "error" : "warning")</span>
+            <div>
+                <strong>
+                    @(HasConfigErrors
+                        ? "La configuration ne peut pas être enregistrée"
+                        : "Remarques sur la configuration")
+                </strong>
+                <span>
+                    @(HasConfigErrors
+                        ? "Le démon refuserait de démarrer et redémarrerait en boucle."
+                        : "Rien n'empêche le démarrage, mais ces lignes sont probablement des erreurs.")
+                </span>
+                <ul class="reflector-advice">
+                    @foreach (var issue in _configIssues)
+                    {
+                        <li>
+                            <code>Ligne @issue.Line</code>
+                            <span>@issue.Message</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+
     <div class="alert-info">
         <span class="material-symbols-outlined">info</span>
         <div>
@@ -229,6 +298,67 @@ else
             </span>
         </div>
     </div>
+
+    <details class="card" style="margin-bottom: 1.5rem;">
+        <summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;">
+            <span class="material-symbols-outlined">help</span>
+            Aide — sections de talkgroup et paramètres clés
+        </summary>
+
+        <p style="margin-top:12px;">
+            Un talkgroup se déclare par une section <code>[TG#&lt;numéro&gt;]</code>. Trois
+            variables la composent :
+        </p>
+        <table class="help-dtmf-table">
+            <thead>
+                <tr><th>Variable</th><th>Rôle</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>AUTO_QSY_AFTER</code></td>
+                    <td>
+                        Déplace vers un talkgroup tiré dans <code>RANDOM_QSY_RANGE</code> une
+                        conversation qui dure plus de N secondes, pour garder libre un canal
+                        d'appel. <code>0</code> désactive.
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>ALLOW</code></td>
+                    <td>Expression régulière des indicatifs autorisés sur ce talkgroup.</td>
+                </tr>
+                <tr>
+                    <td><code>SHOW_ACTIVITY</code></td>
+                    <td><code>0</code> masque l'activité de ce talkgroup dans le statut publié.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top:16px;">Deux variables de <code>[GLOBAL]</code> commandent l'ensemble :</p>
+        <table class="help-dtmf-table">
+            <thead>
+                <tr><th>Variable</th><th>Rôle</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>TG_FOR_V1_CLIENTS</code></td>
+                    <td>
+                        Talkgroup des nœuds en protocole V2, qui ne savent pas en sélectionner
+                        un. <strong>Sans elle, ils restent muets</strong> dès qu'un talkgroup
+                        est utilisé. Le talkgroup désigné doit exister.
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>RANDOM_QSY_RANGE</code></td>
+                    <td>
+                        Plage de tirage des QSY aléatoires, syntaxe
+                        <code>&lt;borne basse&gt;:&lt;nombre&gt;</code>. Convention
+                        <code>&lt;MCC&gt;9900:100</code> — Suisse <code>2289900:100</code>,
+                        France <code>2089900:100</code>.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </details>
 
     <div class="card config-card">
         <div class="section-header">
@@ -269,6 +399,13 @@ else
     private static readonly string DefaultConfig = ReflectorSeederHostedService.GetDefaultReflectorConfig();
 
     private ReflectorStatusSnapshot _status = ReflectorStatusSnapshot.Unknown;
+    private IReadOnlyList<ReflectorRecommendedSetting> _missingSettings = [];
+    private IReadOnlyList<ReflectorConfigurationIssue> _configIssues = [];
+    private bool _isApplyingSettings;
+
+    /// <summary>La configuration comporte au moins une erreur bloquante.</summary>
+    private bool HasConfigErrors =>
+        _configIssues.Any(issue => issue.Severity == ReflectorConfigurationSeverity.Error);
 
     protected override async Task OnInitializedAsync()
     {
@@ -297,6 +434,7 @@ else
             _reflector = reflectors.FirstOrDefault();
             _configText = _reflector?.Config ?? DefaultConfig;
             _savedConfigText = _configText;
+            RefreshConfigurationAdvice();
 
             // Vérifier l'état du daemon
             var runningResult = await DaemonService.IsRunningAsync();
@@ -385,6 +523,17 @@ else
                 _hasUnsavedChanges = _configText != _savedConfigText;
             }
 
+            RefreshConfigurationAdvice();
+
+            // Le domaine refuserait de toute façon, mais le dire ici nomme la ligne fautive
+            // au lieu de laisser remonter un message d'erreur agrégé.
+            if (HasConfigErrors)
+            {
+                ToastService.ShowError(
+                    "Configuration non enregistrée : corrigez les erreurs de syntaxe signalées.");
+                return;
+            }
+
             var result = await Mediator.Send<Validation<Error, Unit>>(
                 new UpdateReflectorConfigurationCommand(_reflector.Id, _reflector.Name, _configText));
 
@@ -394,6 +543,7 @@ else
                     ToastService.ShowSuccess("Configuration sauvegardée avec succès.");
                     _savedConfigText = _configText;
                     _hasUnsavedChanges = false;
+                    RefreshConfigurationAdvice();
                     return Unit.Default;
                 },
                 Fail: errors => { ToastService.ShowError("Erreur lors de la sauvegarde : " + string.Join(", ", errors.Select(e => e.Message))); return Unit.Default; });
@@ -405,6 +555,69 @@ else
         finally
         {
             _isSaving = false;
+        }
+    }
+
+    private async Task ApplyRecommendedSettingsAsync()
+    {
+        if (_reflector is null || _isActive)
+            return;
+
+        _isApplyingSettings = true;
+
+        try
+        {
+            var result = await Mediator.Send<Validation<Error, Unit>>(
+                new ApplyRecommendedSettingsCommand(_reflector.Id));
+
+            await result.Match(
+                Succ: async _ =>
+                {
+                    ToastService.ShowSuccess(
+                        "Réglages ajoutés. Redémarrez le réflecteur pour qu'ils prennent effet.");
+                    await ReloadConfigurationAsync();
+                    return Unit.Default;
+                },
+                Fail: errors =>
+                {
+                    ToastService.ShowError(string.Join(", ", errors.Select(e => e.Message)));
+                    return Task.FromResult(Unit.Default);
+                });
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError("Erreur inattendue : " + ex.Message);
+        }
+        finally
+        {
+            _isApplyingSettings = false;
+        }
+    }
+
+    /// <summary>
+    /// Recharge la configuration depuis la base et la réinjecte dans l'éditeur.
+    /// </summary>
+    private async Task ReloadConfigurationAsync()
+    {
+        var reflectors = await Mediator.Send<IReadOnlyList<ReflectorAggregate>>(new GetAllReflectorsQuery());
+        _reflector = reflectors.FirstOrDefault();
+        _configText = _reflector?.Config ?? _configText;
+        _savedConfigText = _configText;
+        _hasUnsavedChanges = false;
+        RefreshConfigurationAdvice();
+
+        if (_isEditorInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("reflectorConfigEditor.setValue", _configText);
+            }
+            catch (JSException ex)
+            {
+                // Le texte reste juste en mémoire : un rafraîchissement de page suffit.
+                ToastService.ShowInfo("Rafraîchissez la page pour voir la configuration mise à jour.");
+                Console.Error.WriteLine(ex);
+            }
         }
     }
 
@@ -444,7 +657,21 @@ else
     {
         _configText = value ?? string.Empty;
         _hasUnsavedChanges = _configText != _savedConfigText;
+        RefreshConfigurationAdvice();
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Recalcule les remarques de syntaxe et les réglages manquants sur le texte courant.
+    /// </summary>
+    /// <remarks>
+    /// Le validateur est une fonction pure du domaine : l'appeler à chaque frappe ne coûte
+    /// rien, et signale l'erreur pendant la saisie plutôt qu'au moment d'enregistrer.
+    /// </remarks>
+    private void RefreshConfigurationAdvice()
+    {
+        _configIssues = ReflectorConfigurationValidator.Validate(_configText);
+        _missingSettings = ReflectorRecommendedSettings.MissingFrom(_configText);
     }
 
     private async Task StopReflectorAsync()
@@ -501,6 +728,19 @@ else
 }
 
 <style>
+    .reflector-advice {
+        margin: 8px 0 0;
+        padding-left: 18px;
+    }
+
+        .reflector-advice li {
+            margin-bottom: 6px;
+        }
+
+        .reflector-advice code {
+            margin-right: 6px;
+        }
+
     .page-header {
         display: flex;
         justify-content: space-between;
