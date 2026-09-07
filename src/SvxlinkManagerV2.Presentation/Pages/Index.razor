@@ -278,7 +278,41 @@
             }
         </div>
 
-        @if (_connectedNodes.Count > 0)
+        @if (_connectedNodes.Count > 0 && GroupNodesByTalkGroup)
+        {
+            @foreach (var group in NodesByTalkGroup)
+            {
+                <div class="node-group @(group.Key == _talkGroupState.TalkGroup ? "node-group--current" : "")">
+                    <div class="node-group-header">
+                        <span class="material-symbols-outlined">groups</span>
+                        Talkgroup @(group.Key == 0 ? "aucun" : group.Key.ToString())
+                        @if (group.Key == _talkGroupState.TalkGroup)
+                        {
+                            <span class="node-chip-tag">le vôtre</span>
+                        }
+                    </div>
+                    <div class="node-list">
+                        @foreach (var node in group.OrderBy(n => n.Name))
+                        {
+                            <div class="@GetNodeChipCss(node)">
+                                <span class="material-symbols-outlined" style="font-size:16px;">@(node.IsTx ? "radio" : "radio_button_checked")</span>
+                                @node.Name
+                                @if (IsCurrentNode(node))
+                                {
+                                    <span class="node-chip-tag">Courant</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <p class="help-dtmf-hint">
+                <span class="material-symbols-outlined">info</span>
+                Deux nœuds sur des talkgroups différents ne s'entendent pas, même connectés au
+                même réflecteur.
+            </p>
+        }
+        else if (_connectedNodes.Count > 0)
         {
             <div class="node-list">
                 @foreach (var node in _connectedNodes.OrderBy(n => n.Name))
@@ -407,6 +441,34 @@
         color: var(--text-muted);
         margin-top: 4px;
     }
+
+    .node-group {
+        border-left: 2px solid var(--border);
+        padding-left: 10px;
+        margin-bottom: 12px;
+    }
+
+    .node-group--current {
+        border-left-color: var(--accent);
+    }
+
+    .node-group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+        .node-group--current .node-group-header {
+            color: var(--accent);
+        }
+
+        .node-group-header .material-symbols-outlined {
+            font-size: 15px;
+        }
 
     .link-alert-remedy {
         margin-top: 6px;
@@ -1055,6 +1117,24 @@
                                           => $"Dernière cause détectée : {LinkFailureLabel}.",
         _                                 => "Tentative de connexion au réflecteur en cours."
     };
+
+    /// <summary>
+    /// Le regroupement n'a de sens qu'en V3, et seulement si l'on connaît réellement le
+    /// talkgroup des nœuds : sur un réflecteur distant l'API de statut n'est pas
+    /// accessible, et tout regrouper sous « aucun » serait pire que la liste plate.
+    /// </summary>
+    private bool GroupNodesByTalkGroup =>
+        SupportsTalkGroups && _connectedNodes.Any(node => node.TalkGroup.HasValue);
+
+    /// <summary>
+    /// Nœuds groupés par talkgroup, celui du nœud local en tête puis par numéro croissant.
+    /// Un nœud dont le talkgroup est inconnu est rangé avec « aucun ».
+    /// </summary>
+    private IEnumerable<IGrouping<int, ConnectedNodeInfo>> NodesByTalkGroup =>
+        _connectedNodes
+            .GroupBy(node => node.TalkGroup ?? 0)
+            .OrderByDescending(group => group.Key == _talkGroupState.TalkGroup)
+            .ThenBy(group => group.Key);
 
     private bool IsCurrentNode(ConnectedNodeInfo node)
     {

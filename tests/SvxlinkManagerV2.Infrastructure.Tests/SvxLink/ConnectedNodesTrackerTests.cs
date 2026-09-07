@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SvxlinkManagerV2.Application.Interfaces;
@@ -12,18 +12,24 @@ public class ConnectedNodesTrackerTests
 {
     private readonly ILogger<ConnectedNodesTracker> _logger;
     private readonly ISvxLinkLogService _logService;
+    private readonly IReflectorStatusService _statusService;
 
     public ConnectedNodesTrackerTests()
     {
         _logger = Substitute.For<ILogger<ConnectedNodesTracker>>();
         _logService = Substitute.For<ISvxLinkLogService>();
+        _statusService = Substitute.For<IReflectorStatusService>();
+
+        // Par défaut le statut du réflecteur est inconnu : le talkgroup des nœuds reste nul,
+        // comme sur un réflecteur distant.
+        _statusService.Current.Returns(ReflectorStatusSnapshot.Unknown);
     }
 
     [Fact]
     public void Constructor_ShouldSubscribeToLogService()
     {
         // Arrange & Act
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         // Assert
         _logService.Received(1).OnLogReceived += Arg.Any<Action<SvxLinkLogEntry>>();
@@ -33,7 +39,7 @@ public class ConnectedNodesTrackerTests
     public void ConnectedNodes_Initially_ShouldBeEmpty()
     {
         // Arrange & Act
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         // Assert
         tracker.ConnectedNodes.Should().BeEmpty();
@@ -43,7 +49,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessConnectedNodesLine_ShouldInitializeNodesList()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var nodesInitialized = false;
         IReadOnlyList<ConnectedNodeInfo>? capturedNodes = null;
 
@@ -75,7 +81,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessConnectedNodesLine_WithSingleNode_ShouldInitializeCorrectly()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var logEntry = new SvxLinkLogEntry(
             DateTime.Now,
             "ReflectorLogic: Connected nodes: F5ABC-L",
@@ -94,7 +100,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessConnectedNodesLine_ShouldClearPreviousNodes()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         var firstEntry = new SvxLinkLogEntry(
             DateTime.Now,
@@ -121,7 +127,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessNodeJoinedLine_ShouldAddNodeAndRaiseEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var nodeJoined = false;
         ConnectedNodeInfo? capturedNode = null;
 
@@ -152,7 +158,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessNodeJoinedLine_WithDuplicateNode_ShouldNotAddDuplicate()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var joinEventCount = 0;
 
         tracker.OnNodeJoined += _ => joinEventCount++;
@@ -182,7 +188,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessNodeLeftLine_ShouldRemoveNodeAndRaiseEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var nodeLeft = false;
         ConnectedNodeInfo? capturedNode = null;
 
@@ -220,7 +226,7 @@ public class ConnectedNodesTrackerTests
     public void ProcessNodeLeftLine_WithNonExistentNode_ShouldNotRaiseEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var leaveEventCount = 0;
 
         tracker.OnNodeLeft += _ => leaveEventCount++;
@@ -243,7 +249,7 @@ public class ConnectedNodesTrackerTests
     public void CompleteWorkflow_ShouldHandleMultipleNodesCorrectly()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         // Act & Assert - Initialisation avec 2 nœuds
         var initEntry = new SvxLinkLogEntry(
@@ -280,7 +286,7 @@ public class ConnectedNodesTrackerTests
     public void UnrelatedLogLines_ShouldBeIgnored()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var eventCount = 0;
 
         tracker.OnNodeJoined += _ => eventCount++;
@@ -305,7 +311,7 @@ public class ConnectedNodesTrackerTests
     public void Dispose_ShouldUnsubscribeFromLogService()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         // Act
         tracker.Dispose();
@@ -318,7 +324,7 @@ public class ConnectedNodesTrackerTests
     public void TxStart_ShouldRaiseEventAndMarkNodeAsTx()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         ConnectedNodeInfo? capturedNode = null;
 
         tracker.OnNodeTxStarted += node => capturedNode = node;
@@ -350,7 +356,7 @@ public class ConnectedNodesTrackerTests
     public void TxStop_ShouldRaiseEventAndClearTxState()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         ConnectedNodeInfo? capturedNode = null;
 
         tracker.OnNodeTxStopped += node => capturedNode = node;
@@ -389,7 +395,7 @@ public class ConnectedNodesTrackerTests
     public void TxStop_WithoutPriorTxStart_ShouldNotRaiseEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var txStopEventCount = 0;
 
         tracker.OnNodeTxStopped += _ => txStopEventCount++;
@@ -419,7 +425,7 @@ public class ConnectedNodesTrackerTests
     public void TxStart_OnAbsentNode_ShouldNotRaiseEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var txStartEventCount = 0;
 
         tracker.OnNodeTxStarted += _ => txStartEventCount++;
@@ -442,7 +448,7 @@ public class ConnectedNodesTrackerTests
     public void Reset_ShouldClearTxState()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         var joinEntry = new SvxLinkLogEntry(
             DateTime.Now,
@@ -470,7 +476,7 @@ public class ConnectedNodesTrackerTests
     public void NodeLeft_ShouldClearTxState()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
 
         // Ajouter un nœud puis le mettre en TX
         var joinEntry = new SvxLinkLogEntry(
@@ -505,7 +511,7 @@ public class ConnectedNodesTrackerTests
     public async Task ConnectedNodes_ShouldBeThreadSafe()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var tasks = new List<Task>();
 
         // Act - Simuler plusieurs ajouts concurrents
@@ -534,7 +540,7 @@ public class ConnectedNodesTrackerTests
     public void Reset_ShouldRaiseOnResetEvent()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var resetEventFired = false;
         tracker.OnReset += () => resetEventFired = true;
 
@@ -559,7 +565,7 @@ public class ConnectedNodesTrackerTests
     public void Reset_ShouldRaiseOnNodesInitializedBeforeOnReset()
     {
         // Arrange
-        var tracker = new ConnectedNodesTracker(_logger, _logService);
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
         var callOrder = new List<string>();
         tracker.OnReset += () => callOrder.Add("OnReset");
         tracker.OnNodesInitialized += _ => callOrder.Add("OnNodesInitialized");
@@ -570,4 +576,147 @@ public class ConnectedNodesTrackerTests
         // Assert — la liste vide doit être livrée AVANT que les consommateurs ne s'arment
         callOrder.Should().ContainInOrder("OnNodesInitialized", "OnReset");
     }
+
+    #region Talkgroup des nœuds (API de statut du réflecteur)
+
+    /// <summary>
+    /// Statut disponible : chaque nœud connu porte son talkgroup, ce qui rend le
+    /// regroupement possible sur le tableau de bord.
+    /// </summary>
+    [Fact]
+    public void ConnectedNodes_ShouldCarryTheTalkGroupFromTheReflectorStatus()
+    {
+        GivenReflectorStatus(("HB9GXP-H", 240), ("HB9GXP3-H", 2403));
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP-H, HB9GXP3-H");
+
+        tracker.ConnectedNodes.Should().SatisfyRespectively(
+            first => first.TalkGroup.Should().Be(240),
+            second => second.TalkGroup.Should().Be(2403));
+    }
+
+    /// <summary>
+    /// Réflecteur distant : son API de statut n'est pas accessible. Le talkgroup reste nul,
+    /// et l'interface conserve alors la liste plate plutôt que de tout ranger sous
+    /// « aucun talkgroup », ce qui serait faux.
+    /// </summary>
+    [Fact]
+    public void ConnectedNodes_WithoutReflectorStatus_ShouldLeaveTheTalkGroupUnknown()
+    {
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP-H, HB9GXP3-H");
+
+        tracker.ConnectedNodes.Should().OnlyContain(node => node.TalkGroup == null);
+    }
+
+    [Fact]
+    public void ConnectedNodes_ForANodeAbsentFromTheStatus_ShouldLeaveItsTalkGroupUnknown()
+    {
+        // Les deux sources ne sont pas synchrones : un nœud peut être vu dans les logs
+        // avant d'apparaître dans l'instantané, lu toutes les cinq secondes.
+        GivenReflectorStatus(("HB9GXP-H", 240));
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP-H, HB9GXP3-H");
+
+        tracker.ConnectedNodes.Should().ContainSingle(node => node.Name == "HB9GXP3-H")
+            .Which.TalkGroup.Should().BeNull();
+    }
+
+    [Fact]
+    public void NodeJoined_ShouldCarryItsTalkGroup()
+    {
+        GivenReflectorStatus(("HB9GXP3-H", 2403));
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+        ConnectedNodeInfo? joined = null;
+        tracker.OnNodeJoined += node => joined = node;
+
+        RaiseLog("ReflectorLogic: Node joined: HB9GXP3-H");
+
+        joined!.TalkGroup.Should().Be(2403);
+    }
+
+    /// <summary>
+    /// Un changement de talkgroup ne produit aucune ligne de log : sans cette republication,
+    /// le regroupement resterait figé sur la photo prise à la connexion.
+    /// </summary>
+    [Fact]
+    public void AReflectorStatusChange_ShouldRepublishTheNodesWithTheirNewTalkGroups()
+    {
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP3-H");
+
+        IReadOnlyList<ConnectedNodeInfo>? republished = null;
+        tracker.OnNodesInitialized += nodes => republished = nodes;
+
+        RaiseStatusChanged(("HB9GXP3-H", 2409900));
+
+        republished.Should().ContainSingle().Which.TalkGroup.Should().Be(2409900);
+    }
+
+    [Fact]
+    public void AReflectorStatusChange_ShouldNotAnnounceArrivalsOrDepartures()
+    {
+        // OnNodeJoined déclenche une notification côté interface : la faire sonner à chaque
+        // changement de talkgroup serait insupportable.
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP3-H");
+
+        var joined = 0;
+        var left = 0;
+        tracker.OnNodeJoined += _ => joined++;
+        tracker.OnNodeLeft += _ => left++;
+
+        RaiseStatusChanged(("HB9GXP3-H", 2409900));
+
+        joined.Should().Be(0);
+        left.Should().Be(0);
+    }
+
+    [Fact]
+    public void AReflectorStatusChange_WithoutAnyKnownNode_ShouldPublishNothing()
+    {
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+        var published = 0;
+        tracker.OnNodesInitialized += _ => published++;
+
+        RaiseStatusChanged(("HB9GXP3-H", 2403));
+
+        published.Should().Be(0);
+    }
+
+    [Fact]
+    public void TalkGroupLookup_ShouldIgnoreTheCallsignCase()
+    {
+        GivenReflectorStatus(("hb9gxp3-h", 2403));
+        var tracker = new ConnectedNodesTracker(_logger, _logService, _statusService);
+
+        RaiseLog("ReflectorLogic: Connected nodes: HB9GXP3-H");
+
+        tracker.ConnectedNodes.Should().ContainSingle().Which.TalkGroup.Should().Be(2403);
+    }
+
+    private void GivenReflectorStatus(params (string Callsign, int TalkGroup)[] nodes) =>
+        _statusService.Current.Returns(BuildSnapshot(nodes));
+
+    private void RaiseStatusChanged(params (string Callsign, int TalkGroup)[] nodes)
+    {
+        var snapshot = BuildSnapshot(nodes);
+        _statusService.Current.Returns(snapshot);
+        _statusService.OnStatusChanged += Raise.Event<Action<ReflectorStatusSnapshot>>(snapshot);
+    }
+
+    private static ReflectorStatusSnapshot BuildSnapshot((string Callsign, int TalkGroup)[] nodes) =>
+        new(ReflectorStatusAvailability.Available,
+            nodes.Select(n => new ReflectorNodeStatus(
+                n.Callsign, n.TalkGroup, [], false, false, null, null, null, null, null)).ToList(),
+            DateTime.UtcNow);
+
+    private void RaiseLog(string message) =>
+        _logService.OnLogReceived += Raise.Event<Action<SvxLinkLogEntry>>(
+            new SvxLinkLogEntry(DateTime.Now, message, SvxLinkLogLevel.Info));
+
+    #endregion
 }

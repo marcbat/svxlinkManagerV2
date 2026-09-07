@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using SvxlinkManagerV2.Application.Interfaces;
 using SvxlinkManagerV2.Application.Models;
 
@@ -9,10 +9,18 @@ namespace SvxlinkManagerV2.Infrastructure.SvxLink;
 /// Parse les logs SVXLink en temps réel pour détecter les connexions/déconnexions.
 /// Thread-safe, singleton.
 /// </summary>
+/// <remarks>
+/// La présence et l'émission viennent des logs, qui fonctionnent avec n'importe quel
+/// réflecteur. Le <b>talkgroup</b> de chaque nœud, lui, n'y figure pas : les lignes
+/// <c>Connected nodes:</c> et <c>Node joined:</c> ne donnent que des indicatifs. Il est donc
+/// repris de l'API de statut du réflecteur local (<see cref="IReflectorStatusService"/>), et
+/// reste nul pour un réflecteur distant.
+/// </remarks>
 public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
 {
     private readonly ILogger<ConnectedNodesTracker> _logger;
     private readonly ISvxLinkLogService _logService;
+    private readonly IReflectorStatusService _statusService;
     private readonly HashSet<string> _nodes = new();
     private readonly HashSet<string> _txNodes = new();
     private readonly object _lock = new();
@@ -31,22 +39,78 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
         {
             lock (_lock)
             {
-                return _nodes.Select(name => new ConnectedNodeInfo(name, _txNodes.Contains(name))).ToList().AsReadOnly();
+                return _nodes.Select(name => Describe(name, _txNodes.Contains(name))).ToList().AsReadOnly();
             }
         }
     }
 
     public ConnectedNodesTracker(
         ILogger<ConnectedNodesTracker> logger,
-        ISvxLinkLogService logService)
+        ISvxLinkLogService logService,
+        IReflectorStatusService statusService)
     {
         _logger = logger;
         _logService = logService;
+        _statusService = statusService;
 
         // S'abonner aux logs SVXLink pour parser les connexions/déconnexions
         _logService.OnLogReceived += OnLogReceived;
 
+        // Le talkgroup des nœuds évolue sans qu'aucune ligne de log ne le dise : c'est
+        // l'API de statut qui l'apprend, et la liste doit être republiée quand elle change.
+        _statusService.OnStatusChanged += OnReflectorStatusChanged;
+
         _logger.LogInformation("ConnectedNodesTracker initialisé et abonné aux logs SVXLink");
+    }
+
+    /// <summary>
+    /// Construit la description d'un nœud en y joignant son talkgroup, quand il est connu.
+    /// </summary>
+    private ConnectedNodeInfo Describe(string name, bool isTx) =>
+        new(name, isTx, TalkGroupOf(name));
+
+    /// <summary>
+    /// Talkgroup du nœud d'après le dernier statut du réflecteur local, ou <c>null</c> :
+    /// statut indisponible, réflecteur distant, ou nœud absent de l'instantané.
+    /// </summary>
+    private int? TalkGroupOf(string name)
+    {
+        var status = _statusService.Current;
+        if (!status.IsAvailable)
+            return null;
+
+        return status.Nodes
+            .FirstOrDefault(node => string.Equals(node.Callsign, name, StringComparison.OrdinalIgnoreCase))
+            ?.TalkGroup;
+    }
+
+    /// <summary>
+    /// Republie la liste quand le statut du réflecteur change les talkgroups connus.
+    /// </summary>
+    /// <remarks>
+    /// <c>OnNodesInitialized</c> et non <c>OnNodeJoined</c> : aucun nœud n'arrive ni ne part
+    /// ici, et les notifications de connexion ne doivent pas se déclencher à chaque
+    /// changement de talkgroup.
+    /// </remarks>
+    private void OnReflectorStatusChanged(ReflectorStatusSnapshot status)
+    {
+        try
+        {
+            IReadOnlyList<ConnectedNodeInfo> nodes;
+            lock (_lock)
+            {
+                if (_nodes.Count == 0)
+                    return;
+
+                nodes = _nodes.Select(name => Describe(name, _txNodes.Contains(name))).ToList().AsReadOnly();
+            }
+
+            OnNodesInitialized?.Invoke(nodes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la mise à jour des talkgroups des nœuds connectés");
+        }
     }
 
     private void OnLogReceived(SvxLinkLogEntry entry)
@@ -125,7 +189,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
                 }
             }
 
-            var connectedNodesList = nodeNames.Select(n => new ConnectedNodeInfo(n)).ToList().AsReadOnly();
+            var connectedNodesList = nodeNames.Select(n => Describe(n, isTx: false)).ToList().AsReadOnly();
             _logger.LogInformation("Liste de nœuds connectés initialisée : {Count} nœud(s)", connectedNodesList.Count);
 
             OnNodesInitialized?.Invoke(connectedNodesList);
@@ -164,7 +228,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
             if (wasAdded)
             {
                 _logger.LogInformation("Nœud connecté : {NodeName}", nodeName);
-                OnNodeJoined?.Invoke(new ConnectedNodeInfo(nodeName));
+                OnNodeJoined?.Invoke(Describe(nodeName, isTx: false));
             }
             else
             {
@@ -260,7 +324,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
             if (nodeExists)
             {
                 _logger.LogInformation("Nœud en émission (TX start) : {NodeName}", nodeName);
-                OnNodeTxStarted?.Invoke(new ConnectedNodeInfo(nodeName, true));
+                OnNodeTxStarted?.Invoke(Describe(nodeName, isTx: true));
             }
             else
             {
@@ -290,7 +354,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
             if (wasTransmitting)
             {
                 _logger.LogInformation("Nœud arrête l'émission (TX stop) : {NodeName}", nodeName);
-                OnNodeTxStopped?.Invoke(new ConnectedNodeInfo(nodeName, false));
+                OnNodeTxStopped?.Invoke(Describe(nodeName, isTx: false));
             }
             else
             {
@@ -322,6 +386,7 @@ public class ConnectedNodesTracker : IConnectedNodesService, IDisposable
             return;
 
         _logService.OnLogReceived -= OnLogReceived;
+        _statusService.OnStatusChanged -= OnReflectorStatusChanged;
         _logger.LogInformation("ConnectedNodesTracker dispose - désabonnement des logs SVXLink");
 
         _disposed = true;

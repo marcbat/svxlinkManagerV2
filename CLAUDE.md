@@ -184,6 +184,16 @@ Un daemon actif ne garantit pas une liaison : `AUTH_KEY` erronée, hôte injoign
 
 **Une PKI de réflecteur régénérée casse la confiance dans les deux sens** — vérifié sur la stack le 07/09/2026 en recréant le volume `svxlink-pki-reflector`. Supprimer le `ca-bundle.crt` rétablit le chiffrement, mais le réflecteur rejette ensuite le certificat du nœud, signé par l'ancienne autorité : `tls_process_client_certificate: certificate verify failed` côté serveur, et côté nœud une simple `Connection closed by remote peer` — aucun message de certificat, donc aucune cause identifiable depuis le nœud. Le rétablissement complet demande de supprimer aussi le `.crt` et le `.csr` du nœud pour qu'il émette une nouvelle demande de signature. `ResetReflectorTrustCommand` ne le fait délibérément pas : sur un réflecteur distant, la signature dépend d'un tiers, et détruire le certificat du nœud transformerait une panne réparable en attente indéfinie. Les commandes d'activation appellent `BeginConnecting()` (salon réflecteur) ou `MarkNotApplicable()` (salon perroquet, mode autonome) avant le redémarrage du daemon — en mode autonome le tracker ignore les logs, sinon des lignes résiduelles feraient apparaître une liaison en erreur. **Ajouter un motif de log reconnu impose de mettre à jour `ReflectorLinkStateTracker.Interpret` et ses tests**, en vérifiant les deux versions de SVXLink (`ReflectorLogic.cpp`).
 
+### Nœuds connectés et leur talkgroup
+
+`ConnectedNodesTracker` (singleton) tient la liste des nœuds connectés en parsant les lignes `Connected nodes:`, `Node joined:`, `Node left:`, `Talker start:` et `Talker stop:`. Ces lignes fonctionnent avec **n'importe quel** réflecteur, distant compris.
+
+**Elles ne portent pas le talkgroup de chaque nœud** — seulement des indicatifs. Ce champ vient donc de l'API de statut du réflecteur local (voir ci-dessous), et reste `null` sur un réflecteur distant, où l'API n'est pas accessible. Le tableau de bord ne groupe par talkgroup que si le salon actif est en V3 **et** qu'au moins un nœud a un talkgroup connu ; sinon il conserve la liste plate. Tout ranger sous « aucun talkgroup » faute d'information serait plus trompeur que de ne rien grouper.
+
+En V3, la liste plate est de toute façon trompeuse : deux nœuds connectés au même réflecteur sur des talkgroups différents ne s'entendent pas, et rien ne l'expliquait à l'opérateur.
+
+Le talkgroup d'un nœud change **sans qu'aucune ligne de log ne le dise**. Le tracker s'abonne donc à `IReflectorStatusService.OnStatusChanged` et republie la liste via `OnNodesInitialized` — et non `OnNodeJoined`, qui déclenche une notification d'arrivée dans l'interface et sonnerait à chaque changement de talkgroup.
+
 ### Statut du réflecteur local (API HTTP)
 
 SVXLink 25.05 expose l'état complet des nœuds connectés sur le serveur HTTP du réflecteur, activé par `HTTP_SRV_PORT`. C'est l'interface prévue par l'amont pour la supervision — l'outil officiel `svxreflector-status` ne fait rien d'autre que la lire — et elle donne ce que les logs ne donnent pas : le talkgroup de chaque nœud, ses talkgroups surveillés, sa version de protocole.
