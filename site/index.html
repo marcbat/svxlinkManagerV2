@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HBSpot &amp; SvxlinkManager</title>
+  <meta name="description" content="HBSpot, hotspot radio autonome, et SvxlinkManager, le logiciel qui le pilote, pour rejoindre le Salon Suisse Romand.">
+  <link rel="icon" href="img/hbspot-favico.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Roboto+Slab:wght@300;400&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/site.css">
+  <script>
+    // Les anciennes adresses WordPress (?page_id=...) arrivent toutes ici.
+    (function () {
+      var pages = { "3384": "hbspot.html", "3389": "svxlinkmanager.html", "3393": "salon-suisse-romand.html" };
+      var id = new URLSearchParams(location.search).get("page_id");
+      if (pages[id]) location.replace(pages[id]);
+    })();
+  </script>
+</head>
+<body>
+  <header class="entete">
+    <div class="conteneur">
+      <a class="logo" href="index.html"><img src="img/titre-hbspot.png" width="113" height="41" alt="HBSpot"></a>
+      <nav aria-label="Navigation principale">
+        <ul class="menu">
+          <li><a href="index.html" aria-current="page">Accueil</a></li>
+          <li><a href="hbspot.html">HBSpot</a></li>
+          <li><a href="svxlinkmanager.html">SvxlinkManager</a></li>
+          <li><a href="salon-suisse-romand.html">Salon Suisse Romand</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="bandeau"><h1>HBSPOT &amp; SvxlinkManager</h1></div>
+
+    <section class="section">
+      <div class="conteneur">
+        <h3 class="introduction">Les projets HBSpot et SvxlinkManager sont faits pour fonctionner de concert et offrir une expérience simple et agréable.</h3>
+      </div>
+    </section>
+
+    <section class="section section--serree">
+      <div class="conteneur cartes">
+        <a class="carte carte--lien" href="hbspot.html">
+          <span class="pastille"><i class="fas fa-tower-broadcast" aria-hidden="true"></i></span>
+          <h2>HBSpot</h2>
+          <p>Le HBSpot est un hotspot autonome, en VHF ou UHF, qui permet de rejoindre différents salons en quelques clics.<br>Vous pouvez également le piloter via DTMF.</p>
+        </a>
+        <a class="carte carte--lien" href="svxlinkmanager.html">
+          <span class="pastille"><i class="fas fa-chalkboard" aria-hidden="true"></i></span>
+          <h2>SvxlinkManager</h2>
+          <p>SvxlinkManager est la partie logicielle du projet. Elle permet de configurer le HBSpot pour se connecter facilement aux salons prédéfinis ou à des salons personnalisés.</p>
+        </a>
+        <a class="carte carte--lien" href="salon-suisse-romand.html">
+          <span class="pastille"><i class="fas fa-couch" aria-hidden="true"></i></span>
+          <h2>Salon Romand</h2>
+          <p>Le Salon Suisse Romand est un réflecteur créé pour connecter les différents HBSpot et les relais VHF-UHF à travers la Suisse romande.</p>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="pied">
+      <div class="conteneur">
+        <h4>Nous contacter</h4>
+        <p>Email : <a href="mailto:marcbat79@gmail.com">marcbat79@gmail.com</a></p>
+      </div>
+    </div>
+    <div class="pied-bas">
+      <div class="conteneur">© 2021 – 2026 HBSpot · SvxlinkManager</div>
+    </div>
+  </footer>
+</body>
+</html>

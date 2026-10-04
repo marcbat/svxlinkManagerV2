@@ -470,6 +470,7 @@ Ce qu'il faut en retenir :
 - **Mocks d'infrastructure activés par configuration** : `SA818:UseMock`, `Wifi:UseMock`, `SvxLink:UseMockDaemon`, `Audio:UseMock`. Ce sont des implémentations de production destinées au développement sans matériel — **pas** des mocks de tests.
 - **Cible de production** : Orange Pi (ARM 32 bits, RID `linux-arm`, arch Debian `armhf`) sous Armbian, service systemd `svxlinkmanagerv2.service`. Le code d'infrastructure suppose un environnement Linux (`nmcli`, `pico2wave`, PTY, `/dev/ttyS2`).
 - **`src/SvxlinkManagerV2.Infrastructure/Class1.cs`** est un vestige de template vide, sans usage.
+- **`site/` est le site de présentation HBSpot**, sans lien avec l'application : HTML et CSS statiques, publiés à la main par `site/deploy.ps1` sur la web app Azure `hbspot` (plan gratuit F1, https://hbspot.azurewebsites.net). Il remplace l'ancien WordPress ; les adresses `?page_id=...` de celui-ci sont redirigées par `index.html`. Aperçu local : `python -m http.server 8090 --directory site`.
 
 ## Tests
 

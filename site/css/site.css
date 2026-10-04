@@ -1,0 +1,191 @@
+/* Reprise à la main du look de l'ancien site WordPress (thème Avada), sans son code. */
+:root {
+  --violet: #563999;
+  --violet-clair: #926de6;
+  --violet-titre: #b1aaff;
+  --violet-degrade: #7a6e99;
+  --texte: #747474;
+  --titre: #333333;
+  --fond: #ffffff;
+  --pied: #363839;
+  --pied-bas: #282a2b;
+  --pied-texte: #8c8989;
+  --pied-lien: #bfbfbf;
+  --ombre-carte: 0 10px 51px 3px rgba(0, 0, 0, 0.15);
+  --largeur: 1170px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font: 16px/1.69 "PT Sans", Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3 {
+  margin: 0 0 0.6em;
+  color: var(--titre);
+  font-family: "Roboto Slab", Georgia, serif;
+  font-weight: 300;
+  line-height: 1.25;
+}
+
+p { margin: 0 0 1.2em; }
+b, strong { color: #5a5a5a; }
+a { color: var(--violet); }
+a:hover { color: var(--violet-clair); }
+img { max-width: 100%; height: auto; }
+
+.conteneur {
+  max-width: calc(var(--largeur) + 60px);
+  margin: 0 auto;
+  padding: 0 30px;
+}
+
+/* En-tête */
+.entete { background: #fff; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06); }
+.entete .conteneur { display: flex; align-items: center; justify-content: space-between; min-height: 99px; gap: 24px; }
+.logo img { display: block; width: 113px; height: 41px; }
+.menu { display: flex; flex-wrap: wrap; gap: 0 44px; margin: 0; padding: 0; list-style: none; }
+.menu a {
+  display: block;
+  padding: 37px 0;
+  border-top: 2.4px solid transparent;
+  color: var(--violet);
+  font: 14px/1 "Roboto Slab", Georgia, serif;
+  text-decoration: none;
+}
+.menu a:hover,
+.menu a[aria-current="page"] { color: var(--violet-clair); border-top-color: var(--violet-clair); }
+
+/* Bandeau de titre */
+.bandeau {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 40px 30px;
+  background: #3a3a3a url("../img/banner.png") center / cover no-repeat;
+  text-align: center;
+}
+.bandeau h1 { margin: 0; color: var(--violet-titre); font-size: 48px; }
+
+/* Sections */
+.section { padding: 60px 0 20px; }
+.section--serree { padding-top: 0; }
+.introduction { max-width: 900px; margin: 0 auto; font-size: 28px; text-align: center; line-height: 1.6; }
+
+.deux-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+.deux-colonnes h2 { font-size: 48px; }
+
+.accroche { margin: 10px 0 30px; color: var(--violet); font-size: 25px; }
+
+/* Cartes */
+.cartes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+.carte {
+  padding: 55px 30px 30px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--ombre-carte);
+  text-align: center;
+}
+.carte h2 { font-size: 40px; }
+.carte--lien { display: block; color: inherit; text-decoration: none; transition: transform 0.2s ease; }
+.carte--lien:hover { color: inherit; transform: translateY(-4px); }
+.carte--fonction { padding: 30px; text-align: left; }
+.carte--fonction h3 { font-size: 24px; text-align: center; }
+.carte--large { text-align: left; }
+.carte--large h2 { display: flex; align-items: center; gap: 16px; }
+
+.pastille {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  font-size: 22px;
+}
+.carte--large .pastille { margin-bottom: 0; flex: none; }
+
+.liste-cochee { margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 1.7; }
+.liste-cochee li { position: relative; margin-bottom: 10px; padding-left: 36px; }
+.liste-cochee li::before {
+  content: "\f00c";
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  font: 900 12px/1 "Font Awesome 6 Free";
+}
+
+/* Bouton */
+.actions { margin: 10px 0 30px; text-align: center; }
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 29px;
+  border-radius: 8px;
+  background: linear-gradient(to top, var(--violet-degrade), var(--violet));
+  color: #fff;
+  font: 700 14px/1.4 "PT Sans", Arial, sans-serif;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.bouton:hover { color: #fff; filter: brightness(1.12); }
+
+.photos { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; justify-items: center; padding-bottom: 40px; }
+.photos img { width: 400px; }
+
+.parametres { margin: 0; }
+.parametres dt { display: inline; color: #5a5a5a; font-weight: 700; }
+.parametres dt::after { content: " : "; }
+.parametres dd { display: inline; margin: 0; word-break: break-word; }
+.parametres dd::after { content: ""; display: block; }
+
+.capture { display: block; margin: 30px auto 0; border-radius: 4px; }
+
+/* Pied de page */
+.pied { margin-top: 60px; border-top: 12px solid #e9eaee; background: var(--pied); color: var(--pied-texte); }
+.pied .conteneur { padding-top: 63px; padding-bottom: 60px; }
+.pied h4 { margin: 0 0 16px; color: #fff; font: 400 15px/1.5 "PT Sans", Arial, sans-serif; text-transform: uppercase; }
+.pied p { margin: 0; }
+.pied a { color: var(--pied-lien); text-decoration: none; }
+.pied a:hover { color: #fff; }
+.pied-bas { border-top: 1px solid #4b4c4d; background: var(--pied-bas); color: var(--pied-texte); font-size: 13px; }
+.pied-bas .conteneur { padding-top: 18px; padding-bottom: 16px; }
+
+/* Petits écrans */
+@media (max-width: 1000px) {
+  .cartes { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 800px) {
+  .entete { position: static; }
+  .entete .conteneur { flex-direction: column; min-height: 0; padding-top: 20px; gap: 12px; }
+  .menu { justify-content: center; gap: 0 24px; }
+  .menu a { padding: 12px 0; }
+  .bandeau { min-height: 180px; }
+  .bandeau h1 { font-size: 34px; }
+  .introduction { font-size: 22px; }
+  .deux-colonnes, .cartes, .photos { grid-template-columns: 1fr; gap: 24px; }
+  .deux-colonnes h2 { font-size: 34px; }
+  .carte h2 { font-size: 32px; }
+  .conteneur { padding: 0 16px; }
+  .section { padding-top: 40px; }
+}

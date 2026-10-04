@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SvxlinkManager – HBSpot &amp; SvxlinkManager</title>
+  <meta name="description" content="SvxlinkManager, l'application web qui pilote le HBSpot : salons, DTMF, radio, audio, statistiques et supervision.">
+  <link rel="icon" href="img/hbspot-favico.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Roboto+Slab:wght@300;400&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <header class="entete">
+    <div class="conteneur">
+      <a class="logo" href="index.html"><img src="img/titre-hbspot.png" width="113" height="41" alt="HBSpot"></a>
+      <nav aria-label="Navigation principale">
+        <ul class="menu">
+          <li><a href="index.html">Accueil</a></li>
+          <li><a href="hbspot.html">HBSpot</a></li>
+          <li><a href="svxlinkmanager.html" aria-current="page">SvxlinkManager</a></li>
+          <li><a href="salon-suisse-romand.html">Salon Suisse Romand</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="bandeau"><h1>SvxlinkManager</h1></div>
+
+    <section class="section">
+      <div class="conteneur deux-colonnes">
+        <h2>Le cœur de votre HBSpot</h2>
+        <div>
+          <p><b>SvxlinkManager</b> est un logiciel qui a été développé dans le but de vous permettre de piloter votre <b>HBSpot</b>.</p>
+          <p>Il se présente sous la forme d’une application web accessible depuis un ordinateur ou un smartphone, et s’installe sur un Orange Pi sous Armbian depuis un dépôt APT.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--serree">
+      <div class="conteneur">
+        <p class="actions">
+          <a class="bouton" href="https://marcbat.github.io/svxlinkManagerV2/" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>Installer la dernière version
+          </a>
+        </p>
+
+        <p class="accroche">Principales fonctionnalités de SvxlinkManager</p>
+
+        <div class="cartes">
+          <div class="carte carte--fonction">
+            <h3>Accueil</h3>
+            <ul class="liste-cochee">
+              <li>Voir la liste des nœuds connectés au salon</li>
+              <li>Suivre l’état de la liaison au réflecteur</li>
+              <li>Basculer entre les salons configurés</li>
+            </ul>
+          </div>
+          <div class="carte carte--fonction">
+            <h3>Salons</h3>
+            <ul class="liste-cochee">
+              <li>Réflecteurs SVXLink en protocole V2 ou V3, avec talkgroups</li>
+              <li>Définir un salon par défaut, activé au démarrage</li>
+              <li>Salon perroquet pour tester sa station</li>
+              <li>Un code DTMF par salon</li>
+            </ul>
+          </div>
+          <div class="carte carte--fonction">
+            <h3>DTMF</h3>
+            <ul class="liste-cochee">
+              <li>Changer de salon depuis la radio</li>
+              <li>Annonces vocales : température, adresse IP, état du réseau…</li>
+              <li>Commandes système à distance</li>
+            </ul>
+          </div>
+          <div class="carte carte--fonction">
+            <h3>Radio et audio</h3>
+            <ul class="liste-cochee">
+              <li>Réglage du module SA818 : volume, squelch, filtres</li>
+              <li>Niveaux de la carte son</li>
+              <li>Tests de PTT et de modulation</li>
+              <li>Lecture du RSSI</li>
+            </ul>
+          </div>
+          <div class="carte carte--fonction">
+            <h3>Statistiques</h3>
+            <ul class="liste-cochee">
+              <li>Historique du temps passé sur chaque salon</li>
+              <li>Disponibilité de la liaison au réflecteur</li>
+              <li>Activité par heure et par jour de la semaine</li>
+            </ul>
+          </div>
+          <div class="carte carte--fonction">
+            <h3>Système et Wifi</h3>
+            <ul class="liste-cochee">
+              <li>Supervision : température, disque, mémoire, charge</li>
+              <li>Configuration d’un ou plusieurs points d’accès Wifi</li>
+              <li>Mises à jour depuis l’interface</li>
+              <li>Accès protégé par un compte</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="pied">
+      <div class="conteneur">
+        <h4>Nous contacter</h4>
+        <p>Email : <a href="mailto:marcbat79@gmail.com">marcbat79@gmail.com</a></p>
+      </div>
+    </div>
+    <div class="pied-bas">
+      <div class="conteneur">© 2021 – 2026 HBSpot · SvxlinkManager</div>
+    </div>
+  </footer>
+</body>
+</html>
