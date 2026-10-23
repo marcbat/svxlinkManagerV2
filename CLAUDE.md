@@ -68,7 +68,18 @@ pwsh ./build-deb.ps1 -PackageVersion 0.1.0
 
 **Gitflow strict** : `master`/`main` (production), `develop` (intégration), `feature/*`, `release/*`, `hotfix/*`.
 
-Versioning par **GitVersion** (`GitVersion.yml`, mode `ContinuousDeployment`). La CI (`.github/workflows/build-deb.yml`) construit un `.deb` sur push vers `main`/`master`/`develop`/`release/*`/`hotfix/*`, exécute les tests, et publie une GitHub Release avec un `manifest.json` consommé par le service de mise à jour OTA de l'application.
+**`develop` et `main` refusent tout push direct.** Leurs rulesets imposent une pull request, et deux vérifications vertes : les jobs `Tests unitaires` et `Tests d'intégration` de [`pull-request.yml`](.github/workflows/pull-request.yml). Aucune exception n'est accordée aux administrateurs, et aucune approbation n'est exigée — avec deux contributeurs, elle bloquerait chaque fusion dans l'attente de l'autre. Renommer un de ces jobs impose de mettre à jour les rulesets.
+
+Versioning par **GitVersion** (`GitVersion.yml`, mode `ContinuousDeployment`). Une fois la fusion faite, [`build-deb.yml`](.github/workflows/build-deb.yml) construit un `.deb` sur push vers `main`/`develop`/`release/*`/`hotfix/*`, relance les tests unitaires en dernière sécurité et publie une GitHub Release ; [`publish-apt.yml`](.github/workflows/publish-apt.yml) en tire ensuite le dépôt APT (GitHub Pages) qui sert les mises à jour des nœuds. Les versions alpha alimentent le canal `development`, les beta `beta`, les stables `stable`, et les canaux sont cumulatifs.
+
+**Procédure de release** :
+
+1. Créer `release/X.Y.Z` depuis `develop` — la branche n'est pas protégée.
+2. Ouvrir la PR `release/X.Y.Z` → `main` et attendre les deux vérifications, puis fusionner (merge commit). La CI publie la release stable.
+3. **Reporter la release dans `develop` par une PR `main` → `develop`**, et non plus par l'API `merges` : c'est un push sur `develop`, que le ruleset refuse.
+4. **Ne rien fusionner dans `develop` entre l'étape 1 et la fusion dans `main`.** Dès qu'une branche `release/X.Y.0` existe, GitVersion fait passer `develop` à la minor suivante ; un build de `develop` à ce moment pose un tag `X.(Y+1).0-alpha.N` que `main` voit après la fusion, et la stable sort en `X.(Y+1).0`. C'est ce qui a donné une 1.7.0 au lieu de la 1.6.0.
+
+Le ruleset de `main` exige une branche **à jour** avec sa cible ; celui de `develop` non. Une PR `main` → `develop` n'est jamais à jour avec `develop` — l'exiger obligerait à fusionner `develop` dans `main`, ce qui défait le gitflow.
 
 **Commits** : `préfixe: description` en français. Préfixes : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
 
@@ -494,7 +505,7 @@ C'est le filet qui manquait : les tests unitaires ne couvrent que la **générat
 - **Ils sont ignorés par défaut.** `DockerComposeFactAttribute` ne les exécute que si `SVXLINK_INTEGRATION_TESTS=1` : `dotnet test SvxlinkManagerV2.sln` reste donc exécutable sans Docker et sans filtre. Ils portent aussi `Trait("Category", "Integration")`.
 - **La stack est le sujet du test**, pas un décor : ils pilotent le `docker-compose.yml` du dépôt sous un nom de projet dédié (`svxlink-integration`), avec `down -v` avant et après — la stack de développement du contributeur n'est pas touchée, et une CA laissée par une exécution précédente ne peut pas masquer une régression de la chaîne de signature.
 - **L'application .NET n'est pas montée** : la chaîne éprouvée (PKI, signature, chiffrement, login) passe intégralement par les nœuds nus, et son image coûterait plusieurs minutes de plus.
-- **Durées mesurées** (poste de développement, 06/09/2026) : **1 min 15 s** images déjà construites — la connexion du nœud en est l'essentiel, le réflecteur refusant la première tentative avant de faire signer la CSR — et **2 min 20 s** de plus pour construire les deux images à froid (`--no-cache`), SVXLink 25.05 étant compilé depuis les sources avec `make -j$(nproc)`. Sur un runner GitHub à 2 vCPU, cette compilation domine largement le job : le workflow [`integration-tests.yml`](.github/workflows/integration-tests.yml) est prévu avec `timeout-minutes: 90` et publie sa durée réelle dans le résumé du job. C'est ce coût qui justifie de le tenir hors de la boucle de chaque commit, sur `develop` et `release/*` seulement.
+- **Durées mesurées** (poste de développement, 06/09/2026) : **1 min 15 s** images déjà construites — la connexion du nœud en est l'essentiel, le réflecteur refusant la première tentative avant de faire signer la CSR — et **2 min 20 s** de plus pour construire les deux images à froid (`--no-cache`), SVXLink 25.05 étant compilé depuis les sources avec `make -j$(nproc)`. Sur un runner GitHub, le job complet a pris **3 à 4 min** à chaque exécution relevée entre septembre et octobre 2026, images comprises : la crainte initiale d'une compilation de plusieurs dizaines de minutes ne s'est pas vérifiée. C'est ce qui permet d'en faire une **vérification obligatoire de chaque pull request** (job `Tests d'intégration` de [`pull-request.yml`](.github/workflows/pull-request.yml), `timeout-minutes: 30`) plutôt qu'un contrôle a posteriori de `develop`. Le job publie sa durée réelle dans son résumé.
 - **Vérifié le 06/09/2026** : en retirant `openssl` de l'image du réflecteur, aucun `Login OK` n'est journalisé et le hook affiche « dépendance manquante » — les tests tombent bien, ce qui était l'objet de leur écriture.
 
 ## Références externes

@@ -1,0 +1,111 @@
+name: Pull request
+
+# Garde-fou avant fusion dans develop et main : les deux jobs ci-dessous sont des
+# vérifications obligatoires des rulesets de ces branches, qui refusent aussi tout push
+# direct. Rien n'y entre donc sans être passé par ici — y compris le report d'une
+# release de main vers develop.
+#
+# Le build sur push (build-deb.yml) ne fait plus qu'empaqueter et publier : il relance
+# les tests unitaires en dernière sécurité, mais n'est plus le premier à les exécuter.
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+# Un nouveau commit poussé sur la PR rend l'exécution en cours caduque.
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    # Le nom du job est celui de la vérification exigée par les rulesets : le renommer
+    # impose de mettre à jour les rulesets de develop et main.
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # src/ cible net8.0, tests/ cible net9.0.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Exécuter les tests unitaires
+        # Les tests d'intégration sont compris dans la solution mais se déclarent ignorés
+        # sans SVXLINK_INTEGRATION_TESTS : ils ont leur propre job ci-dessous.
+        run: |
+          dotnet test SvxlinkManagerV2.sln \
+            -c Release \
+            --logger "trx" \
+            --results-directory artifacts/test-results
+
+      - name: Publier les résultats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  integration:
+    # Même remarque que pour le job unit : ce nom est référencé par les rulesets.
+    name: Tests d'intégration
+    runs-on: ubuntu-latest
+    # Mesuré entre 3 et 4 min sur un runner GitHub, images construites à froid comprises.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Le projet de tests d'intégration cible net9.0, comme les autres projets tests/.
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Exécuter les tests d'intégration
+        env:
+          # Sans cette variable, les tests se déclarent ignorés : c'est ce qui permet
+          # à `dotnet test SvxlinkManagerV2.sln` de rester exécutable sans Docker.
+          SVXLINK_INTEGRATION_TESTS: '1'
+        run: |
+          start=$(date +%s)
+          dotnet test tests/SvxlinkManagerV2.Integration.Tests \
+            -c Release \
+            --logger "trx;LogFileName=SvxlinkManagerV2.Integration.Tests.trx" \
+            --logger "console;verbosity=detailed" \
+            --results-directory artifacts/test-results
+          status=$?
+          elapsed=$(( $(date +%s) - start ))
+          echo "Durée du job d'intégration : $((elapsed / 60)) min $((elapsed % 60)) s" >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Journaux de la stack en cas d'échec
+        if: failure()
+        run: docker compose -p svxlink-integration logs --no-color || true
+
+      - name: Nettoyer la stack
+        if: always()
+        run: docker compose -p svxlink-integration down -v --remove-orphans || true
+
+      - name: Publier les résultats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
