@@ -125,7 +125,7 @@ else if (_salon is not null)
                                 <option value="">Aucun</option>
                                 @foreach (var (freq, label) in _ctcssOptions)
                                 {
-                                    <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                                    <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                                 }
                             </select>
                         </div>
@@ -135,7 +135,7 @@ else if (_salon is not null)
                                 <option value="">Aucun</option>
                                 @foreach (var (freq, label) in _ctcssOptions)
                                 {
-                                    <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                                    <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                                 }
                             </select>
                         </div>
@@ -669,8 +669,8 @@ else if (_salon is not null)
 
         _model.RxFrequency        = salon.Configuration.RxFrequency;
         _model.TxFrequency        = salon.Configuration.TxFrequency;
-        _model.RxCtcssStr         = cfg.RxCtcss?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
-        _model.TxCtcssStr         = cfg.TxCtcss?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+        _model.RxCtcssStr         = CtcssDropdownService.ToOptionValue(cfg.RxCtcss);
+        _model.TxCtcssStr         = CtcssDropdownService.ToOptionValue(cfg.TxCtcss);
         _model.Host               = cfg.Host;
         _model.Port               = cfg.Port;
         _model.Callsign           = cfg.Callsign;
@@ -813,13 +813,7 @@ else if (_salon is not null)
         }
     }
 
-    private static decimal? ParseCtcss(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return null;
-        return decimal.TryParse(value, System.Globalization.NumberStyles.Number,
-                                System.Globalization.CultureInfo.InvariantCulture, out var d)
-               ? d : null;
-    }
+    private static decimal? ParseCtcss(string? value) => CtcssDropdownService.ParseOptionValue(value);
 
     // ── Modèle de formulaire ──────────────────────────────────
     public class EditModel

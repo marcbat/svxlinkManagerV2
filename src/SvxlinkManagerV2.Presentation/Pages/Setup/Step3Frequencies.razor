@@ -71,7 +71,7 @@
                     <option value="">Aucun</option>
                     @foreach (var (freq, label) in CtcssDropdownService.GetCtcssOptions())
                     {
-                        <option value="@freq">@label</option>
+                        <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                     }
                 </select>
             </div>
@@ -85,7 +85,7 @@
                     <option value="">Aucun</option>
                     @foreach (var (freq, label) in CtcssDropdownService.GetCtcssOptions())
                     {
-                        <option value="@freq">@label</option>
+                        <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                     }
                 </select>
             </div>
@@ -125,8 +125,8 @@
         // Pré-remplir depuis l'état du wizard si l'utilisateur revient en arrière
         _rxFrequency = WizardState.Data.RxFrequency;
         _txFrequency = WizardState.Data.TxFrequency;
-        _rxCtcssString = WizardState.Data.RxCtcss?.ToString() ?? string.Empty;
-        _txCtcssString = WizardState.Data.TxCtcss?.ToString() ?? string.Empty;
+        _rxCtcssString = CtcssDropdownService.ToOptionValue(WizardState.Data.RxCtcss);
+        _txCtcssString = CtcssDropdownService.ToOptionValue(WizardState.Data.TxCtcss);
     }
 
     private void GoBack() => Nav.NavigateTo("/setup/wifi");
@@ -149,10 +149,8 @@
         if (_rxFrequencyError != null || _txFrequencyError != null)
             return;
 
-        var rxCtcss = string.IsNullOrEmpty(_rxCtcssString) ? (decimal?)null :
-            decimal.TryParse(_rxCtcssString, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rx) ? rx : (decimal?)null;
-        var txCtcss = string.IsNullOrEmpty(_txCtcssString) ? (decimal?)null :
-            decimal.TryParse(_txCtcssString, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tx) ? tx : (decimal?)null;
+        var rxCtcss = CtcssDropdownService.ParseOptionValue(_rxCtcssString);
+        var txCtcss = CtcssDropdownService.ParseOptionValue(_txCtcssString);
 
         WizardState.Data = WizardState.Data with
         {

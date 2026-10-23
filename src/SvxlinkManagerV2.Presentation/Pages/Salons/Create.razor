@@ -94,7 +94,7 @@
                             <option value="">Aucun</option>
                             @foreach (var (freq, label) in _ctcssOptions)
                             {
-                                <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                                <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                             }
                         </select>
                     </div>
@@ -104,7 +104,7 @@
                             <option value="">Aucun</option>
                             @foreach (var (freq, label) in _ctcssOptions)
                             {
-                                <option value="@freq.ToString(System.Globalization.CultureInfo.InvariantCulture)">@label</option>
+                                <option value="@CtcssDropdownService.ToOptionValue(freq)">@label</option>
                             }
                         </select>
                     </div>
@@ -672,13 +672,7 @@
         }
     }
 
-    private static decimal? ParseCtcss(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return null;
-        return decimal.TryParse(value, System.Globalization.NumberStyles.Number,
-                                System.Globalization.CultureInfo.InvariantCulture, out var d)
-               ? d : null;
-    }
+    private static decimal? ParseCtcss(string? value) => CtcssDropdownService.ParseOptionValue(value);
 
     // ── Modèle de formulaire ──────────────────────────────────
     public class SalonFormModel
